@@ -1,0 +1,46 @@
+{
+  "repositories": [
+    {
+      "name": "autogen-event-agents",
+      "url": "file://c:/code/unityai/Trae-integration/trae-remote/backend/services/autogen-event-agents",
+      "branch": "main",
+      "targetPath": "external/autogen-event-agents",
+      "team": "Backend Development Team",
+      "description": "Autonomous event-driven agents with API specifications and documentation",
+      "enabled": true,
+      "updateFrequency": "daily",
+      "tags": ["api", "events", "agents", "backend", "docs"],
+      "includePatterns": ["events/*.yml", "departments/**/*.md", "README.md", "pyproject.toml"],
+      "excludePatterns": ["src/**", "tests/**", "*.lock", ".git/**"]
+    },
+    {
+      "name": "frontend-components",
+      "url": "https://github.com/your-org/frontend-components.git",
+      "branch": "develop",
+      "targetPath": "external/frontend-components",
+      "team": "Frontend Team",
+      "description": "Shared frontend components and UI library",
+      "enabled": true,
+      "updateFrequency": "daily",
+      "tags": ["frontend", "ui", "components", "react"]
+    },
+    {
+      "name": "shared-utilities",
+      "url": "https://github.com/your-org/shared-utilities.git",
+      "branch": "main",
+      "targetPath": "external/shared-utilities",
+      "team": "Platform Team",
+      "description": "Common utilities and helper functions across all projects",
+      "enabled": true,
+      "updateFrequency": "weekly",
+      "tags": ["utilities", "helpers", "common", "typescript"]
+    }
+  ],
+  "settings": {
+    "autoCommit": true,
+    "createPullRequest": false,
+    "notifyOnUpdates": true,
+    "conflictResolution": "abort",
+    "maxRetries": 3
+  }
+}

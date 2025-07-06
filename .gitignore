@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# External repositories (auto-managed)
+# These are maintained by other teams and updated automatically
+external/
