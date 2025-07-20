@@ -87,26 +87,26 @@ export class ConnectionValidator {
       return { valid: false, error: 'Source or target node not found' };
     }
 
-    const sourceRules = NODE_CONNECTION_RULES[sourceNode.data.type];
-    const targetRules = NODE_CONNECTION_RULES[targetNode.data.type];
+    const sourceRules = NODE_CONNECTION_RULES[(sourceNode.data as any)?.type];
+    const targetRules = NODE_CONNECTION_RULES[(targetNode.data as any)?.type];
 
     if (!sourceRules || !targetRules) {
       return { valid: false, error: 'Unknown node type in connection' };
     }
 
     // Check if target is allowed for source
-    if (!sourceRules.allowedTargets.includes(targetNode.data.type)) {
+    if (!sourceRules.allowedTargets.includes((targetNode.data as any)?.type)) {
       return {
         valid: false,
-        error: `${sourceNode.data.type} cannot connect to ${targetNode.data.type}`
+        error: `${(sourceNode.data as any)?.type} cannot connect to ${(targetNode.data as any)?.type}`
       };
     }
 
     // Check if source is allowed for target
-    if (!targetRules.allowedSources.includes(sourceNode.data.type)) {
+    if (!targetRules.allowedSources.includes((sourceNode.data as any)?.type)) {
       return {
         valid: false,
-        error: `${targetNode.data.type} cannot accept connections from ${sourceNode.data.type}`
+        error: `${(targetNode.data as any)?.type} cannot accept connections from ${(sourceNode.data as any)?.type}`
       };
     }
 
@@ -116,7 +116,7 @@ export class ConnectionValidator {
   static validateWorkflow(nodes: Node[], edges: Edge[]): ValidationResult {
     // Check for required start nodes
     const hasValidStart = nodes.some(n => 
-      n.data.type === 'manual_trigger' || n.data.type === 'schedule_trigger'
+      (n.data as any)?.type === 'manual_trigger' || (n.data as any)?.type === 'schedule_trigger'
     );
 
     if (!hasValidStart) {
@@ -124,14 +124,14 @@ export class ConnectionValidator {
     }
 
     // Check for end nodes
-    const hasEnd = nodes.some(n => n.data.type === 'end');
+    const hasEnd = nodes.some(n => (n.data as any)?.type === 'end');
     if (!hasEnd) {
       return { valid: false, error: 'Workflow must have an End node' };
     }
 
     // Check Live Desktop + WebSocket requirement
-    const liveDesktopNodes = nodes.filter(n => n.data.type === 'live_desktop');
-    const websocketNodes = nodes.filter(n => n.data.type === 'websocket_comm');
+    const liveDesktopNodes = nodes.filter(n => (n.data as any)?.type === 'live_desktop');
+    const websocketNodes = nodes.filter(n => (n.data as any)?.type === 'websocket_comm');
 
     if (liveDesktopNodes.length > 0 && websocketNodes.length === 0) {
       return { 
@@ -149,8 +149,8 @@ export class ConnectionValidator {
 
     const orphanedNodes = nodes.filter(n => 
       !connectedNodeIds.has(n.id) && 
-      n.data.type !== 'manual_trigger' && 
-      n.data.type !== 'schedule_trigger'
+      (n.data as any)?.type !== 'manual_trigger' && 
+      (n.data as any)?.type !== 'schedule_trigger'
     );
 
     if (orphanedNodes.length > 0) {

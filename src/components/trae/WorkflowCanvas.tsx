@@ -53,7 +53,7 @@ import {
   Search,
   Wifi,
   Radio,
-  Template,
+  FileText,
   Cog
 } from 'lucide-react';
 
@@ -465,7 +465,7 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
               size="sm"
               className="bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:from-purple-600 hover:to-pink-700 transition-all duration-300 shadow-md"
             >
-              <Template className="w-4 h-4 mr-2" />
+              <FileText className="w-4 h-4 mr-2" />
               Templates
             </Button>
             <Button 

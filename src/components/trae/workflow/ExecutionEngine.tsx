@@ -62,7 +62,7 @@ export const ExecutionEngine: React.FC<ExecutionEngineProps> = ({
 
     // Start with trigger nodes
     const triggerNodes = nodes.filter(n => 
-      n.data.type === 'manual_trigger' || n.data.type === 'schedule_trigger'
+      (n.data as any)?.type === 'manual_trigger' || (n.data as any)?.type === 'schedule_trigger'
     );
     
     triggerNodes.forEach(node => visit(node.id));
@@ -86,7 +86,7 @@ export const ExecutionEngine: React.FC<ExecutionEngineProps> = ({
       let output: any = {};
       let duration = 1000; // Default 1 second
 
-      switch (node.data.type) {
+      switch ((node.data as any)?.type) {
         case 'manual_trigger':
           output = { triggered: true };
           duration = 100;
@@ -95,7 +95,7 @@ export const ExecutionEngine: React.FC<ExecutionEngineProps> = ({
         case 'websocket_comm':
           // Simulate WebSocket connection
           await new Promise(resolve => setTimeout(resolve, 500));
-          output = { connected: true, url: node.data.config?.url };
+          output = { connected: true, url: (node.data as any)?.config?.url };
           duration = 500;
           break;
           
@@ -104,7 +104,7 @@ export const ExecutionEngine: React.FC<ExecutionEngineProps> = ({
           await new Promise(resolve => setTimeout(resolve, 1000));
           output = { 
             captured: true, 
-            resolution: `${node.data.config?.width}x${node.data.config?.height}` 
+            resolution: `${(node.data as any)?.config?.width || 1920}x${(node.data as any)?.config?.height || 1080}` 
           };
           duration = 1000;
           break;
@@ -113,19 +113,19 @@ export const ExecutionEngine: React.FC<ExecutionEngineProps> = ({
           await new Promise(resolve => setTimeout(resolve, 300));
           output = { 
             clicked: true, 
-            coordinates: { x: node.data.config?.x, y: node.data.config?.y } 
+            coordinates: { x: (node.data as any)?.config?.x || 100, y: (node.data as any)?.config?.y || 100 } 
           };
           duration = 300;
           break;
           
         case 'type_text_action':
           await new Promise(resolve => setTimeout(resolve, 500));
-          output = { typed: true, text: node.data.config?.text };
+          output = { typed: true, text: (node.data as any)?.config?.text || 'Default text' };
           duration = 500;
           break;
           
         case 'delay':
-          const delayTime = (node.data.config?.duration || 1) * 1000;
+          const delayTime = ((node.data as any)?.config?.duration || 1) * 1000;
           await new Promise(resolve => setTimeout(resolve, delayTime));
           output = { delayed: true, duration: delayTime };
           duration = delayTime;
@@ -360,7 +360,7 @@ export const ExecutionEngine: React.FC<ExecutionEngineProps> = ({
             <Progress value={executionState.progress} className="w-full" />
             {executionState.currentNodeId && (
               <p className="text-sm text-muted-foreground">
-                Executing: {nodes.find(n => n.id === executionState.currentNodeId)?.data.label}
+                Executing: {String(nodes.find(n => n.id === executionState.currentNodeId)?.data?.label || 'Unknown Node')}
               </p>
             )}
           </div>
@@ -373,7 +373,7 @@ export const ExecutionEngine: React.FC<ExecutionEngineProps> = ({
             <div className="max-h-32 overflow-y-auto space-y-1">
               {executionState.results.map((result, index) => (
                 <div key={index} className="flex items-center justify-between text-sm p-2 bg-muted rounded">
-                  <span>{nodes.find(n => n.id === result.nodeId)?.data.label}</span>
+                  <span>{String(nodes.find(n => n.id === result.nodeId)?.data?.label || 'Unknown Node')}</span>
                   <div className="flex items-center space-x-2">
                     <Badge variant={result.success ? 'default' : 'destructive'}>
                       {result.success ? 'Success' : 'Error'}
