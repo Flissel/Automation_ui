@@ -124,6 +124,7 @@ const validateConnection = (params: Connection, nodes: Node[]) => ({
 });
 
 // Enhanced components
+import { DynamicNodeManager, nodeTemplates, NodeTemplate } from './DynamicNodeManager';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -474,27 +475,31 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
     setIsDirty(true);
   }, [readOnly, setNodes]);
 
-  // Add new node from library
-  const onAddNode = useCallback((nodeType: string, nodeCategory: string) => {
+  // Add new node from template
+  const onAddNodeFromTemplate = useCallback((template: NodeTemplate, position?: { x: number; y: number }) => {
     if (readOnly) return;
     
-    const position = reactFlowInstance.screenToFlowPosition({
+    const finalPosition = position || reactFlowInstance.screenToFlowPosition({
       x: Math.random() * 400 + 100,
       y: Math.random() * 400 + 100,
     });
 
     const newNode: Node<NodeData> = {
       id: `node-${Date.now()}`,
-      type: nodeType,
-      position,
+      type: template.type,
+      position: finalPosition,
       data: {
-        label: `${nodeType.charAt(0).toUpperCase() + nodeType.slice(1)} Node`,
-        type: nodeType,
-        category: nodeCategory,
+        label: template.label,
+        type: template.type,
+        category: template.category,
         status: 'idle',
-        config: {},
-        inputs: [],
-        outputs: [],
+        config: { ...template.defaultConfig },
+        inputs: template.inputs,
+        outputs: template.outputs,
+        description: template.description,
+        icon: template.icon.name,
+        color: template.color,
+        template: template.id,
       },
     };
 
@@ -502,7 +507,25 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
     setSelectedNode(newNode);
     setIsPropertyPanelOpen(true);
     setIsDirty(true);
+    setIsLibraryOpen(false);
+    toast.success(`Added ${template.label} node!`);
   }, [readOnly, reactFlowInstance, setNodes]);
+
+  // Delete node handler
+  const onDeleteNode = useCallback((nodeId: string) => {
+    if (readOnly) return;
+    
+    setNodes((nds) => nds.filter(n => n.id !== nodeId));
+    setEdges((eds) => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
+    
+    if (selectedNode?.id === nodeId) {
+      setSelectedNode(null);
+      setIsPropertyPanelOpen(false);
+    }
+    
+    setIsDirty(true);
+    toast.success('Node deleted!');
+  }, [readOnly, setNodes, setEdges, selectedNode]);
 
   // Configuration Panel Component
   const ConfigPanel: React.FC<{ node: Node<NodeData> | null; onUpdateNode: (nodeId: string, data: Partial<NodeData>) => void }> = ({ node, onUpdateNode }) => {
@@ -1064,89 +1087,38 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
         </div>
       </div>
 
-      {/* Node Library Modal */}
+      {/* Dynamic Node Library Modal */}
       {isLibraryOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="p-6 max-w-2xl w-full m-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Add Node</h3>
-              <Button variant="ghost" onClick={() => setIsLibraryOpen(false)}>×</Button>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-6 max-w-4xl w-full m-4 max-h-[80vh] overflow-hidden animate-scale-in">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-2xl font-bold bg-gradient-to-r from-slate-700 to-blue-600 bg-clip-text text-transparent">
+                  Dynamic Node Library
+                </h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  Choose from our collection of dynamic workflow nodes
+                </p>
+              </div>
+              <Button 
+                variant="ghost" 
+                onClick={() => setIsLibraryOpen(false)}
+                className="hover-scale rounded-full"
+              >
+                ×
+              </Button>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-medium mb-2">Triggers</h4>
-                <div className="space-y-2">
-                  <Button variant="outline" className="w-full justify-start" onClick={() => addNode('manual_trigger', 'Manual Trigger')}>
-                    <Play className="w-4 h-4 mr-2" />
-                    Manual Trigger
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => addNode('schedule_trigger', 'Schedule Trigger')}>
-                    <Timer className="w-4 h-4 mr-2" />
-                    Schedule Trigger
-                  </Button>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Desktop Actions</h4>
-                <div className="space-y-2">
-                  <Button variant="outline" className="w-full justify-start" onClick={() => addNode('live_desktop', 'Live Desktop')}>
-                    <Monitor className="w-4 h-4 mr-2" />
-                    Live Desktop
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => addNode('websocket_comm', 'WebSocket Comm')}>
-                    <Wifi className="w-4 h-4 mr-2" />
-                    WebSocket Comm
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => addNode('click_action', 'Click')}>
-                    <MousePointer className="w-4 h-4 mr-2" />
-                    Click
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => addNode('type_text_action', 'Type Text')}>
-                    <Keyboard className="w-4 h-4 mr-2" />
-                    Type Text
-                  </Button>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Logic & Control</h4>
-                <div className="space-y-2">
-                  <Button variant="outline" className="w-full justify-start" onClick={() => addNode('delay', 'Wait')}>
-                    <Timer className="w-4 h-4 mr-2" />
-                    Wait
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => addNode('if_condition', 'Condition')}>
-                    <GitBranch className="w-4 h-4 mr-2" />
-                    Condition
-                  </Button>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Data & API</h4>
-                <div className="space-y-2">
-                  <Button variant="outline" className="w-full justify-start" onClick={() => addNode('http_request_action', 'API Request')}>
-                    <Globe className="w-4 h-4 mr-2" />
-                    API Request
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => addNode('variable_store', 'Variable')}>
-                    <Database className="w-4 h-4 mr-2" />
-                    Variable
-                  </Button>
-                </div>
-              </div>
-
-              <div className="col-span-2">
-                <h4 className="font-medium mb-2">End</h4>
-                <Button variant="outline" className="w-full justify-start" onClick={() => addNode('end', 'End')}>
-                  <Square className="w-4 h-4 mr-2" />
-                  End
-                </Button>
-              </div>
+            <div className="h-full overflow-y-auto">
+              <DynamicNodeManager
+                onAddNode={onAddNodeFromTemplate}
+                onUpdateNode={onNodeDataChange}
+                onDeleteNode={onDeleteNode}
+                selectedNode={selectedNode}
+                nodes={nodes}
+              />
             </div>
-          </Card>
+          </div>
         </div>
       )}
     </div>
