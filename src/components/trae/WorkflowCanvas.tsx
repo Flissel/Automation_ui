@@ -383,8 +383,8 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
         category: nodeCategory,
         status: 'idle',
         config: {},
-        inputs: {},
-        outputs: {},
+        inputs: [],
+        outputs: [],
       },
     };
 
