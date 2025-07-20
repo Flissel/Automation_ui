@@ -147,7 +147,8 @@ import {
   GitBranch,
   Database,
   Zap,
-  AlertTriangle
+  AlertTriangle,
+  Search
 } from 'lucide-react';
 
 // Custom Node Component
@@ -408,6 +409,182 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
 
     const renderConfigForm = () => {
       switch (node.data.type) {
+        case 'live_desktop':
+          return (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="width">Width</Label>
+                  <Input
+                    id="width"
+                    type="number"
+                    value={node.data.config?.width || 1200}
+                    onChange={(e) => updateConfig('width', parseInt(e.target.value) || 1200)}
+                    placeholder="1200"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="height">Height</Label>
+                  <Input
+                    id="height"
+                    type="number"
+                    value={node.data.config?.height || 900}
+                    onChange={(e) => updateConfig('height', parseInt(e.target.value) || 900)}
+                    placeholder="900"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="pcTarget">Target PC</Label>
+                <Input
+                  id="pcTarget"
+                  value={node.data.config?.pcTarget || 'Windows PC'}
+                  onChange={(e) => updateConfig('pcTarget', e.target.value)}
+                  placeholder="Windows PC"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>OCR Regions</Label>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => {
+                    const regions = node.data.config?.ocrRegions || [];
+                    updateConfig('ocrRegions', [...regions, {
+                      id: Date.now(),
+                      x: 100,
+                      y: 100,
+                      width: 200,
+                      height: 50,
+                      name: `OCR Region ${regions.length + 1}`
+                    }]);
+                  }}
+                >
+                  <Search className="w-4 h-4 mr-2" />
+                  Add OCR Region
+                </Button>
+                {(node.data.config?.ocrRegions || []).map((region: any, index: number) => (
+                  <div key={region.id} className="p-2 border rounded">
+                    <div className="text-sm font-medium mb-2">{region.name}</div>
+                    <div className="grid grid-cols-4 gap-2 text-xs">
+                      <Input
+                        placeholder="X"
+                        value={region.x}
+                        onChange={(e) => {
+                          const regions = [...(node.data.config?.ocrRegions || [])];
+                          regions[index].x = parseInt(e.target.value) || 0;
+                          updateConfig('ocrRegions', regions);
+                        }}
+                      />
+                      <Input
+                        placeholder="Y"
+                        value={region.y}
+                        onChange={(e) => {
+                          const regions = [...(node.data.config?.ocrRegions || [])];
+                          regions[index].y = parseInt(e.target.value) || 0;
+                          updateConfig('ocrRegions', regions);
+                        }}
+                      />
+                      <Input
+                        placeholder="W"
+                        value={region.width}
+                        onChange={(e) => {
+                          const regions = [...(node.data.config?.ocrRegions || [])];
+                          regions[index].width = parseInt(e.target.value) || 0;
+                          updateConfig('ocrRegions', regions);
+                        }}
+                      />
+                      <Input
+                        placeholder="H"
+                        value={region.height}
+                        onChange={(e) => {
+                          const regions = [...(node.data.config?.ocrRegions || [])];
+                          regions[index].height = parseInt(e.target.value) || 0;
+                          updateConfig('ocrRegions', regions);
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-2">
+                <Label>Click Points</Label>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => {
+                    const clicks = node.data.config?.clickPoints || [];
+                    updateConfig('clickPoints', [...clicks, {
+                      id: Date.now(),
+                      x: 100,
+                      y: 100,
+                      name: `Click Point ${clicks.length + 1}`,
+                      tracked: true
+                    }]);
+                  }}
+                >
+                  <MousePointer className="w-4 h-4 mr-2" />
+                  Add Click Point
+                </Button>
+                {(node.data.config?.clickPoints || []).map((click: any, index: number) => (
+                  <div key={click.id} className="p-2 border rounded">
+                    <div className="text-sm font-medium mb-2">{click.name}</div>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <Input
+                        placeholder="X"
+                        value={click.x}
+                        onChange={(e) => {
+                          const clicks = [...(node.data.config?.clickPoints || [])];
+                          clicks[index].x = parseInt(e.target.value) || 0;
+                          updateConfig('clickPoints', clicks);
+                        }}
+                      />
+                      <Input
+                        placeholder="Y"
+                        value={click.y}
+                        onChange={(e) => {
+                          const clicks = [...(node.data.config?.clickPoints || [])];
+                          clicks[index].y = parseInt(e.target.value) || 0;
+                          updateConfig('clickPoints', clicks);
+                        }}
+                      />
+                      <div className="flex items-center space-x-1">
+                        <input
+                          type="checkbox"
+                          checked={click.tracked}
+                          onChange={(e) => {
+                            const clicks = [...(node.data.config?.clickPoints || [])];
+                            clicks[index].tracked = e.target.checked;
+                            updateConfig('clickPoints', clicks);
+                          }}
+                        />
+                        <span className="text-xs">Track</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <Label>Execution Mode</Label>
+                <Select 
+                  value={node.data.config?.executionMode || 'direct'} 
+                  onValueChange={(value) => updateConfig('executionMode', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="direct">Direct Windows PC Execution</SelectItem>
+                    <SelectItem value="preview">Preview Mode</SelectItem>
+                    <SelectItem value="simulation">Simulation Mode</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          );
+
         case 'click_action':
           return (
             <div className="space-y-4">
