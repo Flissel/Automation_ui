@@ -156,6 +156,7 @@ const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
     switch (type) {
       case 'manual_trigger': return 'bg-green-100 border-green-300';
       case 'schedule_trigger': return 'bg-blue-100 border-blue-300';
+      case 'live_desktop': return 'bg-slate-100 border-slate-300';
       case 'click_action': return 'bg-orange-100 border-orange-300';
       case 'type_text_action': return 'bg-purple-100 border-purple-300';
       case 'delay': return 'bg-yellow-100 border-yellow-300';
@@ -171,6 +172,7 @@ const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
     switch (type) {
       case 'manual_trigger': return <Play className="w-4 h-4" />;
       case 'schedule_trigger': return <Timer className="w-4 h-4" />;
+      case 'live_desktop': return <Monitor className="w-4 h-4" />;
       case 'click_action': return <MousePointer className="w-4 h-4" />;
       case 'type_text_action': return <Keyboard className="w-4 h-4" />;
       case 'delay': return <Timer className="w-4 h-4" />;
@@ -235,6 +237,7 @@ const nodeTypes: NodeTypes = {
   custom: CustomNode,
   manual_trigger: CustomNode,
   schedule_trigger: CustomNode,
+  live_desktop: CustomNode,
   click_action: CustomNode,
   type_text_action: CustomNode,
   delay: CustomNode,
@@ -650,6 +653,10 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
               <div>
                 <h4 className="font-medium mb-2">Desktop Actions</h4>
                 <div className="space-y-2">
+                  <Button variant="outline" className="w-full justify-start" onClick={() => addNode('live_desktop', 'Live Desktop')}>
+                    <Monitor className="w-4 h-4 mr-2" />
+                    Live Desktop
+                  </Button>
                   <Button variant="outline" className="w-full justify-start" onClick={() => addNode('click_action', 'Click')}>
                     <MousePointer className="w-4 h-4 mr-2" />
                     Click
