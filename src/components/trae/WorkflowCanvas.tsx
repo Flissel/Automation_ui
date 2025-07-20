@@ -148,7 +148,9 @@ import {
   Database,
   Zap,
   AlertTriangle,
-  Search
+  Search,
+  Wifi,
+  Radio
 } from 'lucide-react';
 
 // Custom Node Component
@@ -158,6 +160,7 @@ const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
       case 'manual_trigger': return 'bg-gradient-to-br from-emerald-100 to-green-200 border-emerald-400 shadow-emerald-200/50';
       case 'schedule_trigger': return 'bg-gradient-to-br from-blue-100 to-indigo-200 border-blue-400 shadow-blue-200/50';
       case 'live_desktop': return 'bg-gradient-to-br from-slate-100 to-gray-200 border-slate-400 shadow-slate-200/50';
+      case 'websocket_comm': return 'bg-gradient-to-br from-emerald-100 to-teal-200 border-emerald-400 shadow-emerald-200/50';
       case 'click_action': return 'bg-gradient-to-br from-orange-100 to-amber-200 border-orange-400 shadow-orange-200/50';
       case 'type_text_action': return 'bg-gradient-to-br from-purple-100 to-violet-200 border-purple-400 shadow-purple-200/50';
       case 'delay': return 'bg-gradient-to-br from-yellow-100 to-amber-200 border-yellow-400 shadow-yellow-200/50';
@@ -174,6 +177,7 @@ const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
       case 'manual_trigger': return <Play className="w-5 h-5 text-emerald-600" />;
       case 'schedule_trigger': return <Timer className="w-5 h-5 text-blue-600" />;
       case 'live_desktop': return <Monitor className="w-5 h-5 text-slate-600" />;
+      case 'websocket_comm': return <Wifi className="w-5 h-5 text-emerald-600" />;
       case 'click_action': return <MousePointer className="w-5 h-5 text-orange-600" />;
       case 'type_text_action': return <Keyboard className="w-5 h-5 text-purple-600" />;
       case 'delay': return <Timer className="w-5 h-5 text-yellow-600" />;
@@ -251,6 +255,7 @@ const nodeTypes: NodeTypes = {
   manual_trigger: CustomNode,
   schedule_trigger: CustomNode,
   live_desktop: CustomNode,
+  websocket_comm: CustomNode,
   click_action: CustomNode,
   type_text_action: CustomNode,
   delay: CustomNode,
@@ -597,6 +602,82 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
             </div>
           );
 
+        case 'websocket_comm':
+          return (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="wsUrl">WebSocket URL</Label>
+                <Input
+                  id="wsUrl"
+                  value={node.data.config?.wsUrl || 'ws://localhost:8080/desktop'}
+                  onChange={(e) => updateConfig('wsUrl', e.target.value)}
+                  placeholder="ws://localhost:8080/desktop"
+                />
+              </div>
+              <div>
+                <Label htmlFor="protocol">Protocol</Label>
+                <Select 
+                  value={node.data.config?.protocol || 'desktop-automation'} 
+                  onValueChange={(value) => updateConfig('protocol', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desktop-automation">Desktop Automation</SelectItem>
+                    <SelectItem value="screen-capture">Screen Capture</SelectItem>
+                    <SelectItem value="click-tracking">Click Tracking</SelectItem>
+                    <SelectItem value="ocr-realtime">OCR Real-time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="authToken">Authentication Token</Label>
+                <Input
+                  id="authToken"
+                  type="password"
+                  value={node.data.config?.authToken || ''}
+                  onChange={(e) => updateConfig('authToken', e.target.value)}
+                  placeholder="Enter auth token (optional)"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="reconnectInterval">Reconnect Interval (ms)</Label>
+                  <Input
+                    id="reconnectInterval"
+                    type="number"
+                    value={node.data.config?.reconnectInterval || 5000}
+                    onChange={(e) => updateConfig('reconnectInterval', parseInt(e.target.value) || 5000)}
+                    placeholder="5000"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="maxRetries">Max Retries</Label>
+                  <Input
+                    id="maxRetries"
+                    type="number"
+                    value={node.data.config?.maxRetries || 3}
+                    onChange={(e) => updateConfig('maxRetries', parseInt(e.target.value) || 3)}
+                    placeholder="3"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Connection Status</Label>
+                <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded">
+                  <Radio className="w-4 h-4 text-emerald-500" />
+                  <span className="text-sm text-gray-600">Ready to Connect</span>
+                </div>
+              </div>
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-xs text-blue-700">
+                  <strong>Note:</strong> This WebSocket node must be connected to a Live Desktop node to establish real-time communication with the target PC.
+                </p>
+              </div>
+            </div>
+          );
+
         case 'click_action':
           return (
             <div className="space-y-4">
@@ -696,7 +777,7 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
     );
   };
 
-  // Validation logic
+  // Enhanced validation logic including WebSocket requirements
   const validateWorkflow = () => {
     const hasStart = nodes.some(n => n.data.type === 'manual_trigger' || n.data.type === 'schedule_trigger');
     const hasEnd = nodes.some(n => n.data.type === 'end');
@@ -706,12 +787,23 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
       return hasConfig && !isConfigured;
     });
 
+    // Check if Live Desktop nodes have connected WebSocket Communication nodes
+    const liveDesktopNodes = nodes.filter(n => n.data.type === 'live_desktop');
+    const websocketNodes = nodes.filter(n => n.data.type === 'websocket_comm');
+    const unconnectedLiveDesktops = liveDesktopNodes.filter(ldNode => {
+      return !edges.some(edge => 
+        (edge.source === ldNode.id && websocketNodes.some(ws => ws.id === edge.target)) ||
+        (edge.target === ldNode.id && websocketNodes.some(ws => ws.id === edge.source))
+      );
+    });
+
     return {
-      valid: hasStart && hasEnd && unconfiguredNodes.length === 0,
+      valid: hasStart && hasEnd && unconfiguredNodes.length === 0 && unconnectedLiveDesktops.length === 0,
       issues: [
         !hasStart && "Workflow needs a trigger (Manual or Schedule)",
         !hasEnd && "Workflow needs an End node",
-        unconfiguredNodes.length > 0 && `${unconfiguredNodes.length} nodes need configuration`
+        unconfiguredNodes.length > 0 && `${unconfiguredNodes.length} nodes need configuration`,
+        unconnectedLiveDesktops.length > 0 && `${unconnectedLiveDesktops.length} Live Desktop nodes need WebSocket Communication connections`
       ].filter(Boolean)
     };
   };
@@ -913,6 +1005,10 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
                   <Button variant="outline" className="w-full justify-start" onClick={() => addNode('live_desktop', 'Live Desktop')}>
                     <Monitor className="w-4 h-4 mr-2" />
                     Live Desktop
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start" onClick={() => addNode('websocket_comm', 'WebSocket Comm')}>
+                    <Wifi className="w-4 h-4 mr-2" />
+                    WebSocket Comm
                   </Button>
                   <Button variant="outline" className="w-full justify-start" onClick={() => addNode('click_action', 'Click')}>
                     <MousePointer className="w-4 h-4 mr-2" />
