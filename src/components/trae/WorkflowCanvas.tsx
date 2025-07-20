@@ -20,6 +20,8 @@ import {
   Connection,
   useReactFlow,
   ReactFlowProvider,
+  Handle,
+  Position,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { 
@@ -130,7 +132,16 @@ const CustomNode = ({ data, isConnectable }: any) => {
   const template = NODE_TEMPLATES.find(t => t.type === data.type);
   
   return (
-    <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-muted min-w-[150px]">
+    <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-muted min-w-[150px] relative">
+      {/* Input Handle */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        isConnectable={isConnectable}
+        className="w-3 h-3 rounded-full bg-blue-500 border-2 border-white"
+        style={{ left: -6 }}
+      />
+      
       <div className="flex items-center space-x-2">
         {template?.icon}
         <div className="text-sm font-medium">{data.title || template?.label}</div>
@@ -140,16 +151,13 @@ const CustomNode = ({ data, isConnectable }: any) => {
         {template?.description}
       </div>
 
-      {/* Input Handle */}
-      <div 
-        className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white"
-        style={{ background: isConnectable ? '#3b82f6' : '#6b7280' }}
-      />
-      
       {/* Output Handle */}
-      <div 
-        className="absolute -right-1 top-1/2 transform -translate-y-1/2 w-3 h-3 rounded-full bg-green-500 border-2 border-white"
-        style={{ background: isConnectable ? '#10b981' : '#6b7280' }}
+      <Handle
+        type="source"
+        position={Position.Right}
+        isConnectable={isConnectable}
+        className="w-3 h-3 rounded-full bg-green-500 border-2 border-white"
+        style={{ right: -6 }}
       />
     </div>
   );
@@ -232,7 +240,7 @@ const WorkflowCanvasInner: React.FC = () => {
       const edge = {
         ...params,
         id: `edge-${params.source}-${params.target}-${Date.now()}`,
-        type: 'smoothstep',
+        type: 'default',
         animated: true,
       };
       setEdges((eds) => addEdge(edge, eds));
@@ -244,7 +252,10 @@ const WorkflowCanvasInner: React.FC = () => {
     const newNode: Node = {
       id: `${template.type}-${Date.now()}`,
       type: template.type,
-      position: { x: Math.random() * 300, y: Math.random() * 300 },
+      position: { 
+        x: Math.random() * 400 + 100, 
+        y: Math.random() * 300 + 100 
+      },
       data: { 
         ...template.defaultData,
         type: template.type
