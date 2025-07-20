@@ -153,13 +153,102 @@ import {
   Radio
 } from 'lucide-react';
 
-// Custom Node Component
+// Custom Node Component with Live Desktop specialized I/O
 const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
+  
+  // Special handling for Live Desktop node with multiple I/O layers
+  if (data.type === 'live_desktop') {
+    return (
+      <div className="relative bg-gradient-to-br from-slate-100 to-gray-200 border-2 border-slate-400 shadow-lg shadow-slate-200/50 rounded-lg px-6 py-4 min-w-[280px] hover:shadow-xl transition-all duration-300">
+        {/* Control Input - Top Center */}
+        <Handle
+          type="target"
+          position={Position.Top}
+          id="control"
+          className="w-4 h-4 bg-blue-500 border-2 border-white shadow-lg hover:scale-110 transition-transform duration-200"
+          style={{ left: '50%', transform: 'translateX(-50%)' }}
+        />
+        
+        {/* WebSocket Input - Top Left */}
+        <Handle
+          type="target"
+          position={Position.Left}
+          id="websocket"
+          className="w-4 h-4 bg-purple-500 border-2 border-white shadow-lg hover:scale-110 transition-transform duration-200"
+          style={{ top: '30%' }}
+        />
+
+        {/* Click Coordinates Input - Left Bottom */}
+        <Handle
+          type="target"
+          position={Position.Left}
+          id="coordinates"
+          className="w-4 h-4 bg-orange-500 border-2 border-white shadow-lg hover:scale-110 transition-transform duration-200"
+          style={{ top: '70%' }}
+        />
+
+        <div className="flex items-center space-x-3 mb-3">
+          <div className="flex-shrink-0 p-2 bg-white/60 rounded-lg">
+            <Monitor className="w-8 h-8 text-slate-600" />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-bold text-slate-800">{data.label}</div>
+            <div className="text-xs text-slate-600">Live Desktop Stream</div>
+            <div className="text-xs text-slate-500">
+              {data.config?.width || 1200} × {data.config?.height || 900}
+            </div>
+          </div>
+        </div>
+
+        {/* I/O Labels */}
+        <div className="flex justify-between items-center text-xs text-slate-600 mb-2">
+          <div className="space-y-1">
+            <div className="bg-purple-100 px-2 py-1 rounded text-purple-700">WS</div>
+            <div className="bg-orange-100 px-2 py-1 rounded text-orange-700">XY</div>
+          </div>
+          <div className="text-center">
+            <div className="bg-blue-100 px-2 py-1 rounded text-blue-700">CTRL</div>
+          </div>
+          <div className="space-y-1 text-right">
+            <div className="bg-green-100 px-2 py-1 rounded text-green-700">EVENTS</div>
+            <div className="bg-indigo-100 px-2 py-1 rounded text-indigo-700">STREAM</div>
+          </div>
+        </div>
+
+        {/* Desktop Events Output - Right Top */}
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="events"
+          className="w-4 h-4 bg-green-500 border-2 border-white shadow-lg hover:scale-110 transition-transform duration-200"
+          style={{ top: '30%' }}
+        />
+
+        {/* Video Stream Output - Right Bottom */}
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="stream"
+          className="w-4 h-4 bg-indigo-500 border-2 border-white shadow-lg hover:scale-110 transition-transform duration-200"
+          style={{ top: '70%' }}
+        />
+
+        {/* Flow Control Output - Bottom */}
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id="flow"
+          className="w-4 h-4 bg-slate-500 border-2 border-white shadow-lg hover:scale-110 transition-transform duration-200"
+          style={{ left: '50%', transform: 'translateX(-50%)' }}
+        />
+      </div>
+    );
+  }
+
   const getNodeColor = (type: string) => {
     switch (type) {
       case 'manual_trigger': return 'bg-gradient-to-br from-emerald-100 to-green-200 border-emerald-400 shadow-emerald-200/50';
       case 'schedule_trigger': return 'bg-gradient-to-br from-blue-100 to-indigo-200 border-blue-400 shadow-blue-200/50';
-      case 'live_desktop': return 'bg-gradient-to-br from-slate-100 to-gray-200 border-slate-400 shadow-slate-200/50';
       case 'websocket_comm': return 'bg-gradient-to-br from-emerald-100 to-teal-200 border-emerald-400 shadow-emerald-200/50';
       case 'click_action': return 'bg-gradient-to-br from-orange-100 to-amber-200 border-orange-400 shadow-orange-200/50';
       case 'type_text_action': return 'bg-gradient-to-br from-purple-100 to-violet-200 border-purple-400 shadow-purple-200/50';
