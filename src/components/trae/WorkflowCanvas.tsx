@@ -155,33 +155,33 @@ import {
 const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
   const getNodeColor = (type: string) => {
     switch (type) {
-      case 'manual_trigger': return 'bg-green-100 border-green-300';
-      case 'schedule_trigger': return 'bg-blue-100 border-blue-300';
-      case 'live_desktop': return 'bg-slate-100 border-slate-300';
-      case 'click_action': return 'bg-orange-100 border-orange-300';
-      case 'type_text_action': return 'bg-purple-100 border-purple-300';
-      case 'delay': return 'bg-yellow-100 border-yellow-300';
-      case 'http_request_action': return 'bg-red-100 border-red-300';
-      case 'if_condition': return 'bg-cyan-100 border-cyan-300';
-      case 'variable_store': return 'bg-pink-100 border-pink-300';
-      case 'end': return 'bg-gray-100 border-gray-300';
-      default: return 'bg-white border-gray-300';
+      case 'manual_trigger': return 'bg-gradient-to-br from-emerald-100 to-green-200 border-emerald-400 shadow-emerald-200/50';
+      case 'schedule_trigger': return 'bg-gradient-to-br from-blue-100 to-indigo-200 border-blue-400 shadow-blue-200/50';
+      case 'live_desktop': return 'bg-gradient-to-br from-slate-100 to-gray-200 border-slate-400 shadow-slate-200/50';
+      case 'click_action': return 'bg-gradient-to-br from-orange-100 to-amber-200 border-orange-400 shadow-orange-200/50';
+      case 'type_text_action': return 'bg-gradient-to-br from-purple-100 to-violet-200 border-purple-400 shadow-purple-200/50';
+      case 'delay': return 'bg-gradient-to-br from-yellow-100 to-amber-200 border-yellow-400 shadow-yellow-200/50';
+      case 'http_request_action': return 'bg-gradient-to-br from-red-100 to-rose-200 border-red-400 shadow-red-200/50';
+      case 'if_condition': return 'bg-gradient-to-br from-cyan-100 to-teal-200 border-cyan-400 shadow-cyan-200/50';
+      case 'variable_store': return 'bg-gradient-to-br from-pink-100 to-rose-200 border-pink-400 shadow-pink-200/50';
+      case 'end': return 'bg-gradient-to-br from-gray-100 to-slate-200 border-gray-400 shadow-gray-200/50';
+      default: return 'bg-gradient-to-br from-white to-gray-100 border-gray-300 shadow-gray-200/50';
     }
   };
 
   const getNodeIcon = (type: string) => {
     switch (type) {
-      case 'manual_trigger': return <Play className="w-4 h-4" />;
-      case 'schedule_trigger': return <Timer className="w-4 h-4" />;
-      case 'live_desktop': return <Monitor className="w-4 h-4" />;
-      case 'click_action': return <MousePointer className="w-4 h-4" />;
-      case 'type_text_action': return <Keyboard className="w-4 h-4" />;
-      case 'delay': return <Timer className="w-4 h-4" />;
-      case 'http_request_action': return <Globe className="w-4 h-4" />;
-      case 'if_condition': return <GitBranch className="w-4 h-4" />;
-      case 'variable_store': return <Database className="w-4 h-4" />;
-      case 'end': return <Square className="w-4 h-4" />;
-      default: return <Settings className="w-4 h-4" />;
+      case 'manual_trigger': return <Play className="w-5 h-5 text-emerald-600" />;
+      case 'schedule_trigger': return <Timer className="w-5 h-5 text-blue-600" />;
+      case 'live_desktop': return <Monitor className="w-5 h-5 text-slate-600" />;
+      case 'click_action': return <MousePointer className="w-5 h-5 text-orange-600" />;
+      case 'type_text_action': return <Keyboard className="w-5 h-5 text-purple-600" />;
+      case 'delay': return <Timer className="w-5 h-5 text-yellow-600" />;
+      case 'http_request_action': return <Globe className="w-5 h-5 text-red-600" />;
+      case 'if_condition': return <GitBranch className="w-5 h-5 text-cyan-600" />;
+      case 'variable_store': return <Database className="w-5 h-5 text-pink-600" />;
+      case 'end': return <Square className="w-5 h-5 text-gray-600" />;
+      default: return <Settings className="w-5 h-5 text-gray-600" />;
     }
   };
 
@@ -189,31 +189,43 @@ const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
   const isConfigured = hasConfig && Object.values(data.config).some(v => v !== undefined && v !== '');
 
   return (
-    <div className={`px-4 py-2 shadow-md rounded-md border-2 ${getNodeColor(data.type)} min-w-[120px]`}>
+    <div className={`
+      px-5 py-3 rounded-xl border-2 min-w-[160px] relative transition-all duration-300 hover:scale-105 hover:shadow-xl backdrop-blur-sm
+      ${getNodeColor(data.type)}
+    `}>
       {/* Input Handle */}
       {data.type !== 'manual_trigger' && data.type !== 'schedule_trigger' && (
         <Handle
           type="target"
           position={Position.Top}
-          className="w-3 h-3 bg-gray-400 border-2 border-white"
+          className="w-4 h-4 bg-white border-2 border-gray-400 shadow-lg hover:scale-110 transition-transform duration-200"
         />
       )}
 
-      <div className="flex items-center space-x-2">
-        {getNodeIcon(data.type)}
-        <div className="text-sm font-medium">{data.label}</div>
+      <div className="flex items-center space-x-3 mb-2">
+        <div className="flex-shrink-0 p-1 bg-white/30 rounded-lg backdrop-blur-sm">
+          {getNodeIcon(data.type)}
+        </div>
+        <div className="flex-1">
+          <div className="text-sm font-bold text-gray-800">{data.label}</div>
+          <div className="text-xs text-gray-600 capitalize">{data.type.replace('_', ' ')}</div>
+        </div>
         {!isConfigured && hasConfig && (
-          <AlertTriangle className="w-4 h-4 text-yellow-500" />
+          <div className="bg-amber-100 p-1 rounded-full">
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+          </div>
         )}
       </div>
 
       {data.status && (
-        <Badge 
-          variant={data.status === 'completed' ? 'default' : data.status === 'error' ? 'destructive' : 'secondary'}
-          className="mt-1 text-xs"
-        >
-          {data.status}
-        </Badge>
+        <div className="mb-2">
+          <Badge 
+            variant={data.status === 'completed' ? 'default' : data.status === 'error' ? 'destructive' : 'secondary'}
+            className="text-xs px-2 py-1 font-medium"
+          >
+            {data.status}
+          </Badge>
+        </div>
       )}
 
       {/* Output Handle */}
@@ -221,7 +233,7 @@ const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
         <Handle
           type="source"
           position={Position.Bottom}
-          className="w-3 h-3 bg-gray-400 border-2 border-white"
+          className="w-4 h-4 bg-white border-2 border-gray-400 shadow-lg hover:scale-110 transition-transform duration-200"
         />
       )}
     </div>
@@ -737,70 +749,138 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
   const validation = validateWorkflow();
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Main Canvas */}
-      <div className="flex-1 relative">
-        {/* Toolbar */}
-        <div className="absolute top-4 left-4 z-10 flex space-x-2">
-          <Button onClick={() => setIsLibraryOpen(true)} variant="outline" size="sm">
-            <Zap className="w-4 h-4 mr-2" />
-            Add Node
-          </Button>
-          <Button 
-            onClick={executeWorkflowHandler} 
-            variant="default" 
-            size="sm" 
-            disabled={!validation.valid}
-          >
-            <Play className="w-4 h-4 mr-2" />
-            Execute
-          </Button>
-          <Button variant="outline" size="sm">
-            <Save className="w-4 h-4 mr-2" />
-            Save
-          </Button>
+      <div className="flex-1 relative overflow-hidden">
+        {/* Enhanced Toolbar */}
+        <div className="absolute top-6 left-6 z-20 flex space-x-3">
+          <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 p-2 flex space-x-2">
+            <Button 
+              onClick={() => setIsLibraryOpen(true)} 
+              variant="ghost" 
+              size="sm"
+              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 transition-all duration-300 shadow-md"
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              Add Node
+            </Button>
+            <Button 
+              onClick={executeWorkflowHandler} 
+              variant="ghost" 
+              size="sm" 
+              disabled={!validation.valid}
+              className="bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 transition-all duration-300 shadow-md"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Execute
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              className="bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 transition-all duration-300 shadow-md"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              Save
+            </Button>
+          </div>
         </div>
 
-        {/* Validation Status */}
+        {/* Enhanced Validation Status */}
         {!validation.valid && (
-          <div className="absolute top-4 right-4 z-10">
-            <Card className="p-3 bg-yellow-50 border-yellow-200">
-              <div className="flex items-center space-x-2">
-                <AlertTriangle className="w-4 h-4 text-yellow-600" />
+          <div className="absolute top-6 right-6 z-20">
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 shadow-lg backdrop-blur-sm">
+              <div className="flex items-start space-x-3">
+                <div className="bg-gradient-to-r from-amber-400 to-orange-500 p-2 rounded-lg">
+                  <AlertTriangle className="w-5 h-5 text-white" />
+                </div>
                 <div>
-                  <p className="text-sm font-medium text-yellow-800">Workflow Issues</p>
-                  <ul className="text-xs text-yellow-700 mt-1">
+                  <p className="text-sm font-semibold text-amber-800 mb-2">Workflow Issues</p>
+                  <ul className="text-xs text-amber-700 space-y-1">
                     {validation.issues.map((issue, i) => (
-                      <li key={i}>• {issue}</li>
+                      <li key={i} className="flex items-center space-x-2">
+                        <div className="w-1 h-1 bg-amber-500 rounded-full"></div>
+                        <span>{issue}</span>
+                      </li>
                     ))}
                   </ul>
                 </div>
               </div>
-            </Card>
+            </div>
           </div>
         )}
 
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={onNodeClick}
-          nodeTypes={nodeTypes}
-          fitView
-          className="bg-gray-50"
-        >
-          <Controls />
-          <MiniMap />
-          <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
-        </ReactFlow>
+        {/* Enhanced React Flow with stunning background */}
+        <div className="h-full relative">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={onNodeClick}
+            nodeTypes={nodeTypes}
+            fitView
+            className="rounded-lg"
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            }}
+          >
+            <Controls 
+              className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-white/20"
+            />
+            <MiniMap 
+              className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden"
+              nodeColor={(node) => {
+                switch (node.data?.type) {
+                  case 'manual_trigger': return '#10b981';
+                  case 'live_desktop': return '#6b7280';
+                  case 'click_action': return '#f97316';
+                  case 'type_text_action': return '#8b5cf6';
+                  default: return '#6b7280';
+                }
+              }}
+            />
+            <Background 
+              variant={BackgroundVariant.Dots} 
+              gap={20} 
+              size={1.5} 
+              color="rgba(255,255,255,0.3)"
+            />
+          </ReactFlow>
+        </div>
       </div>
 
-      {/* Configuration Panel */}
-      <div className="w-80 border-l bg-background p-4 space-y-4">
-        <h2 className="text-lg font-semibold">Configuration</h2>
-        <ConfigPanel node={selectedNode} onUpdateNode={onNodeDataChange} />
+      {/* Enhanced Configuration Panel */}
+      <div className="w-96 bg-white/95 backdrop-blur-xl border-l border-white/20 shadow-2xl">
+        <div className="h-full flex flex-col">
+          {/* Panel Header */}
+          <div className="bg-gradient-to-r from-slate-100 to-blue-50 p-6 border-b border-slate-200">
+            <h2 className="text-xl font-bold bg-gradient-to-r from-slate-700 to-blue-600 bg-clip-text text-transparent">
+              Node Configuration
+            </h2>
+            <p className="text-sm text-slate-600 mt-1">
+              {selectedNode ? `Configure ${selectedNode.data.label}` : 'Select a node to configure'}
+            </p>
+          </div>
+          
+          {/* Panel Content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {selectedNode ? (
+              <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl p-6 shadow-sm border border-slate-100">
+                <ConfigPanel node={selectedNode} onUpdateNode={onNodeDataChange} />
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="bg-gradient-to-br from-slate-100 to-blue-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Settings className="w-12 h-12 text-slate-400" />
+                </div>
+                <p className="text-slate-500 text-sm">
+                  Click on a node to configure its properties
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Node Library Modal */}
