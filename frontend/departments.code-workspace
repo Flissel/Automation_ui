@@ -1,0 +1,15 @@
+{
+	"folders": [
+		{
+			"name": "departments",
+			"path": "../../../../agents/system-prompts/departments"
+		},
+		{
+			"name": "trae-remote",
+			"path": "../.."
+		}
+	],
+	"settings": {
+		"powershell.cwd": "trae-remote"
+	}
+}

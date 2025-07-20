@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../../unityai/Trae-integration/trae-remote/backend/services/autogen-event-agents"
+		}
+	],
+	"settings": {}
+}
