@@ -58,7 +58,7 @@ export interface NodeInputSpec {
 export interface NodeOutputSpec {
   id: string;
   name: string;
-  type: 'data' | 'trigger' | 'event';
+  type: 'data' | 'trigger' | 'event' | 'config';
   provides: string;
   description: string;
 }
