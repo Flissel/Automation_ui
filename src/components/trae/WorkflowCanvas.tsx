@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { ConnectionValidator } from './workflow/ConnectionValidator';
 import { WorkflowTemplates, WorkflowTemplate } from './workflow/WorkflowTemplates';
 import { ExecutionEngine } from './workflow/ExecutionEngine';
+import { NodeConfigurationModal } from './workflow/NodeConfigurationModal';
 import { DynamicNodeManager, nodeTemplates, NodeTemplate } from './DynamicNodeManager';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -306,7 +307,7 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isExecutionPanelOpen, setIsExecutionPanelOpen] = useState(false);
-  const [isPropertyPanelOpen, setIsPropertyPanelOpen] = useState(false);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [workflowName, setWorkflowName] = useState('Untitled Workflow');
   const [isDirty, setIsDirty] = useState(false);
 
@@ -341,10 +342,10 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
     [readOnly, nodes, setEdges]
   );
 
-  // Handle node selection
+  // Handle node selection - n8n style inline configuration
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     setSelectedNode(node as Node<NodeData>);
-    setIsPropertyPanelOpen(true);
+    setIsConfigModalOpen(true);
   }, []);
 
   // Handle node data updates
@@ -423,7 +424,7 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
 
     setNodes((nds) => [...nds, newNode]);
     setSelectedNode(newNode);
-    setIsPropertyPanelOpen(true);
+    setIsConfigModalOpen(true);
     setIsDirty(true);
     setIsLibraryOpen(false);
     toast.success(`Added ${template.label} node!`);
@@ -438,7 +439,7 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
     
     if (selectedNode?.id === nodeId) {
       setSelectedNode(null);
-      setIsPropertyPanelOpen(false);
+      setIsConfigModalOpen(false);
     }
     
     setIsDirty(true);
@@ -665,6 +666,18 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
           </div>
         </div>
       )}
+
+      {/* Node Configuration Modal - n8n style */}
+      <NodeConfigurationModal
+        node={selectedNode}
+        isOpen={isConfigModalOpen}
+        onClose={() => {
+          setIsConfigModalOpen(false);
+          setSelectedNode(null);
+        }}
+        onSave={onNodeDataChange}
+        onDelete={onDeleteNode}
+      />
     </div>
   );
 };
