@@ -22,8 +22,16 @@ export class SimplifiedConnectionValidator {
       return { valid: false, error: 'Source or target node not found' };
     }
 
-    const sourceTemplate = SIMPLIFIED_NODE_TEMPLATES[sourceNode.data?.type];
-    const targetTemplate = SIMPLIFIED_NODE_TEMPLATES[targetNode.data?.type];
+    // Type guard to ensure we have valid node types
+    const sourceType = sourceNode.data?.type;
+    const targetType = targetNode.data?.type;
+    
+    if (typeof sourceType !== 'string' || typeof targetType !== 'string') {
+      return { valid: false, error: 'Invalid node type' };
+    }
+
+    const sourceTemplate = SIMPLIFIED_NODE_TEMPLATES[sourceType];
+    const targetTemplate = SIMPLIFIED_NODE_TEMPLATES[targetType];
 
     if (!sourceTemplate || !targetTemplate) {
       return { valid: false, error: 'Unknown node type in connection' };
@@ -61,7 +69,10 @@ export class SimplifiedConnectionValidator {
   static validateWorkflow(nodes: Node[], edges: Edge[]): ValidationResult {
     // Must have at least one trigger
     const triggerNodes = nodes.filter(n => {
-      const template = SIMPLIFIED_NODE_TEMPLATES[n.data?.type];
+      const nodeType = n.data?.type;
+      if (typeof nodeType !== 'string') return false;
+      
+      const template = SIMPLIFIED_NODE_TEMPLATES[nodeType];
       return template && template.category === 'triggers';
     });
 
@@ -71,7 +82,10 @@ export class SimplifiedConnectionValidator {
 
     // Check for missing dependencies
     for (const node of nodes) {
-      const template = SIMPLIFIED_NODE_TEMPLATES[node.data?.type];
+      const nodeType = node.data?.type;
+      if (typeof nodeType !== 'string') continue;
+      
+      const template = SIMPLIFIED_NODE_TEMPLATES[nodeType];
       if (template && template.dependencies.length > 0) {
         for (const dep of template.dependencies) {
           if (dep.required) {
@@ -95,7 +109,10 @@ export class SimplifiedConnectionValidator {
     });
 
     const orphanedNodes = nodes.filter(n => {
-      const template = SIMPLIFIED_NODE_TEMPLATES[n.data?.type];
+      const nodeType = n.data?.type;
+      if (typeof nodeType !== 'string') return false;
+      
+      const template = SIMPLIFIED_NODE_TEMPLATES[nodeType];
       return template && 
              template.category !== 'triggers' && 
              template.category !== 'config' && 

@@ -46,8 +46,10 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
       description: 'Workflow execution trigger'
     },
     dependencies: [],
-    configSchema: {},
-    defaultConfig: {}
+    configSchema: {
+      button_text: { type: 'string', default: 'Start Workflow', label: 'Button Text' }
+    },
+    defaultConfig: { button_text: 'Start Workflow' }
   },
   
   webhook_trigger: {
@@ -68,27 +70,52 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
     dependencies: [],
     configSchema: {
       path: { type: 'string', required: true, label: 'Webhook Path' },
-      method: { type: 'select', options: ['POST', 'GET'], default: 'POST' }
+      method: { type: 'select', options: ['POST', 'GET'], default: 'POST' },
+      execution_history: { type: 'array', default: [], hidden: true }
     },
-    defaultConfig: { path: '/webhook', method: 'POST' }
+    defaultConfig: { 
+      path: '/webhook', 
+      method: 'POST',
+      execution_history: []
+    }
   },
   
   // CONFIG NODES (no handles)
   websocket_config: {
     id: 'websocket_config',
     type: 'websocket_config',
-    label: 'WebSocket Config',
-    description: 'WebSocket connection configuration',
+    label: 'WebSocket Service',
+    description: 'WebSocket service configuration and management',
     category: 'config',
     icon: 'Wifi',
     color: '#8b5cf6',
-    // Config nodes have no input/output handles
+    // Config nodes now have output to connect to other nodes
+    output: {
+      id: 'websocket_output',
+      name: 'WebSocket Connection',
+      type: 'config',
+      provides: 'websocket_connection',
+      description: 'WebSocket connection configuration'
+    },
     dependencies: [],
     configSchema: {
       url: { type: 'string', required: true, label: 'WebSocket URL' },
-      reconnect: { type: 'boolean', default: true, label: 'Auto Reconnect' }
+      port: { type: 'number', default: 8080, label: 'Port' },
+      reconnect: { type: 'boolean', default: true, label: 'Auto Reconnect' },
+      service_command: { type: 'string', label: 'Service Start Command' },
+      auto_start: { type: 'boolean', default: false, label: 'Auto Start Service' },
+      health_check_url: { type: 'string', label: 'Health Check URL' },
+      process_id: { type: 'number', label: 'Process ID (auto-filled)' },
+      status: { type: 'select', options: ['stopped', 'starting', 'running', 'failed'], default: 'stopped' }
     },
-    defaultConfig: { url: 'ws://localhost:8765', reconnect: true }
+    defaultConfig: { 
+      url: 'ws://localhost', 
+      port: 8080,
+      reconnect: true,
+      service_command: 'node websocket-server.js',
+      auto_start: false,
+      status: 'stopped'
+    }
   },
   
   // ACTION NODES
@@ -102,12 +129,12 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
     color: '#64748b',
     input: {
       id: 'desktop_input',
-      name: 'Trigger',
+      name: 'Trigger + WebSocket',
       type: 'trigger',
       required: true,
-      accepts: ['execution_start', 'webhook_payload'],
-      description: 'Connect from trigger node',
-      placeholder: 'Connect trigger here'
+      accepts: ['execution_start', 'webhook_payload', 'websocket_connection'],
+      description: 'Connect trigger and WebSocket config',
+      placeholder: 'Connect trigger and WebSocket config here'
     },
     output: {
       id: 'desktop_output',
@@ -116,20 +143,14 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
       provides: 'desktop_stream',
       description: 'Live desktop stream data'
     },
-    dependencies: [
-      {
-        id: 'websocket_config',
-        type: 'websocket_config',
-        required: true,
-        description: 'WebSocket configuration required',
-        status: 'missing'
-      }
-    ],
+    dependencies: [],
     configSchema: {
       fps: { type: 'number', default: 30, min: 1, max: 60, label: 'FPS' },
-      quality: { type: 'number', default: 80, min: 10, max: 100, label: 'Quality %' }
+      quality: { type: 'number', default: 80, min: 10, max: 100, label: 'Quality %' },
+      width: { type: 'number', default: 1200, label: 'Width' },
+      height: { type: 'number', default: 900, label: 'Height' }
     },
-    defaultConfig: { fps: 30, quality: 80 }
+    defaultConfig: { fps: 30, quality: 80, width: 1200, height: 900 }
   },
   
   click_action: {
@@ -175,7 +196,7 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
     color: '#8b5cf6',
     input: {
       id: 'type_input',
-      name: 'Trigger',
+      name: 'Action Result',
       type: 'data',
       required: true,
       accepts: ['click_result', 'desktop_stream', 'text'],

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Webhook, Clock } from 'lucide-react';
+import { X, Settings, Webhook, Clock, Play, Square, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,6 +34,7 @@ export const NodeConfigurationModal: React.FC<NodeConfigurationModalProps> = ({
   const [label, setLabel] = useState('');
   const [config, setConfig] = useState<Record<string, any>>({});
   const [activeTab, setActiveTab] = useState('config');
+  const [serviceStatus, setServiceStatus] = useState('stopped');
   
   // Mock execution history for webhook triggers
   const [executionHistory] = useState([
@@ -61,6 +62,7 @@ export const NodeConfigurationModal: React.FC<NodeConfigurationModalProps> = ({
     if (node) {
       setLabel(node.data.label || '');
       setConfig(node.data.config || {});
+      setServiceStatus(node.data.config?.status || 'stopped');
     }
   }, [node]);
 
@@ -81,18 +83,32 @@ export const NodeConfigurationModal: React.FC<NodeConfigurationModalProps> = ({
     }
   };
 
+  // Service Management for WebSocket Config
+  const handleServiceAction = (action: 'start' | 'stop' | 'restart') => {
+    const newStatus = action === 'start' ? 'starting' : action === 'stop' ? 'stopped' : 'starting';
+    setServiceStatus(newStatus);
+    setConfig({ ...config, status: newStatus });
+    
+    // Simulate service start/stop
+    setTimeout(() => {
+      const finalStatus = action === 'stop' ? 'stopped' : 'running';
+      setServiceStatus(finalStatus);
+      setConfig(prev => ({ ...prev, status: finalStatus }));
+    }, 2000);
+  };
+
   const renderConfigFields = () => {
     switch (node.data.type) {
       case 'manual_trigger':
         return (
           <div className="space-y-4">
             <div>
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={config.description || ''}
-                onChange={(e) => setConfig({ ...config, description: e.target.value })}
-                placeholder="Describe what triggers this workflow..."
+              <Label htmlFor="button_text">Button Text</Label>
+              <Input
+                id="button_text"
+                value={config.button_text || ''}
+                onChange={(e) => setConfig({ ...config, button_text: e.target.value })}
+                placeholder="Start Workflow"
                 className="mt-1"
               />
             </div>
@@ -106,145 +122,17 @@ export const NodeConfigurationModal: React.FC<NodeConfigurationModalProps> = ({
               <Label htmlFor="endpoint_path">Endpoint Path</Label>
               <Input
                 id="endpoint_path"
-                value={config.endpoint_path || '/webhook'}
-                onChange={(e) => setConfig({ ...config, endpoint_path: e.target.value })}
+                value={config.path || '/webhook'}
+                onChange={(e) => setConfig({ ...config, path: e.target.value })}
                 placeholder="/webhook"
                 className="mt-1"
               />
             </div>
             <div>
-              <Label htmlFor="http_methods">HTTP Methods</Label>
+              <Label htmlFor="http_methods">HTTP Method</Label>
               <select
                 id="http_methods"
-                value={config.http_methods?.[0] || 'POST'}
-                onChange={(e) => setConfig({ ...config, http_methods: [e.target.value] })}
-                className="mt-1 w-full px-3 py-2 border border-input rounded-md"
-              >
-                <option value="GET">GET</option>
-                <option value="POST">POST</option>
-                <option value="PUT">PUT</option>
-                <option value="DELETE">DELETE</option>
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="authentication">Authentication</Label>
-              <select
-                id="authentication"
-                value={config.authentication || 'none'}
-                onChange={(e) => setConfig({ ...config, authentication: e.target.value })}
-                className="mt-1 w-full px-3 py-2 border border-input rounded-md"
-              >
-                <option value="none">None</option>
-                <option value="api_key">API Key</option>
-                <option value="bearer_token">Bearer Token</option>
-              </select>
-            </div>
-            {config.authentication === 'api_key' && (
-              <div>
-                <Label htmlFor="api_key">API Key</Label>
-                <Input
-                  id="api_key"
-                  type="password"
-                  value={config.api_key || ''}
-                  onChange={(e) => setConfig({ ...config, api_key: e.target.value })}
-                  placeholder="Enter API key..."
-                  className="mt-1"
-                />
-              </div>
-            )}
-          </div>
-        );
-        
-      case 'websocket_config':
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="url">WebSocket URL</Label>
-              <Input
-                id="url"
-                value={config.url || 'ws://localhost:8080'}
-                onChange={(e) => setConfig({ ...config, url: e.target.value })}
-                placeholder="ws://localhost:8080"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="protocol">Protocol</Label>
-              <Input
-                id="protocol"
-                value={config.protocol || ''}
-                onChange={(e) => setConfig({ ...config, protocol: e.target.value })}
-                placeholder="Optional protocol"
-                className="mt-1"
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="reconnect"
-                checked={config.reconnect !== false}
-                onChange={(e) => setConfig({ ...config, reconnect: e.target.checked })}
-                className="rounded"
-              />
-              <Label htmlFor="reconnect">Auto Reconnect</Label>
-            </div>
-            <div>
-              <Label htmlFor="timeout">Connection Timeout (ms)</Label>
-              <Input
-                id="timeout"
-                type="number"
-                value={config.timeout || 30000}
-                onChange={(e) => setConfig({ ...config, timeout: parseInt(e.target.value) })}
-                className="mt-1"
-              />
-            </div>
-          </div>
-        );
-
-      case 'click_action':
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="selector">CSS Selector</Label>
-              <Input
-                id="selector"
-                value={config.selector || ''}
-                onChange={(e) => setConfig({ ...config, selector: e.target.value })}
-                placeholder="e.g., .button-class or #button-id"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="waitTime">Wait Time (ms)</Label>
-              <Input
-                id="waitTime"
-                type="number"
-                value={config.waitTime || 1000}
-                onChange={(e) => setConfig({ ...config, waitTime: parseInt(e.target.value) })}
-                className="mt-1"
-              />
-            </div>
-          </div>
-        );
-
-      case 'http_request':
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="url">URL</Label>
-              <Input
-                id="url"
-                value={config.url || ''}
-                onChange={(e) => setConfig({ ...config, url: e.target.value })}
-                placeholder="https://api.example.com/endpoint"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="method">Method</Label>
-              <select
-                id="method"
-                value={config.method || 'GET'}
+                value={config.method || 'POST'}
                 onChange={(e) => setConfig({ ...config, method: e.target.value })}
                 className="mt-1 w-full px-3 py-2 border border-input rounded-md"
               >
@@ -254,21 +142,205 @@ export const NodeConfigurationModal: React.FC<NodeConfigurationModalProps> = ({
                 <option value="DELETE">DELETE</option>
               </select>
             </div>
+          </div>
+        );
+        
+      case 'websocket_config':
+        return (
+          <div className="space-y-4">
+            <div className="bg-muted rounded-lg p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-medium">Service Status</h4>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    serviceStatus === 'running' ? 'bg-green-500' :
+                    serviceStatus === 'starting' ? 'bg-yellow-500 animate-pulse' :
+                    serviceStatus === 'failed' ? 'bg-red-500' : 'bg-gray-400'
+                  }`} />
+                  <span className="text-sm capitalize">{serviceStatus}</span>
+                </div>
+              </div>
+              
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleServiceAction('start')}
+                  disabled={serviceStatus === 'running' || serviceStatus === 'starting'}
+                >
+                  <Play className="w-3 h-3 mr-1" />
+                  Start
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleServiceAction('stop')}
+                  disabled={serviceStatus === 'stopped'}
+                >
+                  <Square className="w-3 h-3 mr-1" />
+                  Stop
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleServiceAction('restart')}
+                  disabled={serviceStatus === 'stopped'}
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  Restart
+                </Button>
+              </div>
+            </div>
+            
             <div>
-              <Label htmlFor="headers">Headers (JSON)</Label>
-              <Textarea
-                id="headers"
-                value={JSON.stringify(config.headers || {}, null, 2)}
-                onChange={(e) => {
-                  try {
-                    setConfig({ ...config, headers: JSON.parse(e.target.value) });
-                  } catch {
-                    // Invalid JSON, keep the text for user to fix
-                  }
-                }}
-                placeholder='{"Content-Type": "application/json"}'
+              <Label htmlFor="url">WebSocket URL</Label>
+              <Input
+                id="url"
+                value={config.url || 'ws://localhost'}
+                onChange={(e) => setConfig({ ...config, url: e.target.value })}
+                placeholder="ws://localhost"
                 className="mt-1"
               />
+            </div>
+            
+            <div>
+              <Label htmlFor="port">Port</Label>
+              <Input
+                id="port"
+                type="number"
+                value={config.port || 8080}
+                onChange={(e) => setConfig({ ...config, port: parseInt(e.target.value) })}
+                className="mt-1"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="service_command">Service Start Command</Label>
+              <Input
+                id="service_command"
+                value={config.service_command || ''}
+                onChange={(e) => setConfig({ ...config, service_command: e.target.value })}
+                placeholder="node websocket-server.js"
+                className="mt-1"
+              />
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="auto_start"
+                checked={config.auto_start || false}
+                onChange={(e) => setConfig({ ...config, auto_start: e.target.checked })}
+                className="rounded"
+              />
+              <Label htmlFor="auto_start">Auto Start Service</Label>
+            </div>
+            
+            <div>
+              <Label htmlFor="health_check_url">Health Check URL</Label>
+              <Input
+                id="health_check_url"
+                value={config.health_check_url || ''}
+                onChange={(e) => setConfig({ ...config, health_check_url: e.target.value })}
+                placeholder="http://localhost:8080/health"
+                className="mt-1"
+              />
+            </div>
+          </div>
+        );
+
+      case 'live_desktop':
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="width">Width</Label>
+                <Input
+                  id="width"
+                  type="number"
+                  value={config.width || 1200}
+                  onChange={(e) => setConfig({ ...config, width: parseInt(e.target.value) })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="height">Height</Label>
+                <Input
+                  id="height"
+                  type="number"
+                  value={config.height || 900}
+                  onChange={(e) => setConfig({ ...config, height: parseInt(e.target.value) })}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="fps">FPS: {config.fps || 30}</Label>
+              <input
+                type="range"
+                id="fps"
+                min="1"
+                max="60"
+                value={config.fps || 30}
+                onChange={(e) => setConfig({ ...config, fps: parseInt(e.target.value) })}
+                className="w-full mt-1"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="quality">Quality: {config.quality || 80}%</Label>
+              <input
+                type="range"
+                id="quality"
+                min="10"
+                max="100"
+                value={config.quality || 80}
+                onChange={(e) => setConfig({ ...config, quality: parseInt(e.target.value) })}
+                className="w-full mt-1"
+              />
+            </div>
+          </div>
+        );
+
+      case 'click_action':
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="x">X Coordinate</Label>
+                <Input
+                  id="x"
+                  type="number"
+                  value={config.x || 0}
+                  onChange={(e) => setConfig({ ...config, x: parseInt(e.target.value) })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="y">Y Coordinate</Label>
+                <Input
+                  id="y"
+                  type="number"
+                  value={config.y || 0}
+                  onChange={(e) => setConfig({ ...config, y: parseInt(e.target.value) })}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="button">Mouse Button</Label>
+              <select
+                id="button"
+                value={config.button || 'left'}
+                onChange={(e) => setConfig({ ...config, button: e.target.value })}
+                className="mt-1 w-full px-3 py-2 border border-input rounded-md"
+              >
+                <option value="left">Left Click</option>
+                <option value="right">Right Click</option>
+                <option value="middle">Middle Click</option>
+              </select>
             </div>
           </div>
         );
@@ -363,7 +435,7 @@ export const NodeConfigurationModal: React.FC<NodeConfigurationModalProps> = ({
 
               <div>
                 <Label className="text-sm text-muted-foreground">Node Type</Label>
-                <p className="text-sm font-medium capitalize">{node.data.type.replace('_', ' ')}</p>
+                <p className="text-sm font-medium capitalize">{String(node.data.type).replace('_', ' ')}</p>
               </div>
 
               {renderConfigFields()}
@@ -377,11 +449,11 @@ export const NodeConfigurationModal: React.FC<NodeConfigurationModalProps> = ({
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground">Type:</span>
-                    <span className="ml-2 font-mono">{node.data.type}</span>
+                    <span className="ml-2 font-mono">{String(node.data.type)}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Status:</span>
-                    <span className="ml-2 capitalize">{node.data.status || 'idle'}</span>
+                    <span className="ml-2 capitalize">{String(node.data.status || 'idle')}</span>
                   </div>
                   <div className="col-span-2">
                     <span className="text-muted-foreground">Node ID:</span>
