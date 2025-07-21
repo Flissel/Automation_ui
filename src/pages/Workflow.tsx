@@ -1,8 +1,9 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-import WorkflowCanvas from '@/components/trae/WorkflowCanvas';
+import SimplifiedWorkflowCanvas from '@/components/trae/SimplifiedWorkflowCanvas';
 
 const Workflow: React.FC = () => {
   const navigate = useNavigate();
@@ -17,15 +18,15 @@ const Workflow: React.FC = () => {
             Back to Dashboard
           </Button>
           <div>
-            <h1 className="text-xl font-semibold">Workflow Automation</h1>
-            <p className="text-sm text-muted-foreground">Visual workflow builder and automation designer</p>
+            <h1 className="text-xl font-semibold">Simplified Workflow Builder</h1>
+            <p className="text-sm text-muted-foreground">n8n-style visual workflow automation</p>
           </div>
         </div>
       </div>
 
       {/* Canvas */}
       <div className="flex-1 overflow-hidden">
-        <WorkflowCanvas />
+        <SimplifiedWorkflowCanvas />
       </div>
     </div>
   );
