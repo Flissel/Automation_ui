@@ -8,7 +8,7 @@
 
 // Import all node template categories
 import { TRIGGER_TEMPLATES } from './triggerNodes';
-import { ACTION_TEMPLATES } from './actionNodes';
+import { ACTION_TEMPLATES, CONFIG_TEMPLATES } from './actionNodes';
 import { LOGIC_TEMPLATES } from './logicNodes';
 import { DATA_TEMPLATES } from './dataNodes';
 import { SNAPSHOT_TEMPLATES } from './snapshotNodes';
@@ -37,6 +37,7 @@ export {
 export {
   TRIGGER_TEMPLATES,
   ACTION_TEMPLATES,
+  CONFIG_TEMPLATES,
   LOGIC_TEMPLATES,
   DATA_TEMPLATES,
   SNAPSHOT_TEMPLATES,
@@ -53,6 +54,7 @@ export {
 export const NODE_TEMPLATES: Record<string, NodeTemplate> = {
   ...TRIGGER_TEMPLATES,
   ...ACTION_TEMPLATES,
+  ...CONFIG_TEMPLATES,
   ...LOGIC_TEMPLATES,
   ...DATA_TEMPLATES,
   ...SNAPSHOT_TEMPLATES,

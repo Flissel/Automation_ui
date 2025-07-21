@@ -122,28 +122,16 @@ export const TRIGGER_TEMPLATES: Record<string, NodeTemplate> = {
     type: 'webhook_trigger',
     category: NodeCategory.TRIGGERS,
     label: 'Webhook Trigger',
-    description: 'Trigger via HTTP webhook',
+    description: 'Trigger via HTTP webhook with execution history',
     icon: '🌐',
     color: '#3b82f6',
     inputs: [],
     outputs: [
       {
-        id: 'webhook_data',
-        name: 'Webhook Data',
-        type: DataType.OBJECT,
-        description: 'HTTP request payload'
-      },
-      {
-        id: 'headers',
-        name: 'Headers',
-        type: DataType.OBJECT,
-        description: 'HTTP request headers'
-      },
-      {
-        id: 'query_params',
-        name: 'Query Params',
-        type: DataType.OBJECT,
-        description: 'URL query parameters'
+        id: 'trigger_output',
+        name: 'Trigger',
+        type: DataType.ANY,
+        description: 'Webhook trigger signal'
       }
     ],
     defaultConfig: {
@@ -151,7 +139,8 @@ export const TRIGGER_TEMPLATES: Record<string, NodeTemplate> = {
       http_methods: ['POST'],
       authentication: 'none',
       api_key: '',
-      response_format: 'json'
+      response_format: 'json',
+      execution_history: []
     },
     configSchema: {
       endpoint_path: { type: 'string', label: 'Endpoint Path', default: '/webhook', required: true },
@@ -166,42 +155,31 @@ export const TRIGGER_TEMPLATES: Record<string, NodeTemplate> = {
     type: 'live_desktop',
     category: NodeCategory.DESKTOP,
     label: 'Live Desktop',
-    description: 'Real-time desktop screen capture with OCR regions and click actions',
+    description: 'Real-time desktop screen capture - requires WebSocket config',
     icon: '🖥️',
     color: '#10b981',
     inputs: [
       {
-        id: 'config_input',
-        name: 'Config',
+        id: 'trigger_input',
+        name: 'Trigger',
+        type: DataType.ANY,
+        required: true,
+        description: 'Workflow trigger signal'
+      },
+      {
+        id: 'websocket_config',
+        name: 'WebSocket',
         type: DataType.OBJECT,
-        required: false,
-        description: 'Desktop capture configuration'
+        required: true,
+        description: 'WebSocket connection configuration'
       }
     ],
     outputs: [
       {
-        id: 'screen_data',
-        name: 'Screen Data',
-        type: DataType.OBJECT,
-        description: 'Current screen capture data'
-      },
-      {
-        id: 'ocr_results',
-        name: 'OCR Results',
-        type: DataType.ARRAY,
-        description: 'OCR text detection results'
-      },
-      {
-        id: 'click_events',
-        name: 'Click Events',
-        type: DataType.OBJECT,
-        description: 'Mouse click event coordinates'
-      },
-      {
-        id: 'screen_changes',
-        name: 'Screen Changes',
-        type: DataType.BOOLEAN,
-        description: 'Triggers when screen content changes'
+        id: 'output',
+        name: 'Output',
+        type: DataType.ANY,
+        description: 'Live desktop output signal'
       }
     ],
     defaultConfig: {

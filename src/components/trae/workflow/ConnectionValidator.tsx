@@ -16,29 +16,40 @@ export interface NodeConnectionRules {
 }
 
 const NODE_CONNECTION_RULES: Record<string, NodeConnectionRules> = {
-  live_desktop: {
-    allowedSources: ['websocket_comm', 'manual_trigger', 'schedule_trigger'],
-    allowedTargets: ['click_action', 'type_text_action', 'ocr_action'],
-    maxInputs: 3,
-    maxOutputs: 10,
-  },
-  websocket_comm: {
-    allowedSources: ['manual_trigger', 'schedule_trigger'],
+  // Config nodes (no workflow connections)
+  websocket_config: {
+    allowedSources: [],
     allowedTargets: ['live_desktop'],
-    maxInputs: 1,
-    maxOutputs: 5,
+    maxInputs: 0,
+    maxOutputs: 1,
   },
-  click_action: {
-    allowedSources: ['live_desktop', 'if_condition', 'delay'],
-    allowedTargets: ['delay', 'if_condition', 'variable_store', 'end'],
+  
+  // Desktop nodes
+  live_desktop: {
+    allowedSources: ['manual_trigger', 'schedule_trigger', 'webhook_trigger'],
+    allowedTargets: ['click_action', 'type_text_action', 'ocr_action'],
     maxInputs: 2,
-    maxOutputs: 3,
+    maxOutputs: 1,
+    requiredInputs: ['websocket_config']
+  },
+  // Action nodes
+  click_action: {
+    allowedSources: ['live_desktop', 'manual_trigger', 'schedule_trigger', 'webhook_trigger'],
+    allowedTargets: ['end'],
+    maxInputs: 1,
+    maxOutputs: 1,
   },
   type_text_action: {
-    allowedSources: ['live_desktop', 'if_condition', 'delay', 'variable_store'],
-    allowedTargets: ['delay', 'if_condition', 'variable_store', 'end'],
-    maxInputs: 2,
-    maxOutputs: 2,
+    allowedSources: ['live_desktop', 'manual_trigger', 'schedule_trigger', 'webhook_trigger'],
+    allowedTargets: ['end'],
+    maxInputs: 1,
+    maxOutputs: 1,
+  },
+  ocr_action: {
+    allowedSources: ['live_desktop', 'manual_trigger', 'schedule_trigger', 'webhook_trigger'],
+    allowedTargets: ['end'],
+    maxInputs: 1,
+    maxOutputs: 1,
   },
   if_condition: {
     allowedSources: ['live_desktop', 'click_action', 'type_text_action', 'variable_store'],
@@ -58,17 +69,24 @@ const NODE_CONNECTION_RULES: Record<string, NodeConnectionRules> = {
     maxInputs: 3,
     maxOutputs: 5,
   },
+  // Trigger nodes
   manual_trigger: {
     allowedSources: [],
-    allowedTargets: ['live_desktop', 'websocket_comm'],
+    allowedTargets: ['live_desktop', 'click_action', 'type_text_action', 'ocr_action'],
     maxInputs: 0,
-    maxOutputs: 3,
+    maxOutputs: 1,
   },
   schedule_trigger: {
     allowedSources: [],
-    allowedTargets: ['live_desktop', 'websocket_comm'],
+    allowedTargets: ['live_desktop', 'click_action', 'type_text_action', 'ocr_action'],
     maxInputs: 0,
-    maxOutputs: 3,
+    maxOutputs: 1,
+  },
+  webhook_trigger: {
+    allowedSources: [],
+    allowedTargets: ['live_desktop', 'click_action', 'type_text_action', 'ocr_action'],
+    maxInputs: 0,
+    maxOutputs: 1,
   },
   end: {
     allowedSources: ['click_action', 'type_text_action', 'if_condition', 'delay'],
@@ -129,14 +147,14 @@ export class ConnectionValidator {
       return { valid: false, error: 'Workflow must have an End node' };
     }
 
-    // Check Live Desktop + WebSocket requirement
+    // Check Live Desktop + WebSocket Config requirement
     const liveDesktopNodes = nodes.filter(n => (n.data as any)?.type === 'live_desktop');
-    const websocketNodes = nodes.filter(n => (n.data as any)?.type === 'websocket_comm');
+    const websocketConfigNodes = nodes.filter(n => (n.data as any)?.type === 'websocket_config');
 
-    if (liveDesktopNodes.length > 0 && websocketNodes.length === 0) {
+    if (liveDesktopNodes.length > 0 && websocketConfigNodes.length === 0) {
       return { 
         valid: false, 
-        error: 'Live Desktop nodes require WebSocket Communication nodes' 
+        error: 'Live Desktop nodes require WebSocket Config nodes' 
       };
     }
 

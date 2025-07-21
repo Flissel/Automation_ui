@@ -10,6 +10,48 @@ import { NodeCategory, DataType } from '../../types';
 import { NodeTemplate } from './nodeTemplate';
 
 // ============================================================================
+// CONFIG NODE TEMPLATES 
+// ============================================================================
+
+export const CONFIG_TEMPLATES: Record<string, NodeTemplate> = {
+  websocket_config: {
+    type: 'websocket_config',
+    category: NodeCategory.CONFIG,
+    label: 'WebSocket Config',
+    description: 'WebSocket connection configuration for Live Desktop nodes',
+    icon: '🔌',
+    color: '#6b7280',
+    inputs: [],
+    outputs: [
+      {
+        id: 'connection',
+        name: 'Connection',
+        type: DataType.OBJECT,
+        description: 'WebSocket connection configuration'
+      }
+    ],
+    defaultConfig: {
+      url: 'ws://localhost:8080',
+      protocol: '',
+      reconnect: true,
+      reconnect_interval: 5000,
+      max_reconnect_attempts: 10,
+      timeout: 30000,
+      headers: {}
+    },
+    configSchema: {
+      url: { type: 'string', label: 'WebSocket URL', required: true, default: 'ws://localhost:8080' },
+      protocol: { type: 'string', label: 'Protocol', default: '' },
+      reconnect: { type: 'boolean', label: 'Auto Reconnect', default: true },
+      reconnect_interval: { type: 'number', label: 'Reconnect Interval (ms)', default: 5000, min: 1000, max: 60000 },
+      max_reconnect_attempts: { type: 'number', label: 'Max Reconnect Attempts', default: 10, min: 1, max: 100 },
+      timeout: { type: 'number', label: 'Connection Timeout (ms)', default: 30000, min: 5000, max: 120000 },
+      headers: { type: 'object', label: 'Headers' }
+    }
+  }
+};
+
+// ============================================================================
 // ACTION NODE TEMPLATES
 // ============================================================================
 
@@ -23,30 +65,18 @@ export const ACTION_TEMPLATES: Record<string, NodeTemplate> = {
     color: '#10b981',
     inputs: [
       {
-        id: 'trigger_input',
-        name: 'Trigger',
+        id: 'input',
+        name: 'Input',
         type: DataType.ANY,
         description: 'Action trigger signal'
-      },
-      {
-        id: 'selector_input',
-        name: 'Selector',
-        type: DataType.STRING,
-        description: 'Element selector (optional)'
       }
     ],
     outputs: [
       {
-        id: 'success_output',
-        name: 'Success',
-        type: DataType.BOOLEAN,
-        description: 'Click success status'
-      },
-      {
-        id: 'element_data',
-        name: 'Element Data',
-        type: DataType.OBJECT,
-        description: 'Clicked element information'
+        id: 'output',
+        name: 'Output',
+        type: DataType.ANY,
+        description: 'Action completion signal'
       }
     ],
     defaultConfig: {

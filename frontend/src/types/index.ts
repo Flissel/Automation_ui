@@ -62,7 +62,8 @@ export enum NodeCategory {
   LOGIC = 'logic',
   DATA = 'data',
   DESKTOP = 'desktop',
-  AUTOMATION = 'automation'
+  AUTOMATION = 'automation',
+  CONFIG = 'config'
 }
 
 export enum NodeStatus {
