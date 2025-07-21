@@ -82,92 +82,60 @@ interface WorkflowGraph {
   edges: any[];
 }
 
-// Custom Node Component with Live Desktop specialized I/O
+// Custom Node Component - n8n style simplified
 const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
-  // Special handling for Live Desktop node with multiple I/O layers
+  // Config nodes (like websocket) - no handles, just visual
+  if (data.type === 'websocket_config') {
+    return (
+      <div className="relative bg-gradient-to-br from-purple-100 to-violet-200 border-2 border-purple-400 shadow-lg shadow-purple-200/50 rounded-lg px-4 py-3 min-w-[200px] hover:shadow-xl transition-all duration-300 cursor-pointer">
+        <div className="flex items-center space-x-3">
+          <div className="flex-shrink-0 p-2 bg-white/60 rounded-lg">
+            <Wifi className="w-6 h-6 text-purple-600" />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-bold text-purple-800">{data.label}</div>
+            <div className="text-xs text-purple-600">Configuration</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Live Desktop node - needs websocket config input + regular flow
   if (data.type === 'live_desktop') {
     return (
-      <div className="relative bg-gradient-to-br from-slate-100 to-gray-200 border-2 border-slate-400 shadow-lg shadow-slate-200/50 rounded-lg px-6 py-4 min-w-[280px] hover:shadow-xl transition-all duration-300">
-        {/* Control Input - Top Center */}
+      <div className="relative bg-gradient-to-br from-slate-100 to-gray-200 border-2 border-slate-400 shadow-lg shadow-slate-200/50 rounded-lg px-4 py-3 min-w-[200px] hover:shadow-xl transition-all duration-300 cursor-pointer">
+        {/* Input from previous node */}
+        <Handle
+          type="target"
+          position={Position.Left}
+          className="w-3 h-3 bg-gray-400 border-2 border-white shadow-md"
+        />
+        
+        {/* Config connection (websocket) */}
         <Handle
           type="target"
           position={Position.Top}
-          id="control"
-          className="w-4 h-4 bg-blue-500 border-2 border-white shadow-lg hover:scale-110 transition-transform duration-200"
-          style={{ left: '50%', transform: 'translateX(-50%)' }}
-        />
-        
-        {/* WebSocket Input - Top Left */}
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="websocket"
-          className="w-4 h-4 bg-purple-500 border-2 border-white shadow-lg hover:scale-110 transition-transform duration-200"
-          style={{ top: '30%' }}
+          id="config"
+          className="w-3 h-3 bg-purple-400 border-2 border-white shadow-md"
+          style={{ left: '75%' }}
         />
 
-        {/* Click Coordinates Input - Left Bottom */}
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="coordinates"
-          className="w-4 h-4 bg-orange-500 border-2 border-white shadow-lg hover:scale-110 transition-transform duration-200"
-          style={{ top: '70%' }}
-        />
-
-        <div className="flex items-center space-x-3 mb-3">
+        <div className="flex items-center space-x-3">
           <div className="flex-shrink-0 p-2 bg-white/60 rounded-lg">
-            <Monitor className="w-8 h-8 text-slate-600" />
+            <Monitor className="w-6 h-6 text-slate-600" />
           </div>
           <div className="flex-1">
             <div className="text-sm font-bold text-slate-800">{data.label}</div>
-            <div className="text-xs text-slate-600">Live Desktop Stream</div>
-            <div className="text-xs text-slate-500">
-              {data.config?.width || 1200} × {data.config?.height || 900}
-            </div>
+            <div className="text-xs text-slate-600">Live Desktop</div>
           </div>
         </div>
 
-        {/* I/O Labels */}
-        <div className="flex justify-between items-center text-xs text-slate-600 mb-2">
-          <div className="space-y-1">
-            <div className="bg-purple-100 px-2 py-1 rounded text-purple-700">WS</div>
-            <div className="bg-orange-100 px-2 py-1 rounded text-orange-700">XY</div>
-          </div>
-          <div className="text-center">
-            <div className="bg-blue-100 px-2 py-1 rounded text-blue-700">CTRL</div>
-          </div>
-          <div className="space-y-1 text-right">
-            <div className="bg-green-100 px-2 py-1 rounded text-green-700">EVENTS</div>
-            <div className="bg-indigo-100 px-2 py-1 rounded text-indigo-700">STREAM</div>
-          </div>
-        </div>
-
-        {/* Desktop Events Output - Right Top */}
+        {/* Output to next node */}
         <Handle
           type="source"
           position={Position.Right}
-          id="events"
-          className="w-4 h-4 bg-green-500 border-2 border-white shadow-lg hover:scale-110 transition-transform duration-200"
-          style={{ top: '30%' }}
-        />
-
-        {/* Video Stream Output - Right Bottom */}
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="stream"
-          className="w-4 h-4 bg-indigo-500 border-2 border-white shadow-lg hover:scale-110 transition-transform duration-200"
-          style={{ top: '70%' }}
-        />
-
-        {/* Flow Control Output - Bottom */}
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          id="flow"
-          className="w-4 h-4 bg-slate-500 border-2 border-white shadow-lg hover:scale-110 transition-transform duration-200"
-          style={{ left: '50%', transform: 'translateX(-50%)' }}
+          className="w-3 h-3 bg-gray-400 border-2 border-white shadow-md"
         />
       </div>
     );
@@ -209,37 +177,39 @@ const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
   const hasConfig = data.config && Object.keys(data.config).length > 0;
   const isConfigured = hasConfig && Object.values(data.config).some(v => v !== undefined && v !== '');
 
+  // Regular nodes - simplified n8n style with 1 input, 1 output
   return (
     <div className={`
-      px-5 py-3 rounded-xl border-2 min-w-[160px] relative transition-all duration-300 hover:scale-105 hover:shadow-xl backdrop-blur-sm
+      px-4 py-3 rounded-lg border-2 min-w-[180px] relative transition-all duration-300 hover:shadow-lg backdrop-blur-sm cursor-pointer
       ${getNodeColor(data.type)}
     `}>
-      {/* Input Handle */}
+      {/* Input Handle - only for non-trigger nodes */}
       {data.type !== 'manual_trigger' && data.type !== 'schedule_trigger' && (
         <Handle
           type="target"
-          position={Position.Top}
-          className="w-4 h-4 bg-white border-2 border-gray-400 shadow-lg hover:scale-110 transition-transform duration-200"
+          position={Position.Left}
+          className="w-3 h-3 bg-gray-400 border-2 border-white shadow-md"
         />
       )}
 
-      <div className="flex items-center space-x-3 mb-2">
-        <div className="flex-shrink-0 p-1 bg-white/30 rounded-lg backdrop-blur-sm">
+      <div className="flex items-center space-x-3">
+        <div className="flex-shrink-0 p-2 bg-white/60 rounded-lg">
           {getNodeIcon(data.type)}
         </div>
         <div className="flex-1">
           <div className="text-sm font-bold text-gray-800">{data.label}</div>
           <div className="text-xs text-gray-600 capitalize">{data.type.replace('_', ' ')}</div>
+          {!isConfigured && hasConfig && (
+            <div className="flex items-center mt-1">
+              <AlertTriangle className="w-3 h-3 text-amber-500 mr-1" />
+              <span className="text-xs text-amber-600">Not configured</span>
+            </div>
+          )}
         </div>
-        {!isConfigured && hasConfig && (
-          <div className="bg-amber-100 p-1 rounded-full">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-          </div>
-        )}
       </div>
 
       {data.status && (
-        <div className="mb-2">
+        <div className="mt-2">
           <Badge 
             variant={data.status === 'completed' ? 'default' : data.status === 'error' ? 'destructive' : 'secondary'}
             className="text-xs px-2 py-1 font-medium"
@@ -249,12 +219,12 @@ const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
         </div>
       )}
 
-      {/* Output Handle */}
+      {/* Output Handle - only for non-end nodes */}
       {data.type !== 'end' && (
         <Handle
           type="source"
-          position={Position.Bottom}
-          className="w-4 h-4 bg-white border-2 border-gray-400 shadow-lg hover:scale-110 transition-transform duration-200"
+          position={Position.Right}
+          className="w-3 h-3 bg-gray-400 border-2 border-white shadow-md"
         />
       )}
     </div>
@@ -268,6 +238,7 @@ const nodeTypes: NodeTypes = {
   schedule_trigger: CustomNode,
   live_desktop: CustomNode,
   websocket_comm: CustomNode,
+  websocket_config: CustomNode,
   click_action: CustomNode,
   type_text_action: CustomNode,
   delay: CustomNode,
