@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import SimplifiedWorkflowCanvas from '@/components/trae/SimplifiedWorkflowCanvas';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const Workflow: React.FC = () => {
   const navigate = useNavigate();
@@ -36,10 +37,62 @@ const Workflow: React.FC = () => {
           
           <ResizablePanel defaultSize={30} minSize={20} maxSize={60}>
             <div className="h-full bg-card border-t">
-              <div className="p-4">
-                <h3 className="text-sm font-medium text-muted-foreground">Execution Panel</h3>
-                <p className="text-xs text-muted-foreground mt-1">Debug and execution information will appear here</p>
-              </div>
+              <Tabs defaultValue="executions" className="h-full flex flex-col">
+                <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+                  <TabsTrigger 
+                    value="executions" 
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+                  >
+                    Executions
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="console" 
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+                  >
+                    Console
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="variables" 
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+                  >
+                    Variables
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="settings" 
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+                  >
+                    Settings
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="executions" className="flex-1 p-4 m-0">
+                  <div className="h-full">
+                    <h3 className="text-sm font-medium text-foreground mb-2">Workflow Executions</h3>
+                    <p className="text-xs text-muted-foreground">Execution history and live status will appear here</p>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="console" className="flex-1 p-4 m-0">
+                  <div className="h-full">
+                    <h3 className="text-sm font-medium text-foreground mb-2">Debug Console</h3>
+                    <p className="text-xs text-muted-foreground">Log stream and debug output will appear here</p>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="variables" className="flex-1 p-4 m-0">
+                  <div className="h-full">
+                    <h3 className="text-sm font-medium text-foreground mb-2">Node Variables</h3>
+                    <p className="text-xs text-muted-foreground">Node input/output data and variables will appear here</p>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="settings" className="flex-1 p-4 m-0">
+                  <div className="h-full">
+                    <h3 className="text-sm font-medium text-foreground mb-2">Panel Settings</h3>
+                    <p className="text-xs text-muted-foreground">Execution panel configuration options will appear here</p>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>
