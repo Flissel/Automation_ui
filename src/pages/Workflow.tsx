@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import SimplifiedWorkflowCanvas from '@/components/trae/SimplifiedWorkflowCanvas';
+import ExecutionHistory from '@/components/trae/ExecutionHistory';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -66,10 +67,7 @@ const Workflow: React.FC = () => {
                 </TabsList>
                 
                 <TabsContent value="executions" className="flex-1 p-4 m-0">
-                  <div className="h-full">
-                    <h3 className="text-sm font-medium text-foreground mb-2">Workflow Executions</h3>
-                    <p className="text-xs text-muted-foreground">Execution history and live status will appear here</p>
-                  </div>
+                  <ExecutionHistory />
                 </TabsContent>
                 
                 <TabsContent value="console" className="flex-1 p-4 m-0">
