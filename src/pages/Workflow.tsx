@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import SimplifiedWorkflowCanvas from '@/components/trae/SimplifiedWorkflowCanvas';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 
 const Workflow: React.FC = () => {
   const navigate = useNavigate();
@@ -24,9 +25,24 @@ const Workflow: React.FC = () => {
         </div>
       </div>
 
-      {/* Canvas */}
+      {/* Canvas and Debug Panel */}
       <div className="flex-1 overflow-hidden">
-        <SimplifiedWorkflowCanvas />
+        <ResizablePanelGroup direction="vertical">
+          <ResizablePanel defaultSize={70} minSize={30}>
+            <SimplifiedWorkflowCanvas />
+          </ResizablePanel>
+          
+          <ResizableHandle withHandle />
+          
+          <ResizablePanel defaultSize={30} minSize={20} maxSize={60}>
+            <div className="h-full bg-card border-t">
+              <div className="p-4">
+                <h3 className="text-sm font-medium text-muted-foreground">Execution Panel</h3>
+                <p className="text-xs text-muted-foreground mt-1">Debug and execution information will appear here</p>
+              </div>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </div>
   );
