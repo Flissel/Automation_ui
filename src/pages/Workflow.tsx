@@ -7,6 +7,7 @@ import SimplifiedWorkflowCanvas from '@/components/trae/SimplifiedWorkflowCanvas
 import ExecutionHistory from '@/components/trae/ExecutionHistory';
 import ConsoleLog from '@/components/trae/ConsoleLog';
 import WorkflowVariables from '@/components/trae/WorkflowVariables';
+import WorkflowSettings from '@/components/trae/WorkflowSettings';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -80,11 +81,8 @@ const Workflow: React.FC = () => {
                   <WorkflowVariables />
                 </TabsContent>
                 
-                <TabsContent value="settings" className="flex-1 p-4 m-0">
-                  <div className="h-full">
-                    <h3 className="text-sm font-medium text-foreground mb-2">Panel Settings</h3>
-                    <p className="text-xs text-muted-foreground">Execution panel configuration options will appear here</p>
-                  </div>
+                <TabsContent value="settings" className="flex-1 m-0">
+                  <WorkflowSettings />
                 </TabsContent>
               </Tabs>
             </div>
