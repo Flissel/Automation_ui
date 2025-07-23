@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react';
 import SimplifiedWorkflowCanvas from '@/components/trae/SimplifiedWorkflowCanvas';
 import ExecutionHistory from '@/components/trae/ExecutionHistory';
 import ConsoleLog from '@/components/trae/ConsoleLog';
+import WorkflowVariables from '@/components/trae/WorkflowVariables';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -75,11 +76,8 @@ const Workflow: React.FC = () => {
                   <ConsoleLog />
                 </TabsContent>
                 
-                <TabsContent value="variables" className="flex-1 p-4 m-0">
-                  <div className="h-full">
-                    <h3 className="text-sm font-medium text-foreground mb-2">Node Variables</h3>
-                    <p className="text-xs text-muted-foreground">Node input/output data and variables will appear here</p>
-                  </div>
+                <TabsContent value="variables" className="flex-1 m-0">
+                  <WorkflowVariables />
                 </TabsContent>
                 
                 <TabsContent value="settings" className="flex-1 p-4 m-0">
