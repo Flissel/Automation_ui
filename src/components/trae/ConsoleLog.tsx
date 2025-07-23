@@ -16,7 +16,7 @@ import {
   Bug,
   Zap
 } from 'lucide-react';
-import { ConsoleLog, LogLevel, ConsoleFilters } from '@/types/console';
+import type { ConsoleLog, LogLevel, ConsoleFilters } from '@/types/console';
 
 // Mock data for demonstration
 const mockLogs: ConsoleLog[] = [
