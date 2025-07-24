@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { NodeDependency } from '../../types/dataFlow';
+import ManualTriggerNode from './workflow/ManualTriggerNode';
 
 interface SimplifiedNodeData {
   label: string;
@@ -32,6 +33,11 @@ interface SimplifiedNodeProps {
 }
 
 const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) => {
+  // Special handling for manual trigger nodes
+  if (data.type === 'manual_trigger') {
+    return <ManualTriggerNode data={data} id={id} selected={selected} />;
+  }
+
   const isConfigNode = data.category === 'config';
   const isTriggerNode = data.category === 'triggers';
   

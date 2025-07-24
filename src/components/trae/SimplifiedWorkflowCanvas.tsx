@@ -26,10 +26,11 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Play, Plus, Save } from 'lucide-react';
+import { AlertTriangle, Play, Plus, Save, FolderOpen } from 'lucide-react';
 
 import SimplifiedNode from './SimplifiedNode';
 import { SimplifiedConnectionValidator } from './workflow/SimplifiedConnectionValidator';
+import { SaveLoadDialog } from './workflow/SaveLoadDialog';
 import { SIMPLIFIED_NODE_TEMPLATES } from '../../config/simplifiedNodeTemplates';
 
 // Define node types
@@ -60,6 +61,7 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [isSaveLoadOpen, setIsSaveLoadOpen] = useState(false);
 
   const reactFlowInstance = useReactFlow();
 
@@ -93,12 +95,10 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
     [readOnly, nodes, setEdges]
   );
 
-  // Handle node selection
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     setSelectedNode(node);
   }, []);
 
-  // Add new node
   const addNode = useCallback((templateId: string) => {
     if (readOnly) return;
     
@@ -110,7 +110,6 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
       y: Math.random() * 400 + 100,
     });
 
-    // Check dependencies
     const depValidation = SimplifiedConnectionValidator.checkNodeDependencies(templateId, nodes);
     
     const newNode: Node = {
@@ -137,12 +136,10 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
     }
   }, [readOnly, reactFlowInstance, setNodes, nodes]);
 
-  // Validate current workflow
   const validation = useMemo(() => {
     return SimplifiedConnectionValidator.validateWorkflow(nodes, edges);
   }, [nodes, edges]);
 
-  // Group templates by category
   const templatesByCategory = useMemo(() => {
     const grouped: Record<string, typeof SIMPLIFIED_NODE_TEMPLATES[string][]> = {};
     Object.values(SIMPLIFIED_NODE_TEMPLATES).forEach(template => {
@@ -153,6 +150,12 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
     });
     return grouped;
   }, []);
+
+  // Handle workflow loading
+  const handleLoadWorkflow = useCallback((newNodes: Node[], newEdges: Edge[]) => {
+    setNodes(newNodes);
+    setEdges(newEdges);
+  }, [setNodes, setEdges]);
 
   return (
     <div className="h-full flex bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -182,10 +185,20 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
             <Button 
               variant="ghost" 
               size="sm"
+              onClick={() => setIsSaveLoadOpen(true)}
               className="bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700"
             >
               <Save className="w-4 h-4 mr-2" />
               Save
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setIsSaveLoadOpen(true)}
+              className="bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:from-purple-600 hover:to-pink-700"
+            >
+              <FolderOpen className="w-4 h-4 mr-2" />
+              Load
             </Button>
           </div>
         </div>
@@ -205,7 +218,6 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
           </div>
         )}
 
-        {/* React Flow */}
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -294,6 +306,15 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
           </div>
         </div>
       )}
+
+      {/* Save/Load Dialog */}
+      <SaveLoadDialog
+        isOpen={isSaveLoadOpen}
+        onClose={() => setIsSaveLoadOpen(false)}
+        nodes={nodes}
+        edges={edges}
+        onLoadWorkflow={handleLoadWorkflow}
+      />
     </div>
   );
 };
