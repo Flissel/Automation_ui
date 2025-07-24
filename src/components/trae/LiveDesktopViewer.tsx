@@ -850,12 +850,11 @@ export const LiveDesktopViewer: React.FC<LiveDesktopViewerProps> = ({
                 width={width}
                 height={height}
                 className="absolute inset-0 w-full h-auto pointer-events-none"
-                style={{ aspectRatio: `${width}/${height}` }}
                 onMouseDown={handleCanvasMouseDown}
                 onMouseMove={handleCanvasMouseMove}
                 onMouseUp={handleCanvasMouseUp}
                 style={{
-                  ...{ aspectRatio: `${width}/${height}` },
+                  aspectRatio: `${width}/${height}`,
                   pointerEvents: isDrawingRegion ? 'auto' : 'none',
                   cursor: isDrawingRegion ? 'crosshair' : 'default'
                 }}

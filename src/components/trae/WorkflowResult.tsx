@@ -167,9 +167,7 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
         inputResults.push({
           ...data,
           metadata: {
-            ...data.metadata,
-            source: 'workflow_input',
-            processedAt: Date.now()
+          ...data.metadata
           }
         });
       });
@@ -179,18 +177,15 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
     if (actionResultsInput && actionResultsInput.length > 0) {
       actionResultsInput.forEach(actionResult => {
         const workflowData: WorkflowData = {
-          id: `action_${actionResult.id || Date.now()}`,
-          timestamp: actionResult.timestamp || Date.now(),
-          nodeId: actionResult.nodeId || 'unknown',
-          nodeType: actionResult.nodeType || 'action',
-          dataType: 'action_result',
-          data: actionResult.data,
+          id: `action_${Date.now()}`,
+          timestamp: Date.now(),
+          nodeId: 'unknown',
+          nodeType: 'action',
+          data: actionResult,
           metadata: {
-            status: actionResult.success ? 'completed' : 'failed',
-            source: 'action_input',
-            processedAt: Date.now(),
-            executionTime: actionResult.executionTime,
-            error: actionResult.error
+            executionId: `execution_${Date.now()}`,
+            workflowId: `workflow_${Date.now()}`,
+            status: 'completed' as const
           }
         };
         inputResults.push(workflowData);

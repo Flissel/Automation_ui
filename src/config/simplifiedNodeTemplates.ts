@@ -596,7 +596,6 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
     category: 'actions',
     icon: 'Save',
     color: '#0ea5e9',
-    component: 'SendToFilesystem',
     input: {
       id: 'data_input',
       name: 'Data to Send',

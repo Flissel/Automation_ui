@@ -421,10 +421,8 @@ const LiveDesktop: React.FC = () => {
     <div className="flex justify-center">
       <WorkflowResult
         resultId={`results-${currentScenario.id}`}
-        dataDirectory={currentScenario.websocketConfig.dataDirectory}
-        autoRefresh={true}
         refreshInterval={5000}
-        onResultUpdate={handleResultUpdate}
+        onResultUpdate={(aggregation) => handleResultUpdate([])}
         onError={(error) => handleError('WorkflowResult', error)}
         className="w-full max-w-4xl"
       />
@@ -450,10 +448,8 @@ const LiveDesktop: React.FC = () => {
         <h3 className="text-lg font-semibold mb-4">Workflow Results</h3>
         <WorkflowResult
           resultId={`results-${currentScenario.id}`}
-          dataDirectory={currentScenario.websocketConfig.dataDirectory}
-          autoRefresh={true}
           refreshInterval={5000}
-          onResultUpdate={handleResultUpdate}
+          onResultUpdate={(aggregation) => handleResultUpdate([])}
           onError={(error) => handleError('WorkflowResult', error)}
           className="w-full"
         />
