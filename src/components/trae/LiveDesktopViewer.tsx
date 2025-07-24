@@ -78,9 +78,8 @@ interface OCRRegion {
 
 interface OCRConfig {
   enabled: boolean;
-  extractionInterval: number; // in minutes
+  extractionInterval: number; // minutes
   n8nWebhookUrl: string;
-  lebasSystemUrl: string;
   autoSend: boolean;
 }
 
@@ -125,9 +124,8 @@ const DEFAULT_CONFIG: LiveDesktopConfig = {
 
 const DEFAULT_OCR_CONFIG: OCRConfig = {
   enabled: false,
-  extractionInterval: 4, // 4 minutes
+  extractionInterval: 5, // minutes
   n8nWebhookUrl: '',
-  lebasSystemUrl: '',
   autoSend: true
 };
 
@@ -425,11 +423,6 @@ export const LiveDesktopViewer: React.FC<LiveDesktopViewerProps> = ({
           title: "Data Sent",
           description: "Extracted data sent to N8N webhook successfully",
         });
-
-        // If lebas system URL is configured, send there too
-        if (ocrConfig.lebasSystemUrl) {
-          await sendToLebasSystem(extractedData);
-        }
       } else {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -440,33 +433,6 @@ export const LiveDesktopViewer: React.FC<LiveDesktopViewerProps> = ({
         description: "Failed to send data to N8N webhook",
         variant: "destructive",
       });
-    }
-  };
-
-  const sendToLebasSystem = async (extractedData: any[]) => {
-    if (!ocrConfig.lebasSystemUrl) return;
-
-    try {
-      const response = await fetch(ocrConfig.lebasSystemUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          source: 'trae-ocr-system',
-          data: extractedData,
-          timestamp: new Date().toISOString()
-        })
-      });
-
-      if (response.ok) {
-        toast({
-          title: "Forwarded to Lebas",
-          description: "Data forwarded to Lebas system successfully",
-        });
-      }
-    } catch (error) {
-      console.error('Failed to send to Lebas system:', error);
     }
   };
 
@@ -698,20 +664,6 @@ export const LiveDesktopViewer: React.FC<LiveDesktopViewerProps> = ({
               onChange={(e) => setOcrConfig(prev => ({ 
                 ...prev, 
                 n8nWebhookUrl: e.target.value 
-              }))}
-            />
-          </div>
-          
-          <div>
-            <Label htmlFor="lebas-system">Lebas System URL</Label>
-            <Input
-              id="lebas-system"
-              type="url"
-              placeholder="https://lebas-system.com/api/..."
-              value={ocrConfig.lebasSystemUrl}
-              onChange={(e) => setOcrConfig(prev => ({ 
-                ...prev, 
-                lebasSystemUrl: e.target.value 
               }))}
             />
           </div>

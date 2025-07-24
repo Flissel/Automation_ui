@@ -1,0 +1,668 @@
+/**
+ * Live Desktop Interface Component
+ * 
+ * Interface node that connects WebSocket config, triggers, and actions
+ * Integrates with filesystem bridge for data persistence and communication
+ * Author: TRAE Development Team
+ * Version: 3.0.0
+ */
+
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { 
+  Monitor, 
+  Play, 
+  Pause, 
+  Square, 
+  Settings, 
+  Maximize, 
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  AlertCircle,
+  CheckCircle,
+  Database,
+  FileText,
+  Activity,
+  Link,
+  Zap,
+  Clock
+} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FilesystemBridge, FilesystemBridgeConfig, WorkflowData, ActionCommand, ActionResult } from '@/services/filesystemBridge';
+
+// ============================================================================
+// INTERFACES
+// ============================================================================
+
+interface WebSocketConfig {
+  url: string;
+  port: number;
+  autoReconnect: boolean;
+  reconnectInterval: number;
+  maxReconnectAttempts: number;
+  enableFilesystemBridge: boolean;
+  dataDirectory: string;
+  fileFormat: 'json' | 'xml' | 'csv';
+  watchInterval: number;
+}
+
+interface TriggerConfig {
+  type: 'manual' | 'webhook' | 'schedule' | 'filesystem';
+  enabled: boolean;
+  parameters: any;
+}
+
+interface ActionConfig {
+  type: 'click' | 'type' | 'http' | 'ocr' | 'custom';
+  enabled: boolean;
+  parameters: any;
+  outputToFilesystem: boolean;
+}
+
+interface InterfaceStatus {
+  websocketConnected: boolean;
+  filesystemBridgeActive: boolean;
+  triggersActive: number;
+  actionsActive: number;
+  lastDataTransfer: Date | null;
+  dataTransferCount: number;
+}
+
+interface LiveDesktopInterfaceProps {
+  /** Unique interface ID */
+  interfaceId?: string;
+  /** WebSocket configuration */
+  websocketConfig?: Partial<WebSocketConfig>;
+  /** Trigger configurations */
+  triggers?: TriggerConfig[];
+  /** Action configurations */
+  actions?: ActionConfig[];
+  /** Filesystem bridge configuration */
+  filesystemConfig?: Partial<FilesystemBridgeConfig>;
+  /** Callback for status changes */
+  onStatusChange?: (status: InterfaceStatus) => void;
+  /** Callback for data output */
+  onDataOutput?: (data: WorkflowData) => void;
+  /** Callback for errors */
+  onError?: (error: string) => void;
+  /** Enable auto-start */
+  autoStart?: boolean;
+  /** CSS classes */
+  className?: string;
+}
+
+// ============================================================================
+// DEFAULT CONFIGURATIONS
+// ============================================================================
+
+const DEFAULT_WEBSOCKET_CONFIG: WebSocketConfig = {
+  url: 'ws://localhost',
+  port: 8080,
+  autoReconnect: true,
+  reconnectInterval: 5000,
+  maxReconnectAttempts: 5,
+  enableFilesystemBridge: true,
+  dataDirectory: './workflow-data',
+  fileFormat: 'json',
+  watchInterval: 1000
+};
+
+const DEFAULT_FILESYSTEM_CONFIG: FilesystemBridgeConfig = {
+  baseDataPath: './workflow-data',
+  websocketUrl: 'ws://localhost',
+  websocketPort: 8080,
+  watchInterval: 1000,
+  autoCleanup: true,
+  maxFileAge: 3600000 // 1 hour
+};
+
+// ============================================================================
+// LIVE DESKTOP INTERFACE COMPONENT
+// ============================================================================
+
+export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
+  interfaceId = 'live-desktop-interface',
+  websocketConfig = {},
+  triggers = [],
+  actions = [],
+  filesystemConfig = {},
+  onStatusChange,
+  onDataOutput,
+  onError,
+  autoStart = false,
+  className = ''
+}) => {
+  // ============================================================================
+  // STATE MANAGEMENT
+  // ============================================================================
+
+  const [wsConfig, setWsConfig] = useState<WebSocketConfig>({
+    ...DEFAULT_WEBSOCKET_CONFIG,
+    ...websocketConfig
+  });
+
+  const [fsConfig, setFsConfig] = useState<FilesystemBridgeConfig>({
+    ...DEFAULT_FILESYSTEM_CONFIG,
+    ...filesystemConfig
+  });
+
+  const [interfaceStatus, setInterfaceStatus] = useState<InterfaceStatus>({
+    websocketConnected: false,
+    filesystemBridgeActive: false,
+    triggersActive: 0,
+    actionsActive: 0,
+    lastDataTransfer: null,
+    dataTransferCount: 0
+  });
+
+  const [activeTriggers, setActiveTriggers] = useState<TriggerConfig[]>(triggers);
+  const [activeActions, setActiveActions] = useState<ActionConfig[]>(actions);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [recentData, setRecentData] = useState<WorkflowData[]>([]);
+
+  const filesystemBridgeRef = useRef<FilesystemBridge | null>(null);
+  const { toast } = useToast();
+
+  // ============================================================================
+  // FILESYSTEM BRIDGE INTEGRATION
+  // ============================================================================
+
+  const initializeFilesystemBridge = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      
+      if (filesystemBridgeRef.current) {
+        filesystemBridgeRef.current.disconnect();
+      }
+
+      const bridge = new FilesystemBridge(fsConfig);
+      filesystemBridgeRef.current = bridge;
+
+      // Set up event listeners
+      bridge.on('connected', (data) => {
+        setInterfaceStatus(prev => ({
+          ...prev,
+          websocketConnected: true,
+          filesystemBridgeActive: true
+        }));
+        
+        toast({
+          title: "Filesystem Bridge Connected",
+          description: `Connected to ${data.url}`,
+        });
+
+        if (onStatusChange) {
+          onStatusChange({
+            ...interfaceStatus,
+            websocketConnected: true,
+            filesystemBridgeActive: true
+          });
+        }
+      });
+
+      bridge.on('disconnected', () => {
+        setInterfaceStatus(prev => ({
+          ...prev,
+          websocketConnected: false,
+          filesystemBridgeActive: false
+        }));
+
+        toast({
+          title: "Filesystem Bridge Disconnected",
+          description: "Connection lost, attempting to reconnect...",
+          variant: "destructive"
+        });
+      });
+
+      bridge.on('fileWritten', (data) => {
+        setInterfaceStatus(prev => ({
+          ...prev,
+          lastDataTransfer: new Date(),
+          dataTransferCount: prev.dataTransferCount + 1
+        }));
+
+        setRecentData(prev => [data.data, ...prev.slice(0, 9)]);
+
+        if (onDataOutput) {
+          onDataOutput(data.data);
+        }
+      });
+
+      bridge.on('actionResult', (result: ActionResult) => {
+        toast({
+          title: "Action Completed",
+          description: `${result.nodeId}: ${result.status}`,
+          variant: result.status === 'success' ? 'default' : 'destructive'
+        });
+      });
+
+      bridge.on('error', (error) => {
+        const errorMessage = `Filesystem Bridge Error: ${error.error}`;
+        toast({
+          title: "Bridge Error",
+          description: errorMessage,
+          variant: "destructive"
+        });
+
+        if (onError) {
+          onError(errorMessage);
+        }
+      });
+
+      // Connect to WebSocket
+      await bridge.connect();
+
+    } catch (error) {
+      const errorMessage = `Failed to initialize filesystem bridge: ${error}`;
+      toast({
+        title: "Initialization Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
+
+      if (onError) {
+        onError(errorMessage);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fsConfig, onStatusChange, onDataOutput, onError, interfaceStatus]);
+
+  // ============================================================================
+  // TRIGGER MANAGEMENT
+  // ============================================================================
+
+  const activateTrigger = useCallback(async (trigger: TriggerConfig) => {
+    if (!filesystemBridgeRef.current) {
+      toast({
+        title: "Bridge Not Ready",
+        description: "Filesystem bridge must be connected first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const triggerData: WorkflowData = {
+        id: `trigger_${Date.now()}`,
+        timestamp: Date.now(),
+        nodeId: `trigger_${trigger.type}`,
+        nodeType: 'trigger',
+        data: {
+          type: trigger.type,
+          parameters: trigger.parameters,
+          activated: true
+        },
+        metadata: {
+          executionId: `exec_${Date.now()}`,
+          workflowId: interfaceId,
+          status: 'completed'
+        }
+      };
+
+      // Send trigger activation via filesystem bridge
+      filesystemBridgeRef.current.sendWebSocketData('trigger_activated', triggerData);
+
+      setActiveTriggers(prev => 
+        prev.map(t => t.type === trigger.type ? { ...t, enabled: true } : t)
+      );
+
+      setInterfaceStatus(prev => ({
+        ...prev,
+        triggersActive: prev.triggersActive + 1
+      }));
+
+      toast({
+        title: "Trigger Activated",
+        description: `${trigger.type} trigger is now active`,
+      });
+
+    } catch (error) {
+      toast({
+        title: "Trigger Activation Failed",
+        description: `Failed to activate ${trigger.type} trigger`,
+        variant: "destructive"
+      });
+    }
+  }, [interfaceId]);
+
+  // ============================================================================
+  // ACTION MANAGEMENT
+  // ============================================================================
+
+  const executeAction = useCallback(async (action: ActionConfig) => {
+    if (!filesystemBridgeRef.current) {
+      toast({
+        title: "Bridge Not Ready",
+        description: "Filesystem bridge must be connected first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const actionCommand: ActionCommand = {
+        id: `action_${Date.now()}`,
+        type: action.type as any,
+        timestamp: Date.now(),
+        nodeId: `action_${action.type}`,
+        parameters: action.parameters,
+        executionTimeout: 30000,
+        waitForExecution: true
+      };
+
+      await filesystemBridgeRef.current.writeActionCommand(actionCommand);
+
+      setActiveActions(prev => 
+        prev.map(a => a.type === action.type ? { ...a, enabled: true } : a)
+      );
+
+      setInterfaceStatus(prev => ({
+        ...prev,
+        actionsActive: prev.actionsActive + 1
+      }));
+
+      toast({
+        title: "Action Executed",
+        description: `${action.type} action has been queued`,
+      });
+
+    } catch (error) {
+      toast({
+        title: "Action Execution Failed",
+        description: `Failed to execute ${action.type} action`,
+        variant: "destructive"
+      });
+    }
+  }, []);
+
+  // ============================================================================
+  // LIFECYCLE EFFECTS
+  // ============================================================================
+
+  useEffect(() => {
+    if (autoStart) {
+      initializeFilesystemBridge();
+    }
+
+    return () => {
+      if (filesystemBridgeRef.current) {
+        filesystemBridgeRef.current.disconnect();
+      }
+    };
+  }, [autoStart, initializeFilesystemBridge]);
+
+  // ============================================================================
+  // RENDER COMPONENT
+  // ============================================================================
+
+  return (
+    <div className={`live-desktop-interface ${className}`}>
+      <Card className="w-full">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Monitor className="h-5 w-5" />
+              Live Desktop Interface
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Badge variant={interfaceStatus.websocketConnected ? "default" : "destructive"}>
+                {interfaceStatus.websocketConnected ? (
+                  <><Wifi className="h-3 w-3 mr-1" /> Connected</>
+                ) : (
+                  <><WifiOff className="h-3 w-3 mr-1" /> Disconnected</>
+                )}
+              </Badge>
+              <Badge variant={interfaceStatus.filesystemBridgeActive ? "default" : "secondary"}>
+                <Database className="h-3 w-3 mr-1" />
+                Bridge {interfaceStatus.filesystemBridgeActive ? 'Active' : 'Inactive'}
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="triggers">Triggers</TabsTrigger>
+              <TabsTrigger value="actions">Actions</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+            </TabsList>
+
+            {/* Overview Tab */}
+            <TabsContent value="overview" className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-blue-500" />
+                      <div>
+                        <p className="text-sm font-medium">Active Triggers</p>
+                        <p className="text-2xl font-bold">{interfaceStatus.triggersActive}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-green-500" />
+                      <div>
+                        <p className="text-sm font-medium">Active Actions</p>
+                        <p className="text-2xl font-bold">{interfaceStatus.actionsActive}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-purple-500" />
+                      <div>
+                        <p className="text-sm font-medium">Data Transfers</p>
+                        <p className="text-2xl font-bold">{interfaceStatus.dataTransferCount}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-orange-500" />
+                      <div>
+                        <p className="text-sm font-medium">Last Transfer</p>
+                        <p className="text-sm">
+                          {interfaceStatus.lastDataTransfer 
+                            ? interfaceStatus.lastDataTransfer.toLocaleTimeString()
+                            : 'Never'
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="flex gap-2">
+                <Button 
+                  onClick={initializeFilesystemBridge}
+                  disabled={isLoading || interfaceStatus.filesystemBridgeActive}
+                  className="flex items-center gap-2"
+                >
+                  {isLoading ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4" />
+                  )}
+                  {interfaceStatus.filesystemBridgeActive ? 'Bridge Active' : 'Start Bridge'}
+                </Button>
+
+                <Button 
+                  variant="outline"
+                  onClick={() => filesystemBridgeRef.current?.disconnect()}
+                  disabled={!interfaceStatus.filesystemBridgeActive}
+                  className="flex items-center gap-2"
+                >
+                  <Square className="h-4 w-4" />
+                  Stop Bridge
+                </Button>
+              </div>
+
+              {/* Recent Data */}
+              {recentData.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Recent Data Transfers</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {recentData.map((data, index) => (
+                        <div key={index} className="flex items-center justify-between text-sm p-2 bg-muted rounded">
+                          <span>{data.nodeType}</span>
+                          <span className="text-muted-foreground">
+                            {new Date(data.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Triggers Tab */}
+            <TabsContent value="triggers" className="space-y-4">
+              <div className="space-y-4">
+                {activeTriggers.map((trigger, index) => (
+                  <Card key={index}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium">{trigger.type} Trigger</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Status: {trigger.enabled ? 'Active' : 'Inactive'}
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => activateTrigger(trigger)}
+                          disabled={trigger.enabled}
+                          size="sm"
+                        >
+                          {trigger.enabled ? 'Active' : 'Activate'}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+
+            {/* Actions Tab */}
+            <TabsContent value="actions" className="space-y-4">
+              <div className="space-y-4">
+                {activeActions.map((action, index) => (
+                  <Card key={index}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium">{action.type} Action</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Output to filesystem: {action.outputToFilesystem ? 'Yes' : 'No'}
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => executeAction(action)}
+                          size="sm"
+                        >
+                          Execute
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+
+            {/* Settings Tab */}
+            <TabsContent value="settings" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">WebSocket Configuration</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="ws-url">WebSocket URL</Label>
+                      <Input
+                        id="ws-url"
+                        value={wsConfig.url}
+                        onChange={(e) => setWsConfig(prev => ({ ...prev, url: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="ws-port">Port</Label>
+                      <Input
+                        id="ws-port"
+                        type="number"
+                        value={wsConfig.port}
+                        onChange={(e) => setWsConfig(prev => ({ ...prev, port: parseInt(e.target.value) }))}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="auto-reconnect"
+                      checked={wsConfig.autoReconnect}
+                      onCheckedChange={(checked) => setWsConfig(prev => ({ ...prev, autoReconnect: checked }))}
+                    />
+                    <Label htmlFor="auto-reconnect">Auto Reconnect</Label>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Filesystem Configuration</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="data-path">Data Directory</Label>
+                    <Input
+                      id="data-path"
+                      value={fsConfig.baseDataPath}
+                      onChange={(e) => setFsConfig(prev => ({ ...prev, baseDataPath: e.target.value }))}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="auto-cleanup"
+                      checked={fsConfig.autoCleanup}
+                      onCheckedChange={(checked) => setFsConfig(prev => ({ ...prev, autoCleanup: checked }))}
+                    />
+                    <Label htmlFor="auto-cleanup">Auto Cleanup Old Files</Label>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default LiveDesktopInterface;

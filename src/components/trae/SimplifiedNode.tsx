@@ -21,6 +21,18 @@ interface SimplifiedNodeData {
   dependencies?: NodeDependency[];
   input?: any;
   output?: any;
+  inputs?: Array<{
+    id: string;
+    label: string;
+    description?: string;
+    accepts?: string[];
+  }>;
+  outputs?: Array<{
+    id: string;
+    label: string;
+    description?: string;
+    type?: string;
+  }>;
   description?: string;
   icon?: string;
   color?: string;
@@ -73,26 +85,37 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
     }
   };
 
+  // Calculate handle positions for multiple inputs/outputs
+  const inputHandles = data.inputs || (data.input ? [{ id: 'input', label: 'Input', description: data.input.description }] : []);
+  const outputHandles = data.outputs || (data.output ? [{ id: 'output', label: 'Output', description: data.output.description }] : []);
+  
+  const nodeHeight = Math.max(120, 40 + Math.max(inputHandles.length, outputHandles.length) * 25);
+
   return (
     <div className={`
       relative rounded-lg px-4 py-3 min-w-[200px] transition-all duration-300 hover:shadow-xl cursor-pointer
       ${getNodeStyle()}
       ${selected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
-    `}>
+    `} style={{ minHeight: `${nodeHeight}px` }}>
       
-      {/* Input Handle - only for non-trigger nodes */}
-      {!isTriggerNode && !isConfigNode && data.input && (
-        <Handle
-          type="target"
-          position={Position.Left}
-          className="w-3 h-3 bg-gray-400 border-2 border-white shadow-md"
-          style={{ left: -6 }}
-        >
-          <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs text-gray-600 whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity bg-white px-2 py-1 rounded shadow">
-            {data.input.description}
-          </div>
-        </Handle>
-      )}
+      {/* Multiple Input Handles - only for non-trigger nodes */}
+      {!isTriggerNode && !isConfigNode && inputHandles.map((input, index) => {
+        const topOffset = 30 + (index * 25);
+        return (
+          <Handle
+            key={input.id}
+            id={input.id}
+            type="target"
+            position={Position.Left}
+            className="w-3 h-3 bg-blue-400 border-2 border-white shadow-md hover:bg-blue-500 transition-colors"
+            style={{ left: -6, top: topOffset }}
+          >
+            <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs text-gray-600 whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity bg-white px-2 py-1 rounded shadow z-10">
+              {input.description || input.label}
+            </div>
+          </Handle>
+        );
+      })}
 
       {/* Main Node Content */}
       <div className="flex items-center space-x-3">
@@ -131,6 +154,26 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
         </div>
       </div>
 
+      {/* Input/Output Labels */}
+      {(inputHandles.length > 1 || outputHandles.length > 1) && (
+        <div className="mt-2 flex justify-between text-xs">
+          <div className="space-y-1">
+            {inputHandles.map((input, index) => (
+              <div key={input.id} className="text-gray-600" style={{ marginTop: index * 25 }}>
+                • {input.label}
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1 text-right">
+            {outputHandles.map((output, index) => (
+              <div key={output.id} className="text-gray-600" style={{ marginTop: index * 25 }}>
+                {output.label} •
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Dependency Indicators */}
       {data.dependencies && data.dependencies.length > 0 && (
         <div className="mt-2 text-xs">
@@ -147,19 +190,24 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
         </div>
       )}
 
-      {/* Output Handle - only for non-config nodes */}
-      {!isConfigNode && data.output && (
-        <Handle
-          type="source"
-          position={Position.Right}
-          className="w-3 h-3 bg-gray-400 border-2 border-white shadow-md"
-          style={{ right: -6 }}
-        >
-          <div className="absolute -top-6 right-1/2 transform translate-x-1/2 text-xs text-gray-600 whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity bg-white px-2 py-1 rounded shadow">
-            {data.output.description}
-          </div>
-        </Handle>
-      )}
+      {/* Multiple Output Handles - only for non-config nodes */}
+      {!isConfigNode && outputHandles.map((output, index) => {
+        const topOffset = 30 + (index * 25);
+        return (
+          <Handle
+            key={output.id}
+            id={output.id}
+            type="source"
+            position={Position.Right}
+            className="w-3 h-3 bg-green-400 border-2 border-white shadow-md hover:bg-green-500 transition-colors"
+            style={{ right: -6, top: topOffset }}
+          >
+            <div className="absolute -top-6 right-1/2 transform translate-x-1/2 text-xs text-gray-600 whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity bg-white px-2 py-1 rounded shadow z-10">
+              {output.description || output.label}
+            </div>
+          </Handle>
+        );
+      })}
     </div>
   );
 };
