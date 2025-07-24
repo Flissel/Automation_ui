@@ -246,29 +246,27 @@ const LiveDesktop: React.FC = () => {
         allowFullscreen={true}
         showControls={true}
         autoStart={false}
+        enableOCR={true}
         className="border border-border rounded-lg"
       />
     </div>
   );
 
   const renderGridView = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {[1, 2, 3, 4].map((index) => (
+    <div className="grid grid-cols-2 gap-4">
+      {[1, 2, 3, 4].map((id) => (
         <LiveDesktopViewer
-          key={index}
-          viewerId={`grid-${index}`}
+          key={id}
+          viewerId={`grid-${id}`}
           width={400}
           height={300}
-          initialConfig={{
-            ...currentScenario.config,
-            fps: Math.max(1, currentScenario.config.fps / 2),
-            quality: Math.max(50, currentScenario.config.quality - 20)
-          }}
-          onConnectionChange={(status) => handleConnectionChange(`grid-${index}`, status)}
-          onError={(error) => handleError(`grid-${index}`, error)}
-          allowFullscreen={true}
+          initialConfig={currentScenario.config}
+          onConnectionChange={(status) => handleConnectionChange(`grid-${id}`, status)}
+          onError={(error) => handleError(`grid-${id}`, error)}
+          allowFullscreen={false}
           showControls={true}
           autoStart={false}
+          enableOCR={id === 1} // Enable OCR only for the first viewer in grid
           className="border border-border rounded-lg"
         />
       ))}
@@ -291,6 +289,7 @@ const LiveDesktop: React.FC = () => {
         allowFullscreen={true}
         showControls={true}
         autoStart={false}
+        enableOCR={true}
         className="border border-border rounded-lg"
       />
     </div>

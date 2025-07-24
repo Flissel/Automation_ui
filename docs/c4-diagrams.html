@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C4 Architecture Diagrams - Trusted Login System</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8fafc;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .diagram-section {
+            background: white;
+            margin: 30px 0;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+        }
+        
+        .diagram-section h2 {
+            color: #2d3748;
+            margin-top: 0;
+            font-size: 1.8em;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+        
+        .diagram-section h3 {
+            color: #4a5568;
+            margin-top: 30px;
+            font-size: 1.4em;
+        }
+        
+        .diagram-container {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .mermaid {
+            text-align: center;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        .tech-stack {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .tech-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #48bb78;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .tech-card h4 {
+            margin: 0 0 10px 0;
+            color: #2d3748;
+        }
+        
+        .tech-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .tech-list li {
+            padding: 5px 0;
+            color: #4a5568;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .tech-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .navigation {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .nav-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+        }
+        
+        .nav-links a {
+            color: #667eea;
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid #667eea;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-links a:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .overview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .overview-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            border-top: 4px solid #667eea;
+        }
+        
+        .overview-card h3 {
+            margin: 0 0 15px 0;
+            color: #2d3748;
+            font-size: 1.3em;
+        }
+        
+        .overview-card p {
+            color: #4a5568;
+            margin: 0;
+            line-height: 1.6;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .diagram-section {
+                padding: 20px;
+            }
+            
+            .nav-links {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏗️ C4 Architecture Diagrams</h1>
+        <p>Trusted Login System - Visual Workflow Automation Platform</p>
+    </div>
+
+    <div class="navigation">
+        <div class="nav-links">
+            <a href="#context">System Context</a>
+            <a href="#container">Container View</a>
+            <a href="#component-web">Web Components</a>
+            <a href="#component-workflow">Workflow Engine</a>
+            <a href="#component-repo">Repository Manager</a>
+            <a href="#dataflow">Data Flow</a>
+            <a href="#deployment">Deployment</a>
+            <a href="#security">Security</a>
+            <a href="#tech-stack">Tech Stack</a>
+        </div>
+    </div>
+
+    <div class="overview-grid">
+        <div class="overview-card">
+            <h3>🎯 System Purpose</h3>
+            <p>Visual workflow automation platform with multi-repository integration, real-time desktop capture, and enterprise authentication.</p>
+        </div>
+        <div class="overview-card">
+            <h3>🔧 Core Technologies</h3>
+            <p>React + TypeScript frontend, Supabase backend, Node.js automation scripts, and WebSocket real-time communication.</p>
+        </div>
+        <div class="overview-card">
+            <h3>🚀 Key Features</h3>
+            <p>Visual workflow builder, multi-repo sync, live desktop streaming, webhook triggers, and team collaboration tools.</p>
+        </div>
+        <div class="overview-card">
+            <h3>📊 Architecture Style</h3>
+            <p>Modular component-based architecture with clear separation of concerns and microservice-like container organization.</p>
+        </div>
+    </div>
+
+    <div class="diagram-section" id="context">
+        <h2>Level 1: System Context Diagram</h2>
+        <p>High-level view showing how the Trusted Login System fits into the broader ecosystem and interacts with external systems and users.</p>
+        
+        <div class="diagram-container">
+            <div class="mermaid">
+C4Context
+    title System Context Diagram - Trusted Login System
+
+    Person(user, "End User", "Developer/Administrator using the workflow automation system")
+    Person(teamMember, "Team Member", "External team member contributing to repositories")
+    
+    System(trustedLogin, "Trusted Login System", "Visual workflow automation platform with multi-repository integration")
+    
+    System_Ext(supabase, "Supabase", "Backend-as-a-Service providing authentication, database, and real-time features")
+    System_Ext(externalRepos, "External Repositories", "Git repositories maintained by different teams")
+    System_Ext(webServices, "Web Services", "External APIs and webhook endpoints")
+    System_Ext(desktopSystem, "Desktop System", "Local desktop environment for screen capture and automation")
+    
+    Rel(user, trustedLogin, "Uses", "HTTPS/WebSocket")
+    Rel(teamMember, externalRepos, "Maintains", "Git")
+    Rel(trustedLogin, supabase, "Authenticates & stores data", "HTTPS/WebSocket")
+    Rel(trustedLogin, externalRepos, "Syncs content", "Git/File System")
+    Rel(trustedLogin, webServices, "Integrates via workflows", "HTTPS/WebSocket")
+    Rel(trustedLogin, desktopSystem, "Captures & automates", "WebSocket/Native APIs")
+            </div>
+        </div>
+    </div>
+
+    <div class="diagram-section" id="container">
+        <h2>Level 2: Container Diagram</h2>
+        <p>Shows the high-level technology choices and how responsibilities are distributed across containers within the system.</p>
+        
+        <div class="diagram-container">
+            <div class="mermaid">
+C4Container
+    title Container Diagram - Trusted Login System
+
+    Person(user, "End User")
+    
+    Container_Boundary(trustedLoginSystem, "Trusted Login System") {
+        Container(webApp, "Web Application", "React + TypeScript", "Provides visual workflow builder and system management interface")
+        Container(workflowEngine, "Workflow Engine", "JavaScript/TypeScript", "Executes node-based workflows and manages data flow")
+        Container(repoManager, "Repository Manager", "Node.js Scripts", "Handles external repository synchronization and branch management")
+        Container(desktopConnector, "Desktop Connector", "WebSocket Server", "Manages real-time desktop capture and automation")
+    }
+    
+    System_Ext(supabase, "Supabase")
+    System_Ext(externalRepos, "External Repositories")
+    System_Ext(webServices, "Web Services")
+    System_Ext(desktopSystem, "Desktop System")
+    
+    Rel(user, webApp, "Uses", "HTTPS")
+    Rel(webApp, workflowEngine, "Triggers workflows", "JavaScript API")
+    Rel(webApp, repoManager, "Manages repositories", "Node.js Scripts")
+    Rel(webApp, desktopConnector, "Controls desktop", "WebSocket")
+    
+    Rel(webApp, supabase, "Authenticates", "HTTPS")
+    Rel(workflowEngine, supabase, "Stores execution data", "HTTPS")
+    Rel(repoManager, externalRepos, "Syncs", "Git/File System")
+    Rel(workflowEngine, webServices, "Makes API calls", "HTTPS")
+    Rel(desktopConnector, desktopSystem, "Captures screen", "Native APIs")
+            </div>
+        </div>
+    </div>
+
+    <div class="diagram-section" id="component-web">
+        <h2>Level 3: Component Diagram - Web Application</h2>
+        <p>Detailed view of the React web application components and their interactions.</p>
+        
+        <div class="diagram-container">
+            <div class="mermaid">
+C4Component
+    title Component Diagram - Web Application Container
+
+    Container_Boundary(webApp, "Web Application") {
+        Component(authComponent, "Authentication Component", "React + Supabase Auth", "Handles user login, registration, and session management")
+        Component(dashboard, "Dashboard Component", "React", "Main navigation hub and system overview")
+        Component(workflowBuilder, "Workflow Builder", "React + XYFlow", "Visual node-based workflow editor")
+        Component(nodeManager, "Dynamic Node Manager", "React + TypeScript", "Manages workflow node types and configurations")
+        Component(liveDesktop, "Live Desktop Component", "React + WebSocket", "Real-time desktop streaming and control")
+        Component(monitoring, "Monitoring Component", "React + Charts", "System health and workflow execution monitoring")
+        Component(settings, "Settings Component", "React", "System configuration and preferences")
+        Component(uiComponents, "UI Components", "Shadcn/UI + Radix", "Reusable UI component library")
+        Component(stateManager, "State Manager", "TanStack Query + Zustand", "Application state and API cache management")
+        Component(router, "Router", "React Router", "Client-side routing and navigation")
+    }
+    
+    Container_Ext(workflowEngine, "Workflow Engine")
+    Container_Ext(desktopConnector, "Desktop Connector")
+    System_Ext(supabase, "Supabase")
+    
+    Rel(authComponent, supabase, "Authenticates", "HTTPS")
+    Rel(dashboard, stateManager, "Manages state")
+    Rel(workflowBuilder, nodeManager, "Uses node types")
+    Rel(workflowBuilder, workflowEngine, "Executes workflows")
+    Rel(liveDesktop, desktopConnector, "Streams desktop", "WebSocket")
+    Rel(monitoring, stateManager, "Displays metrics")
+    Rel(settings, stateManager, "Updates config")
+    
+    Rel(dashboard, uiComponents, "Uses")
+    Rel(workflowBuilder, uiComponents, "Uses")
+    Rel(liveDesktop, uiComponents, "Uses")
+    Rel(monitoring, uiComponents, "Uses")
+    Rel(settings, uiComponents, "Uses")
+    
+    Rel(router, dashboard, "Routes to")
+    Rel(router, workflowBuilder, "Routes to")
+    Rel(router, liveDesktop, "Routes to")
+    Rel(router, monitoring, "Routes to")
+    Rel(router, settings, "Routes to")
+            </div>
+        </div>
+    </div>
+
+    <div class="diagram-section" id="component-workflow">
+        <h2>Level 3: Component Diagram - Workflow Engine</h2>
+        <p>Internal structure of the workflow execution engine and its components.</p>
+        
+        <div class="diagram-container">
+            <div class="mermaid">
+C4Component
+    title Component Diagram - Workflow Engine Container
+
+    Container_Boundary(workflowEngine, "Workflow Engine") {
+        Component(nodeExecutor, "Node Executor", "TypeScript", "Executes individual workflow nodes and handles data transformation")
+        Component(dataFlowManager, "Data Flow Manager", "TypeScript", "Manages data packets between nodes and validates connections")
+        Component(triggerManager, "Trigger Manager", "TypeScript", "Handles workflow triggers (webhook, schedule, manual, file watch)")
+        Component(nodeRegistry, "Node Registry", "TypeScript", "Registry of available node types and their configurations")
+        Component(executionEngine, "Execution Engine", "TypeScript", "Orchestrates workflow execution and manages execution context")
+        Component(errorHandler, "Error Handler", "TypeScript", "Handles workflow errors and provides graceful degradation")
+        Component(webhookServer, "Webhook Server", "Express.js", "HTTP server for webhook triggers")
+        Component(scheduler, "Scheduler", "Node.js", "Handles scheduled workflow executions")
+    }
+    
+    Container_Ext(webApp, "Web Application")
+    System_Ext(supabase, "Supabase")
+    System_Ext(webServices, "Web Services")
+    
+    Rel(webApp, executionEngine, "Triggers execution")
+    Rel(executionEngine, nodeExecutor, "Executes nodes")
+    Rel(nodeExecutor, dataFlowManager, "Passes data")
+    Rel(executionEngine, triggerManager, "Handles triggers")
+    Rel(nodeExecutor, nodeRegistry, "Gets node config")
+    Rel(executionEngine, errorHandler, "Handles errors")
+    
+    Rel(triggerManager, webhookServer, "Webhook triggers")
+    Rel(triggerManager, scheduler, "Scheduled triggers")
+    
+    Rel(executionEngine, supabase, "Stores execution logs")
+    Rel(nodeExecutor, webServices, "Makes API calls")
+            </div>
+        </div>
+    </div>
+
+    <div class="diagram-section" id="component-repo">
+        <h2>Level 3: Component Diagram - Repository Manager</h2>
+        <p>Components responsible for multi-repository synchronization and management.</p>
+        
+        <div class="diagram-container">
+            <div class="mermaid">
+C4Component
+    title Component Diagram - Repository Manager Container
+
+    Container_Boundary(repoManager, "Repository Manager") {
+        Component(syncEngine, "Sync Engine", "Node.js", "Handles repository synchronization and content filtering")
+        Component(branchManager, "Branch Manager", "Node.js", "Manages branch operations across multiple repositories")
+        Component(configManager, "Config Manager", "Node.js", "Manages external repository configurations and settings")
+        Component(contentFilter, "Content Filter", "Node.js", "Applies include/exclude patterns for selective content sync")
+        Component(conflictResolver, "Conflict Resolver", "Node.js", "Handles merge conflicts and resolution strategies")
+        Component(updateScheduler, "Update Scheduler", "GitHub Actions", "Schedules automated repository updates")
+        Component(teamCoordinator, "Team Coordinator", "Node.js", "Manages team attribution and coordination")
+    }
+    
+    Container_Ext(webApp, "Web Application")
+    System_Ext(externalRepos, "External Repositories")
+    System_Ext(githubActions, "GitHub Actions")
+    
+    Rel(webApp, configManager, "Manages config")
+    Rel(syncEngine, contentFilter, "Filters content")
+    Rel(syncEngine, conflictResolver, "Resolves conflicts")
+    Rel(branchManager, syncEngine, "Syncs branches")
+    Rel(configManager, syncEngine, "Provides config")
+    Rel(teamCoordinator, configManager, "Coordinates teams")
+    
+    Rel(syncEngine, externalRepos, "Syncs content", "Git")
+    Rel(updateScheduler, githubActions, "Triggers updates")
+    Rel(updateScheduler, syncEngine, "Schedules sync")
+            </div>
+        </div>
+    </div>
+
+    <div class="diagram-section" id="dataflow">
+        <h2>Data Flow Architecture</h2>
+        <p>How data flows through the system from user interactions to external services.</p>
+        
+        <div class="diagram-container">
+            <div class="mermaid">
+flowchart TD
+    A[User Interaction] --> B[React Components]
+    B --> C[State Management]
+    C --> D[API Layer]
+    D --> E[Supabase Backend]
+    
+    F[Workflow Trigger] --> G[Trigger Manager]
+    G --> H[Execution Engine]
+    H --> I[Node Executor]
+    I --> J[Data Flow Manager]
+    J --> K[External Services]
+    
+    L[Repository Update] --> M[Sync Engine]
+    M --> N[Content Filter]
+    N --> O[Local Integration]
+    O --> B
+    
+    P[Desktop Capture] --> Q[WebSocket Server]
+    Q --> R[Desktop Connector]
+    R --> B
+    
+    S[Webhook Request] --> T[Webhook Server]
+    T --> G
+    
+    U[Scheduled Task] --> V[Scheduler]
+    V --> G
+    
+    style A fill:#e1f5fe
+    style F fill:#f3e5f5
+    style L fill:#e8f5e8
+    style P fill:#fff3e0
+    style S fill:#fce4ec
+    style U fill:#f1f8e9
+            </div>
+        </div>
+    </div>
+
+    <div class="diagram-section" id="deployment">
+        <h2>Deployment Architecture</h2>
+        <p>How the system components are deployed across different environments and infrastructure.</p>
+        
+        <div class="diagram-container">
+            <div class="mermaid">
+C4Deployment
+    title Deployment Diagram - Trusted Login System
+
+    Deployment_Node(userDevice, "User Device", "Windows/macOS/Linux") {
+        Container(browser, "Web Browser", "Chrome/Firefox/Safari", "Runs the React application")
+        Container(desktopAgent, "Desktop Agent", "WebSocket Client", "Handles desktop capture and automation")
+    }
+    
+    Deployment_Node(developmentEnv, "Development Environment", "Local Machine") {
+        Container(viteServer, "Vite Dev Server", "Node.js", "Development server with HMR")
+        Container(localScripts, "Local Scripts", "Node.js", "Repository management and build scripts")
+    }
+    
+    Deployment_Node(supabaseCloud, "Supabase Cloud", "Cloud Infrastructure") {
+        Container(authService, "Auth Service", "Supabase Auth", "User authentication and session management")
+        Container(database, "PostgreSQL Database", "Supabase DB", "Application data storage")
+        Container(realtimeService, "Realtime Service", "Supabase Realtime", "WebSocket connections")
+    }
+    
+    Deployment_Node(githubInfra, "GitHub Infrastructure", "Cloud") {
+        Container(githubActions, "GitHub Actions", "CI/CD", "Automated repository synchronization")
+        Container(repositories, "Git Repositories", "GitHub", "Source code and external repositories")
+    }
+    
+    Rel(browser, viteServer, "Loads app", "HTTPS")
+    Rel(browser, authService, "Authenticates", "HTTPS")
+    Rel(browser, database, "Stores/retrieves data", "HTTPS")
+    Rel(browser, realtimeService, "Real-time updates", "WebSocket")
+    Rel(desktopAgent, browser, "Desktop data", "WebSocket")
+    
+    Rel(localScripts, repositories, "Syncs repositories", "Git")
+    Rel(githubActions, repositories, "Automated updates", "Git")
+    Rel(localScripts, githubActions, "Triggers workflows", "GitHub API")
+            </div>
+        </div>
+    </div>
+
+    <div class="diagram-section" id="security">
+        <h2>Security Architecture</h2>
+        <p>Security layers and components protecting the system and user data.</p>
+        
+        <div class="diagram-container">
+            <div class="mermaid">
+flowchart TB
+    subgraph "Security Layers"
+        A[Authentication Layer]
+        B[Authorization Layer]
+        C[Data Protection Layer]
+        D[Network Security Layer]
+    end
+    
+    subgraph "Authentication Components"
+        A1[Supabase Auth]
+        A2[Session Management]
+        A3[Token Refresh]
+    end
+    
+    subgraph "Authorization Components"
+        B1[Route Guards]
+        B2[API Permissions]
+        B3[Resource Access Control]
+    end
+    
+    subgraph "Data Protection"
+        C1[Input Validation]
+        C2[Data Encryption]
+        C3[Secure Storage]
+    end
+    
+    subgraph "Network Security"
+        D1[HTTPS/TLS]
+        D2[WebSocket Security]
+        D3[CORS Configuration]
+    end
+    
+    A --> A1
+    A --> A2
+    A --> A3
+    
+    B --> B1
+    B --> B2
+    B --> B3
+    
+    C --> C1
+    C --> C2
+    C --> C3
+    
+    D --> D1
+    D --> D2
+    D --> D3
+    
+    style A fill:#ffebee
+    style B fill:#e8f5e8
+    style C fill:#e3f2fd
+    style D fill:#fff3e0
+            </div>
+        </div>
+    </div>
+
+    <div class="diagram-section" id="tech-stack">
+        <h2>Technology Stack Overview</h2>
+        <p>Complete technology stack organized by layers and responsibilities.</p>
+        
+        <div class="tech-stack">
+            <div class="tech-card">
+                <h4>🎨 Frontend Stack</h4>
+                <ul class="tech-list">
+                    <li>React 18 - UI Framework</li>
+                    <li>TypeScript - Type Safety</li>
+                    <li>Vite - Build Tool</li>
+                    <li>Tailwind CSS - Styling</li>
+                    <li>Shadcn/UI - Component Library</li>
+                    <li>XYFlow - Workflow Editor</li>
+                </ul>
+            </div>
+            
+            <div class="tech-card">
+                <h4>🔄 State Management</h4>
+                <ul class="tech-list">
+                    <li>TanStack Query - Server State</li>
+                    <li>Zustand - Client State</li>
+                    <li>React Router - Navigation</li>
+                    <li>React Hook Form - Forms</li>
+                </ul>
+            </div>
+            
+            <div class="tech-card">
+                <h4>🔧 Backend Services</h4>
+                <ul class="tech-list">
+                    <li>Supabase Auth - Authentication</li>
+                    <li>Supabase Database - PostgreSQL</li>
+                    <li>Supabase Realtime - WebSocket</li>
+                    <li>Node.js - Automation Scripts</li>
+                </ul>
+            </div>
+            
+            <div class="tech-card">
+                <h4>🛠️ Development Tools</h4>
+                <ul class="tech-list">
+                    <li>ESLint - Code Quality</li>
+                    <li>TypeScript Compiler - Type Checking</li>
+                    <li>PostCSS - CSS Processing</li>
+                    <li>GitHub Actions - CI/CD</li>
+                </ul>
+            </div>
+            
+            <div class="tech-card">
+                <h4>🔗 External Integrations</h4>
+                <ul class="tech-list">
+                    <li>Git Repositories - Version Control</li>
+                    <li>WebSocket APIs - Real-time</li>
+                    <li>REST APIs - HTTP Integration</li>
+                    <li>Desktop APIs - System Integration</li>
+                </ul>
+            </div>
+            
+            <div class="tech-card">
+                <h4>📊 Monitoring & Analytics</h4>
+                <ul class="tech-list">
+                    <li>Recharts - Data Visualization</li>
+                    <li>Console Logging - Debug Info</li>
+                    <li>Error Boundaries - Error Handling</li>
+                    <li>Performance Monitoring - Metrics</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="diagram-container">
+            <div class="mermaid">
+graph TB
+    subgraph "Frontend Stack"
+        F1[React 18]
+        F2[TypeScript]
+        F3[Vite]
+        F4[Tailwind CSS]
+        F5[Shadcn/UI]
+        F6[XYFlow]
+    end
+    
+    subgraph "State Management"
+        S1[TanStack Query]
+        S2[Zustand]
+        S3[React Router]
+    end
+    
+    subgraph "Backend Services"
+        B1[Supabase Auth]
+        B2[Supabase Database]
+        B3[Supabase Realtime]
+    end
+    
+    subgraph "Development Tools"
+        D1[ESLint]
+        D2[TypeScript Compiler]
+        D3[PostCSS]
+        D4[Node.js Scripts]
+    end
+    
+    subgraph "External Integrations"
+        E1[Git Repositories]
+        E2[GitHub Actions]
+        E3[WebSocket APIs]
+        E4[REST APIs]
+    end
+    
+    F1 --> S1
+    F2 --> D2
+    F3 --> D3
+    F4 --> F5
+    F6 --> F1
+    
+    S1 --> B1
+    S2 --> B2
+    S3 --> B3
+    
+    D4 --> E1
+    E2 --> E1
+    B3 --> E3
+    S1 --> E4
+    
+    style F1 fill:#61dafb
+    style F2 fill:#3178c6
+    style B1 fill:#3ecf8e
+    style E1 fill:#f05032
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Mermaid with configuration
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#667eea',
+                primaryTextColor: '#2d3748',
+                primaryBorderColor: '#4a5568',
+                lineColor: '#718096',
+                secondaryColor: '#f7fafc',
+                tertiaryColor: '#e2e8f0',
+                background: '#ffffff',
+                mainBkg: '#ffffff',
+                secondBkg: '#f7fafc',
+                tertiaryBkg: '#e2e8f0'
+            },
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            c4: {
+                useMaxWidth: true,
+                diagramMarginX: 50,
+                diagramMarginY: 50,
+                c4ShapeMargin: 50,
+                c4ShapePadding: 20,
+                width: 216,
+                height: 60,
+                boxMargin: 10,
+                useMaxWidth: true,
+                wrap: true,
+                personFontSize: 14,
+                personFontFamily: '"Open Sans", sans-serif',
+                personFontWeight: 'normal',
+                external_personFontSize: 14,
+                external_personFontFamily: '"Open Sans", sans-serif',
+                external_personFontWeight: 'normal',
+                systemFontSize: 14,
+                systemFontFamily: '"Open Sans", sans-serif',
+                systemFontWeight: 'normal',
+                external_systemFontSize: 14,
+                external_systemFontFamily: '"Open Sans", sans-serif',
+                external_systemFontWeight: 'normal',
+                system_dbFontSize: 14,
+                system_dbFontFamily: '"Open Sans", sans-serif',
+                system_dbFontWeight: 'normal',
+                external_system_dbFontSize: 14,
+                external_system_dbFontFamily: '"Open Sans", sans-serif',
+                external_system_dbFontWeight: 'normal',
+                system_queueFontSize: 14,
+                system_queueFontFamily: '"Open Sans", sans-serif',
+                system_queueFontWeight: 'normal',
+                external_system_queueFontSize: 14,
+                external_system_queueFontFamily: '"Open Sans", sans-serif',
+                external_system_queueFontWeight: 'normal',
+                boundaryFontSize: 14,
+                boundaryFontFamily: '"Open Sans", sans-serif',
+                boundaryFontWeight: 'normal',
+                messageFontSize: 12,
+                messageFontFamily: '"Open Sans", sans-serif',
+                messageFontWeight: 'normal',
+                containerFontSize: 14,
+                containerFontFamily: '"Open Sans", sans-serif',
+                containerFontWeight: 'normal',
+                external_containerFontSize: 14,
+                external_containerFontFamily: '"Open Sans", sans-serif',
+                external_containerFontWeight: 'normal',
+                container_dbFontSize: 14,
+                container_dbFontFamily: '"Open Sans", sans-serif',
+                container_dbFontWeight: 'normal',
+                external_container_dbFontSize: 14,
+                external_container_dbFontFamily: '"Open Sans", sans-serif',
+                external_container_dbFontWeight: 'normal',
+                container_queueFontSize: 14,
+                container_queueFontFamily: '"Open Sans", sans-serif',
+                container_queueFontWeight: 'normal',
+                external_container_queueFontSize: 14,
+                external_container_queueFontFamily: '"Open Sans", sans-serif',
+                external_container_queueFontWeight: 'normal',
+                componentFontSize: 14,
+                componentFontFamily: '"Open Sans", sans-serif',
+                componentFontWeight: 'normal',
+                external_componentFontSize: 14,
+                external_componentFontFamily: '"Open Sans", sans-serif',
+                external_componentFontWeight: 'normal',
+                component_dbFontSize: 14,
+                component_dbFontFamily: '"Open Sans", sans-serif',
+                component_dbFontWeight: 'normal',
+                external_component_dbFontSize: 14,
+                external_component_dbFontFamily: '"Open Sans", sans-serif',
+                external_component_dbFontWeight: 'normal',
+                component_queueFontSize: 14,
+                component_queueFontFamily: '"Open Sans", sans-serif',
+                component_queueFontWeight: 'normal',
+                external_component_queueFontSize: 14,
+                external_component_queueFontFamily: '"Open Sans", sans-serif',
+                external_component_queueFontWeight: 'normal'
+            }
+        });
+
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('.nav-links a').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Add loading state for diagrams
+        document.addEventListener('DOMContentLoaded', function() {
+            const diagrams = document.querySelectorAll('.mermaid');
+            diagrams.forEach(diagram => {
+                diagram.style.minHeight = '200px';
+                diagram.style.display = 'flex';
+                diagram.style.alignItems = 'center';
+                diagram.style.justifyContent = 'center';
+            });
+        });
+    </script>
+</body>
+</html>

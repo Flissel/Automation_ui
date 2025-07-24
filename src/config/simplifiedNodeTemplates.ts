@@ -313,5 +313,181 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
       duration: { type: 'number', required: true, min: 100, label: 'Duration (ms)' }
     },
     defaultConfig: { duration: 1000 }
+  },
+
+  // OCR NODES
+  ocr_region: {
+    id: 'ocr_region',
+    type: 'ocr_region',
+    label: 'OCR Region',
+    description: 'Define text extraction region on desktop',
+    category: 'actions',
+    icon: 'ScanText',
+    color: '#9333ea',
+    input: {
+      id: 'ocr_region_input',
+      name: 'Desktop Stream',
+      type: 'data',
+      required: true,
+      accepts: ['desktop_stream'],
+      description: 'Connect from Live Desktop',
+      placeholder: 'Connect desktop stream'
+    },
+    output: {
+      id: 'ocr_region_output',
+      name: 'OCR Region',
+      type: 'data',
+      provides: 'ocr_region_data',
+      description: 'OCR region configuration'
+    },
+    dependencies: [],
+    configSchema: {
+      x: { type: 'number', required: true, label: 'X Position' },
+      y: { type: 'number', required: true, label: 'Y Position' },
+      width: { type: 'number', required: true, label: 'Width' },
+      height: { type: 'number', required: true, label: 'Height' },
+      label: { type: 'string', default: 'Region 1', label: 'Region Label' },
+      enabled: { type: 'boolean', default: true, label: 'Enabled' }
+    },
+    defaultConfig: { x: 100, y: 100, width: 200, height: 50, label: 'Region 1', enabled: true }
+  },
+
+  ocr_extract: {
+    id: 'ocr_extract',
+    type: 'ocr_extract',
+    label: 'OCR Extract',
+    description: 'Extract text from defined regions',
+    category: 'actions',
+    icon: 'FileText',
+    color: '#dc2626',
+    input: {
+      id: 'ocr_extract_input',
+      name: 'OCR Region',
+      type: 'data',
+      required: true,
+      accepts: ['ocr_region_data'],
+      description: 'Connect from OCR Region',
+      placeholder: 'Connect OCR region'
+    },
+    output: {
+      id: 'ocr_extract_output',
+      name: 'Extracted Text',
+      type: 'data',
+      provides: 'extracted_text',
+      description: 'Extracted text data'
+    },
+    dependencies: [],
+    configSchema: {
+      interval: { type: 'number', default: 240000, min: 10000, label: 'Extraction Interval (ms)' },
+      confidence_threshold: { type: 'number', default: 0.7, min: 0, max: 1, label: 'Confidence Threshold' },
+      auto_start: { type: 'boolean', default: true, label: 'Auto Start Extraction' },
+      preprocessing: { 
+        type: 'select', 
+        options: ['none', 'grayscale', 'threshold', 'blur'], 
+        default: 'grayscale',
+        label: 'Image Preprocessing'
+      }
+    },
+    defaultConfig: { 
+      interval: 240000, // 4 minutes
+      confidence_threshold: 0.7,
+      auto_start: true,
+      preprocessing: 'grayscale'
+    }
+  },
+
+  n8n_webhook: {
+    id: 'n8n_webhook',
+    type: 'n8n_webhook',
+    label: 'N8N Webhook',
+    description: 'Send data to N8N for interpretation',
+    category: 'actions',
+    icon: 'Webhook',
+    color: '#ea580c',
+    input: {
+      id: 'n8n_input',
+      name: 'Text Data',
+      type: 'data',
+      required: true,
+      accepts: ['extracted_text'],
+      description: 'Connect extracted text',
+      placeholder: 'Connect extracted text'
+    },
+    output: {
+      id: 'n8n_output',
+      name: 'N8N Response',
+      type: 'data',
+      provides: 'n8n_response',
+      description: 'N8N interpretation response'
+    },
+    dependencies: [],
+    configSchema: {
+      webhook_url: { type: 'string', required: true, label: 'N8N Webhook URL' },
+      api_key: { type: 'string', label: 'API Key (optional)' },
+      timeout: { type: 'number', default: 30000, label: 'Timeout (ms)' },
+      retry_attempts: { type: 'number', default: 3, min: 1, max: 10, label: 'Retry Attempts' },
+      data_format: {
+        type: 'select',
+        options: ['json', 'form-data', 'raw'],
+        default: 'json',
+        label: 'Data Format'
+      }
+    },
+    defaultConfig: { 
+      webhook_url: '',
+      timeout: 30000,
+      retry_attempts: 3,
+      data_format: 'json'
+    }
+  },
+
+  lebas_system: {
+    id: 'lebas_system',
+    type: 'lebas_system',
+    label: 'Lebas System',
+    description: 'Forward comments to Lebas system',
+    category: 'actions',
+    icon: 'MessageSquare',
+    color: '#059669',
+    input: {
+      id: 'lebas_input',
+      name: 'N8N Response',
+      type: 'data',
+      required: true,
+      accepts: ['n8n_response'],
+      description: 'Connect N8N response',
+      placeholder: 'Connect N8N response'
+    },
+    output: {
+      id: 'lebas_output',
+      name: 'Lebas Result',
+      type: 'data',
+      provides: 'lebas_result',
+      description: 'Lebas system response'
+    },
+    dependencies: [],
+    configSchema: {
+      lebas_endpoint: { type: 'string', required: true, label: 'Lebas System Endpoint' },
+      auth_token: { type: 'string', label: 'Authentication Token' },
+      task_type: { 
+        type: 'select',
+        options: ['comment', 'task', 'notification', 'analysis'],
+        default: 'comment',
+        label: 'Task Type'
+      },
+      priority: {
+        type: 'select',
+        options: ['low', 'medium', 'high', 'urgent'],
+        default: 'medium',
+        label: 'Priority Level'
+      },
+      auto_execute: { type: 'boolean', default: true, label: 'Auto Execute Tasks' }
+    },
+    defaultConfig: { 
+      lebas_endpoint: '',
+      task_type: 'comment',
+      priority: 'medium',
+      auto_execute: true
+    }
   }
 };
