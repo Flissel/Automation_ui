@@ -5,10 +5,8 @@
 
 import React, { useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { Play, ChevronDown, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Play, Loader2, CheckCircle, XCircle } from 'lucide-react';
 
 interface ManualTriggerData {
   label: string;
@@ -40,23 +38,23 @@ const ManualTriggerNode: React.FC<ManualTriggerNodeProps> = ({ data, id, selecte
   const isSuccess = data.status === 'completed';
   const isError = data.status === 'error';
 
-  const handleExecute = (type: 'single' | 'workflow') => {
-    setExecutionType(type);
+  const handleExecute = () => {
+    setExecutionType('single');
     
     // Create execution data
     const executionData = {
       triggered: true,
       timestamp: new Date().toISOString(),
       nodeId: id,
-      executionType: type
+      executionType: 'single'
     };
 
     // Here we would trigger the actual execution
     // For now, just simulate the execution
-    console.log(`Manual trigger executed: ${type}`, executionData);
+    console.log(`Manual trigger executed: single`, executionData);
     
     // This would be connected to the execution engine
-    // onExecute?.(executionData, type);
+    // onExecute?.(executionData, 'single');
   };
 
   const getNodeStyle = () => {
@@ -116,34 +114,21 @@ const ManualTriggerNode: React.FC<ManualTriggerNodeProps> = ({ data, id, selecte
         )}
       </div>
 
-      {/* Execution Button with Dropdown */}
-      <div className="flex items-center space-x-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button 
-              variant={isSuccess ? 'default' : isError ? 'destructive' : 'outline'}
-              size="sm" 
-              className="flex-1 justify-between"
-              disabled={isLoading}
-            >
-              <div className="flex items-center space-x-2">
-                {getButtonIcon()}
-                <span>{getButtonText()}</span>
-              </div>
-              <ChevronDown className="w-3 h-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-[200px]">
-            <DropdownMenuItem onClick={() => handleExecute('single')}>
-              <Play className="w-4 h-4 mr-2" />
-              Execute this node only
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExecute('workflow')}>
-              <Play className="w-4 h-4 mr-2" />
-              Execute full workflow
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      {/* Execute Button */}
+      <div className="flex justify-center">
+        <button 
+          onClick={handleExecute}
+          disabled={isLoading}
+          className={`
+            p-3 rounded-full transition-all duration-200 shadow-md hover:shadow-lg
+            ${isLoading ? 'bg-blue-500 cursor-not-allowed' : 
+              isSuccess ? 'bg-green-500 hover:bg-green-600' : 
+              isError ? 'bg-red-500 hover:bg-red-600' : 
+              'bg-emerald-500 hover:bg-emerald-600 hover:scale-105'}
+          `}
+        >
+          {getButtonIcon()}
+        </button>
       </div>
 
       {/* Last Execution Info */}
