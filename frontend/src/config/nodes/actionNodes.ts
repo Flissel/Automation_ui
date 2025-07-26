@@ -61,7 +61,7 @@ export const ACTION_TEMPLATES: Record<string, NodeTemplate> = {
     category: NodeCategory.ACTIONS,
     label: 'Click Action',
     description: 'Perform mouse click on UI element',
-    icon: '👆',
+    icon: 'MousePointer',
     color: '#10b981',
     inputs: [
       {

@@ -86,7 +86,7 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
         id: `edge-${params.source}-${params.target}-${Date.now()}`,
         type: 'default',
         animated: true,
-        style: { stroke: '#3b82f6', strokeWidth: 2 }
+        style: { stroke: '#000000', strokeWidth: 2 }
       };
       
       setEdges((eds) => addEdge(newEdge, eds));

@@ -304,6 +304,7 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
         ...params,
         id: `edge-${params.source}-${params.target}-${Date.now()}`,
         type: 'default',
+        style: { stroke: '#000000', strokeWidth: 2 }
       };
       
       setEdges((eds) => addEdge(newEdge, eds));

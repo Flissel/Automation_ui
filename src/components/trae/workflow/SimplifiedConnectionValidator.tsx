@@ -1,7 +1,7 @@
 
 /**
  * Simplified Connection Validator
- * Validates connections based on simplified node templates
+ * Enhanced with C4 Architecture validation rules
  */
 
 import { Node, Edge, Connection } from '@xyflow/react';
@@ -37,29 +37,162 @@ export class SimplifiedConnectionValidator {
       return { valid: false, error: 'Unknown node type in connection' };
     }
 
-    // Config nodes cannot be connected in the flow
-    if (sourceTemplate.category === 'config' || targetTemplate.category === 'config') {
-      return { valid: false, error: 'Config nodes cannot be connected in workflow flow' };
+    // C4 Architecture Connection Rules
+    return this.validateC4ArchitectureRules(sourceTemplate, targetTemplate, params);
+  }
+
+  /**
+   * Validates connections according to C4 Architecture rules:
+   * Config → Interface → Actions → Logic → Results
+   */
+  private static validateC4ArchitectureRules(
+    sourceTemplate: any, 
+    targetTemplate: any, 
+    params: Connection
+  ): ValidationResult {
+    const sourceCategory = sourceTemplate.category;
+    const targetCategory = targetTemplate.category;
+
+    // Rule 1: Config nodes can only connect to Interface nodes
+    if (sourceCategory === 'config') {
+      if (targetCategory !== 'interface') {
+        return {
+          valid: false,
+          error: `Config nodes (${sourceTemplate.label}) can only connect to Interface nodes, not ${targetCategory} nodes`
+        };
+      }
+      
+      // Validate specific config connection
+      const sourceOutput = sourceTemplate.outputs?.[0];
+      const targetInput = targetTemplate.inputs?.find((input: any) => 
+        input.accepts?.includes(sourceOutput?.provides)
+      );
+      
+      if (!targetInput) {
+        return {
+          valid: false,
+          error: `${targetTemplate.label} cannot accept ${sourceOutput?.provides} from ${sourceTemplate.label}`
+        };
+      }
+      
+      return { valid: true };
     }
 
-    // Source must have output
-    if (!sourceTemplate.output) {
-      return { valid: false, error: `${sourceTemplate.label} cannot be used as source` };
+    // Rule 2: Trigger nodes can only connect to Interface nodes
+    if (sourceCategory === 'triggers') {
+      if (targetCategory !== 'interface') {
+        return {
+          valid: false,
+          error: `Trigger nodes (${sourceTemplate.label}) can only connect to Interface nodes, not ${targetCategory} nodes`
+        };
+      }
+      
+      // Validate trigger connection
+      const sourceOutput = sourceTemplate.outputs?.[0];
+      const targetInput = targetTemplate.inputs?.find((input: any) => 
+        input.accepts?.includes(sourceOutput?.provides)
+      );
+      
+      if (!targetInput) {
+        return {
+          valid: false,
+          error: `${targetTemplate.label} cannot accept ${sourceOutput?.provides} from ${sourceTemplate.label}`
+        };
+      }
+      
+      return { valid: true };
     }
 
-    // Target must have input
-    if (!targetTemplate.input) {
-      return { valid: false, error: `${targetTemplate.label} cannot accept connections` };
+    // Rule 3: Interface nodes can connect to Action nodes
+    if (sourceCategory === 'interface') {
+      if (!['actions', 'logic', 'results'].includes(targetCategory)) {
+        return {
+          valid: false,
+          error: `Interface nodes (${sourceTemplate.label}) can only connect to Action, Logic, or Result nodes, not ${targetCategory} nodes`
+        };
+      }
+      
+      return this.validateDataConnection(sourceTemplate, targetTemplate, params);
+    }
+
+    // Rule 4: Action nodes can connect to other Action nodes, Logic nodes, or back to Interface nodes
+    if (sourceCategory === 'actions') {
+      if (!['actions', 'logic', 'results', 'interface'].includes(targetCategory)) {
+        return {
+          valid: false,
+          error: `Action nodes (${sourceTemplate.label}) can only connect to Action, Logic, Result, or Interface nodes, not ${targetCategory} nodes`
+        };
+      }
+      
+      return this.validateDataConnection(sourceTemplate, targetTemplate, params);
+    }
+
+    // Rule 5: Logic nodes can connect to Result nodes or other Logic nodes
+    if (sourceCategory === 'logic') {
+      if (!['logic', 'results'].includes(targetCategory)) {
+        return {
+          valid: false,
+          error: `Logic nodes (${sourceTemplate.label}) can only connect to other Logic or Result nodes, not ${targetCategory} nodes`
+        };
+      }
+      
+      return this.validateDataConnection(sourceTemplate, targetTemplate, params);
+    }
+
+    // Rule 6: Result nodes cannot be source nodes (they are endpoints)
+    if (sourceCategory === 'results') {
+      return {
+        valid: false,
+        error: `Result nodes (${sourceTemplate.label}) cannot be used as source nodes - they are workflow endpoints`
+      };
+    }
+
+    // Default validation for any other cases
+    return this.validateDataConnection(sourceTemplate, targetTemplate, params);
+  }
+
+  /**
+   * Validates data connections between nodes
+   */
+  private static validateDataConnection(
+    sourceTemplate: any, 
+    targetTemplate: any, 
+    params: Connection
+  ): ValidationResult {
+    // Find the specific output being connected
+    const sourceOutputId = params.sourceHandle;
+    const targetInputId = params.targetHandle;
+
+    let sourceOutput;
+    if (sourceTemplate.outputs && sourceOutputId) {
+      sourceOutput = sourceTemplate.outputs.find((output: any) => output.id === sourceOutputId);
+    } else if (sourceTemplate.output) {
+      sourceOutput = sourceTemplate.output;
+    }
+
+    let targetInput;
+    if (targetTemplate.inputs && targetInputId) {
+      targetInput = targetTemplate.inputs.find((input: any) => input.id === targetInputId);
+    } else if (targetTemplate.input) {
+      targetInput = targetTemplate.input;
+    }
+
+    if (!sourceOutput) {
+      return { valid: false, error: `${sourceTemplate.label} has no valid output` };
+    }
+
+    if (!targetInput) {
+      return { valid: false, error: `${targetTemplate.label} has no valid input` };
     }
 
     // Check if target accepts what source provides
-    const sourceProvides = sourceTemplate.output.provides;
-    const targetAccepts = targetTemplate.input.accepts;
+    const sourceProvides = sourceOutput.provides;
+    const targetAccepts = targetInput.accepts;
 
-    if (!targetAccepts.includes(sourceProvides)) {
+    if (!targetAccepts || !targetAccepts.includes(sourceProvides)) {
       return {
         valid: false,
-        error: `${targetTemplate.label} cannot accept ${sourceProvides} from ${sourceTemplate.label}`
+        error: `${targetTemplate.label} (${targetInput.name}) cannot accept "${sourceProvides}" from ${sourceTemplate.label} (${sourceOutput.name})`
       };
     }
 
@@ -67,7 +200,9 @@ export class SimplifiedConnectionValidator {
   }
 
   static validateWorkflow(nodes: Node[], edges: Edge[]): ValidationResult {
-    // Must have at least one trigger
+    // C4 Architecture Workflow Validation
+
+    // Rule 1: Must have at least one trigger
     const triggerNodes = nodes.filter(n => {
       const nodeType = n.data?.type;
       if (typeof nodeType !== 'string') return false;
@@ -80,28 +215,56 @@ export class SimplifiedConnectionValidator {
       return { valid: false, error: 'Workflow must have at least one trigger node' };
     }
 
-    // Check for missing dependencies
-    for (const node of nodes) {
-      const nodeType = node.data?.type;
-      if (typeof nodeType !== 'string') continue;
+    // Rule 2: Interface nodes must have config connections
+    const interfaceNodes = nodes.filter(n => {
+      const nodeType = n.data?.type;
+      if (typeof nodeType !== 'string') return false;
       
       const template = SIMPLIFIED_NODE_TEMPLATES[nodeType];
-      if (template && template.dependencies.length > 0) {
-        for (const dep of template.dependencies) {
-          if (dep.required) {
-            const depExists = nodes.some(n => n.data?.type === dep.type);
-            if (!depExists) {
-              return {
-                valid: false,
-                error: `${template.label} requires ${dep.description} but none found in workflow`
-              };
-            }
-          }
-        }
+      return template && template.category === 'interface';
+    });
+
+    for (const interfaceNode of interfaceNodes) {
+      const hasConfigConnection = edges.some(edge => {
+        const sourceNode = nodes.find(n => n.id === edge.source);
+        if (!sourceNode) return false;
+        
+        const sourceType = sourceNode.data?.type;
+        if (typeof sourceType !== 'string') return false;
+        
+        const sourceTemplate = SIMPLIFIED_NODE_TEMPLATES[sourceType];
+        return sourceTemplate && 
+               sourceTemplate.category === 'config' && 
+               edge.target === interfaceNode.id;
+      });
+
+      if (!hasConfigConnection) {
+        const template = SIMPLIFIED_NODE_TEMPLATES[interfaceNode.data?.type];
+        return {
+          valid: false,
+          error: `Interface node "${template?.label}" requires a config connection (e.g., WebSocket Service)`
+        };
       }
     }
 
-    // Check for orphaned nodes (except triggers and config)
+    // Rule 3: Check for proper C4 flow
+    const configNodes = nodes.filter(n => {
+      const nodeType = n.data?.type;
+      if (typeof nodeType !== 'string') return false;
+      
+      const template = SIMPLIFIED_NODE_TEMPLATES[nodeType];
+      return template && template.category === 'config';
+    });
+
+    // Warn if config nodes exist but no interface nodes
+    if (configNodes.length > 0 && interfaceNodes.length === 0) {
+      return {
+        valid: true,
+        warning: 'Config nodes found but no Interface nodes. Add a Live Desktop Interface to complete the C4 architecture.'
+      };
+    }
+
+    // Rule 4: Check for orphaned nodes (except triggers and config)
     const connectedNodeIds = new Set();
     edges.forEach(edge => {
       connectedNodeIds.add(edge.source);
@@ -122,7 +285,7 @@ export class SimplifiedConnectionValidator {
     if (orphanedNodes.length > 0) {
       return {
         valid: true,
-        warning: `${orphanedNodes.length} nodes are not connected to the workflow`
+        warning: `${orphanedNodes.length} nodes are not connected to the workflow. Follow C4 architecture: Config → Interface → Actions → Logic → Results`
       };
     }
 
@@ -133,18 +296,66 @@ export class SimplifiedConnectionValidator {
     const template = SIMPLIFIED_NODE_TEMPLATES[nodeType];
     if (!template) return { valid: true };
 
-    const missingDeps = template.dependencies.filter(dep => {
-      if (!dep.required) return false;
-      return !allNodes.some(n => n.data?.type === dep.type);
-    });
+    // C4 Architecture dependency checking
+    if (template.category === 'interface') {
+      // Interface nodes need config nodes
+      const hasConfigNode = allNodes.some(n => {
+        const nType = n.data?.type;
+        if (typeof nType !== 'string') return false;
+        
+        const nTemplate = SIMPLIFIED_NODE_TEMPLATES[nType];
+        return nTemplate && nTemplate.category === 'config';
+      });
 
-    if (missingDeps.length > 0) {
-      return {
-        valid: false,
-        error: `Missing required dependencies: ${missingDeps.map(d => d.description).join(', ')}`
-      };
+      if (!hasConfigNode) {
+        return {
+          valid: false,
+          error: 'Interface nodes require a Config node (e.g., WebSocket Service) to be present in the workflow'
+        };
+      }
+    }
+
+    if (template.category === 'actions') {
+      // Action nodes need interface nodes
+      const hasInterfaceNode = allNodes.some(n => {
+        const nType = n.data?.type;
+        if (typeof nType !== 'string') return false;
+        
+        const nTemplate = SIMPLIFIED_NODE_TEMPLATES[nType];
+        return nTemplate && nTemplate.category === 'interface';
+      });
+
+      if (!hasInterfaceNode) {
+        return {
+          valid: false,
+          error: 'Action nodes require an Interface node (e.g., Live Desktop Interface) to be present in the workflow'
+        };
+      }
     }
 
     return { valid: true };
+  }
+
+  /**
+   * Get connection suggestions based on C4 architecture
+   */
+  static getConnectionSuggestions(nodeType: string): string[] {
+    const template = SIMPLIFIED_NODE_TEMPLATES[nodeType];
+    if (!template) return [];
+
+    switch (template.category) {
+      case 'config':
+        return ['Add an Interface node (e.g., Live Desktop Interface) to connect this config'];
+      case 'triggers':
+        return ['Connect to an Interface node to start the workflow'];
+      case 'interface':
+        return ['Connect to Action nodes to perform operations', 'Connect to Logic nodes for data processing'];
+      case 'actions':
+        return ['Connect to other Action nodes to chain operations', 'Connect to Logic nodes for processing', 'Connect to Result nodes to output data'];
+      case 'logic':
+        return ['Connect to Result nodes to output processed data', 'Connect to other Logic nodes for complex processing'];
+      default:
+        return [];
+    }
   }
 }
