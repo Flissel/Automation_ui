@@ -150,8 +150,8 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
     provides: data.output.provides
   }] : []);
   
-  // Improved height calculation with better spacing
-  const baseHeight = 100;
+  // Improved height calculation with better spacing - make Live Desktop Interface bigger
+  const baseHeight = isInterfaceNode ? 140 : 100;
   const handleSpacing = 35;
   const maxHandles = Math.max(inputHandles.length, outputHandles.length);
   const nodeHeight = Math.max(baseHeight, baseHeight + (maxHandles - 1) * handleSpacing);
@@ -166,7 +166,7 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
 
   return (
     <div className={`
-      relative rounded-xl px-5 py-4 min-w-[240px] max-w-[280px] transition-all duration-300 hover:shadow-xl cursor-pointer
+      relative rounded-xl px-5 py-4 ${isInterfaceNode ? 'min-w-[300px] max-w-[340px]' : 'min-w-[240px] max-w-[280px]'} transition-all duration-300 hover:shadow-xl cursor-pointer
       ${getNodeStyle()}
       ${selected ? 'ring-2 ring-blue-500 ring-offset-2 scale-105' : 'hover:scale-102'}
     `} style={{ height: `${nodeHeight}px` }}>
@@ -185,11 +185,9 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
             className={connectorStyle.className}
             style={{ left: -8, top: topPosition }}
           >
-            {connectorStyle.icon && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                {connectorStyle.icon}
-              </div>
-            )}
+            <div className="absolute inset-0 flex items-center justify-center">
+              {connectorStyle.icon || <div className="w-1 h-1 bg-white rounded-full" />}
+            </div>
             {/* Improved tooltip positioning */}
             <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 text-xs text-gray-700 whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity bg-white px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-200 pointer-events-none">
               <div className="font-semibold text-gray-800">{input.name || input.label}</div>
@@ -328,11 +326,9 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
             className={connectorStyle.className}
             style={{ right: -8, top: topPosition }}
           >
-            {connectorStyle.icon && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                {connectorStyle.icon}
-              </div>
-            )}
+            <div className="absolute inset-0 flex items-center justify-center">
+              {connectorStyle.icon || <div className="w-1 h-1 bg-white rounded-full" />}
+            </div>
             {/* Improved tooltip positioning */}
             <div className="absolute -top-12 right-1/2 transform translate-x-1/2 text-xs text-gray-700 whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity bg-white px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-200 pointer-events-none">
               <div className="font-semibold text-gray-800">{output.name || output.label}</div>

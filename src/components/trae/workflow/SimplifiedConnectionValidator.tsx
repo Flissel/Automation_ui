@@ -239,7 +239,7 @@ export class SimplifiedConnectionValidator {
       });
 
       if (!hasConfigConnection) {
-        const template = SIMPLIFIED_NODE_TEMPLATES[interfaceNode.data?.type];
+        const template = SIMPLIFIED_NODE_TEMPLATES[interfaceNode.data?.type as keyof typeof SIMPLIFIED_NODE_TEMPLATES];
         return {
           valid: false,
           error: `Interface node "${template?.label}" requires a config connection (e.g., WebSocket Service)`
