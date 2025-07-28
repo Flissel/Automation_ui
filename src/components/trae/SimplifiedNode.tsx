@@ -47,13 +47,13 @@ interface SimplifiedNodeProps {
   selected?: boolean;
 }
 
-// C4 Architecture Connector Styling with improved positioning
+// C4 Architecture Connector Styling - Enhanced for easier connections
 const getConnectorStyle = (type: string, provides?: string, accepts?: string[]) => {
   // Config connections (purple) - WebSocket Service → Live Desktop Interface
   if (type === 'config' || provides === 'websocket_connection') {
     return {
-      className: 'w-4 h-4 bg-purple-500 border-2 border-white shadow-lg hover:bg-purple-600 transition-all duration-200 hover:scale-110',
-      icon: <Wifi className="w-2 h-2 text-white" />,
+      className: 'w-6 h-6 bg-purple-500 border-2 border-white shadow-lg hover:bg-purple-400 rounded-full cursor-pointer',
+      icon: <Wifi className="w-3 h-3 text-white" />,
       color: '#8b5cf6'
     };
   }
@@ -61,8 +61,8 @@ const getConnectorStyle = (type: string, provides?: string, accepts?: string[]) 
   // Trigger connections (green) - Manual Trigger → Live Desktop Interface
   if (type === 'trigger' || provides === 'execution_start' || provides === 'webhook_payload') {
     return {
-      className: 'w-4 h-4 bg-emerald-500 border-2 border-white shadow-lg hover:bg-emerald-600 transition-all duration-200 hover:scale-110',
-      icon: <Zap className="w-2 h-2 text-white" />,
+      className: 'w-6 h-6 bg-emerald-500 border-2 border-white shadow-lg hover:bg-emerald-400 rounded-full cursor-pointer',
+      icon: <Zap className="w-3 h-3 text-white" />,
       color: '#10b981'
     };
   }
@@ -70,15 +70,15 @@ const getConnectorStyle = (type: string, provides?: string, accepts?: string[]) 
   // Filesystem connections (orange) - Actions → Filesystem Bridge
   if (provides === 'filesystem_bridge' || accepts?.includes('filesystem_bridge')) {
     return {
-      className: 'w-4 h-4 bg-orange-500 border-2 border-white shadow-lg hover:bg-orange-600 transition-all duration-200 hover:scale-110',
-      icon: <Database className="w-2 h-2 text-white" />,
+      className: 'w-6 h-6 bg-orange-500 border-2 border-white shadow-lg hover:bg-orange-400 rounded-full cursor-pointer',
+      icon: <Database className="w-3 h-3 text-white" />,
       color: '#f97316'
     };
   }
   
   // Data connections (blue) - Interface → Actions → Logic → Results
   return {
-    className: 'w-4 h-4 bg-blue-500 border-2 border-white shadow-lg hover:bg-blue-600 transition-all duration-200 hover:scale-110',
+    className: 'w-6 h-6 bg-blue-500 border-2 border-white shadow-lg hover:bg-blue-400 rounded-full cursor-pointer',
     icon: null,
     color: '#3b82f6'
   };
@@ -188,10 +188,10 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
             type="target"
             position={Position.Left}
             className={connectorStyle.className}
-            style={{ left: -8, top: topPosition }}
+            style={{ left: -12, top: topPosition }}
           >
             <div className="absolute inset-0 flex items-center justify-center">
-              {connectorStyle.icon || <div className="w-1 h-1 bg-white rounded-full" />}
+              {connectorStyle.icon || <div className="w-2 h-2 bg-white rounded-full" />}
             </div>
             {/* Improved tooltip positioning */}
             <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 text-xs text-gray-700 whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity bg-white px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-200 pointer-events-none">
@@ -329,10 +329,10 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
             type="source"
             position={Position.Right}
             className={connectorStyle.className}
-            style={{ right: -8, top: topPosition }}
+            style={{ right: -12, top: topPosition }}
           >
             <div className="absolute inset-0 flex items-center justify-center">
-              {connectorStyle.icon || <div className="w-1 h-1 bg-white rounded-full" />}
+              {connectorStyle.icon || <div className="w-2 h-2 bg-white rounded-full" />}
             </div>
             {/* Improved tooltip positioning */}
             <div className="absolute -top-12 right-1/2 transform translate-x-1/2 text-xs text-gray-700 whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity bg-white px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-200 pointer-events-none">
@@ -364,7 +364,7 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
             type="source"
             position={Position.Right}
             className={connectorStyle.className}
-            style={{ right: -8, top: topPosition }}
+            style={{ right: -12, top: topPosition }}
           >
             <div className="absolute inset-0 flex items-center justify-center">
               {connectorStyle.icon}
