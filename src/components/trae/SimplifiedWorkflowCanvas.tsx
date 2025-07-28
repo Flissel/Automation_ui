@@ -31,6 +31,7 @@ import { AlertTriangle, Play, Plus, Save, FolderOpen } from 'lucide-react';
 import SimplifiedNode from './SimplifiedNode';
 import { SimplifiedConnectionValidator } from './workflow/SimplifiedConnectionValidator';
 import { SaveLoadDialog } from './workflow/SaveLoadDialog';
+import { NodeConfigurationModal } from './workflow/NodeConfigurationModal';
 import { SIMPLIFIED_NODE_TEMPLATES } from '../../config/simplifiedNodeTemplates';
 
 // Define node types
@@ -62,6 +63,7 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isSaveLoadOpen, setIsSaveLoadOpen] = useState(false);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
   const reactFlowInstance = useReactFlow();
 
@@ -97,6 +99,7 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     setSelectedNode(node);
+    setIsConfigModalOpen(true);
   }, []);
 
   const addNode = useCallback((templateId: string) => {
@@ -155,6 +158,34 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
   const handleLoadWorkflow = useCallback((newNodes: Node[], newEdges: Edge[]) => {
     setNodes(newNodes);
     setEdges(newEdges);
+  }, [setNodes, setEdges]);
+
+  // Handle node configuration updates
+  const handleNodeConfigSave = useCallback((nodeId: string, newData: any) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              ...newData,
+            },
+          };
+        }
+        return node;
+      })
+    );
+    setIsConfigModalOpen(false);
+    toast.success('Node configuration updated!');
+  }, [setNodes]);
+
+  // Handle node deletion
+  const handleNodeDelete = useCallback((nodeId: string) => {
+    setNodes((nds) => nds.filter((node) => node.id !== nodeId));
+    setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+    setIsConfigModalOpen(false);
+    toast.success('Node deleted!');
   }, [setNodes, setEdges]);
 
   return (
@@ -314,6 +345,15 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
         nodes={nodes}
         edges={edges}
         onLoadWorkflow={handleLoadWorkflow}
+      />
+
+      {/* Node Configuration Modal */}
+      <NodeConfigurationModal
+        node={selectedNode as any}
+        isOpen={isConfigModalOpen}
+        onClose={() => setIsConfigModalOpen(false)}
+        onSave={handleNodeConfigSave}
+        onDelete={handleNodeDelete}
       />
     </div>
   );

@@ -7,10 +7,11 @@
 import React from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, CheckCircle, XCircle, Database, Wifi, Zap } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, Database, Wifi, Zap, Settings } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { NodeDependency } from '../../types/dataFlow';
 import ManualTriggerNode from './workflow/ManualTriggerNode';
+import { SIMPLIFIED_NODE_TEMPLATES } from '@/config/simplifiedNodeTemplates';
 
 interface SimplifiedNodeData {
   label: string;
@@ -98,10 +99,14 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
     ? (LucideIcons as any)[data.icon] 
     : LucideIcons.Settings;
 
-  // Check if node is properly configured
-  const isConfigured = data.config && Object.keys(data.config).length > 0 
-    ? Object.values(data.config).some(v => v !== undefined && v !== '')
-    : false;
+  // Check if node is properly configured using template schema
+  const nodeTemplate = data.type ? SIMPLIFIED_NODE_TEMPLATES[data.type as keyof typeof SIMPLIFIED_NODE_TEMPLATES] : null;
+  const hasConfigSchema = nodeTemplate?.configSchema && Object.keys(nodeTemplate.configSchema).length > 0;
+  const hasRequiredConfig = hasConfigSchema && Object.entries(nodeTemplate.configSchema).some(([_, fieldConfig]: [string, any]) => fieldConfig.required);
+  const isConfigured = hasRequiredConfig ? 
+    Object.entries(nodeTemplate.configSchema).every(([key, fieldConfig]: [string, any]) => 
+      !fieldConfig.required || (data.config && data.config[key] !== undefined && data.config[key] !== '')
+    ) : true;
 
   // Check dependencies status
   const missingDependencies = data.dependencies?.filter(dep => dep.status === 'missing') || [];

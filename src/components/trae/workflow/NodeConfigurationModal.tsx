@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Webhook, Clock, Play, Square, RefreshCw } from 'lucide-react';
+import { X, Settings, Webhook, Clock, Play, Square, RefreshCw, Info, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Slider } from '@/components/ui/slider';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { Node } from '@xyflow/react';
 import { WebhookExecutionHistory } from './WebhookExecutionHistory';
+import { SIMPLIFIED_NODE_TEMPLATES } from '@/config/simplifiedNodeTemplates';
 
 interface NodeData extends Record<string, unknown> {
   label: string;
@@ -36,6 +42,9 @@ export const NodeConfigurationModal: React.FC<NodeConfigurationModalProps> = ({
   const [activeTab, setActiveTab] = useState('config');
   const [serviceStatus, setServiceStatus] = useState('stopped');
   
+  // Get node template to access configSchema
+  const nodeTemplate = node?.data?.type ? SIMPLIFIED_NODE_TEMPLATES[node.data.type as keyof typeof SIMPLIFIED_NODE_TEMPLATES] : null;
+
   // Mock execution history for webhook triggers
   const [executionHistory] = useState([
     {
@@ -59,12 +68,15 @@ export const NodeConfigurationModal: React.FC<NodeConfigurationModalProps> = ({
   ]);
 
   useEffect(() => {
-    if (node) {
+    if (node && nodeTemplate) {
       setLabel(node.data.label || '');
-      setConfig(node.data.config || {});
+      // Initialize config with defaults if not set
+      const currentConfig = node.data.config || {};
+      const defaultConfig = nodeTemplate.defaultConfig || {};
+      setConfig({ ...defaultConfig, ...currentConfig });
       setServiceStatus(node.data.config?.status || 'stopped');
     }
-  }, [node]);
+  }, [node, nodeTemplate]);
 
   if (!isOpen || !node) return null;
 
@@ -97,276 +109,151 @@ export const NodeConfigurationModal: React.FC<NodeConfigurationModalProps> = ({
     }, 2000);
   };
 
-  const renderConfigFields = () => {
-    switch (node.data.type) {
-      case 'manual_trigger':
+  // Dynamic configuration field renderer based on configSchema
+  const renderConfigField = (fieldKey: string, fieldConfig: any) => {
+    const value = config[fieldKey];
+    
+    switch (fieldConfig.type) {
+      case 'string':
         return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="button_text">Button Text</Label>
-              <Input
-                id="button_text"
-                value={config.button_text || ''}
-                onChange={(e) => setConfig({ ...config, button_text: e.target.value })}
-                placeholder="Start Workflow"
-                className="mt-1"
-              />
-            </div>
+          <div key={fieldKey}>
+            <Label htmlFor={fieldKey}>{fieldConfig.label || fieldKey}</Label>
+            <Input
+              id={fieldKey}
+              value={value || fieldConfig.default || ''}
+              onChange={(e) => setConfig({ ...config, [fieldKey]: e.target.value })}
+              placeholder={fieldConfig.placeholder || `Enter ${fieldConfig.label || fieldKey}`}
+              required={fieldConfig.required}
+            />
+            {fieldConfig.description && (
+              <p className="text-xs text-muted-foreground mt-1">{fieldConfig.description}</p>
+            )}
           </div>
         );
-        
-      case 'webhook_trigger':
+      
+      case 'number':
         return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="endpoint_path">Endpoint Path</Label>
-              <Input
-                id="endpoint_path"
-                value={config.path || '/webhook'}
-                onChange={(e) => setConfig({ ...config, path: e.target.value })}
-                placeholder="/webhook"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="http_methods">HTTP Method</Label>
-              <select
-                id="http_methods"
-                value={config.method || 'POST'}
-                onChange={(e) => setConfig({ ...config, method: e.target.value })}
-                className="mt-1 w-full px-3 py-2 border border-input rounded-md"
-              >
-                <option value="GET">GET</option>
-                <option value="POST">POST</option>
-                <option value="PUT">PUT</option>
-                <option value="DELETE">DELETE</option>
-              </select>
-            </div>
+          <div key={fieldKey}>
+            <Label htmlFor={fieldKey}>{fieldConfig.label || fieldKey}</Label>
+            <Input
+              id={fieldKey}
+              type="number"
+              value={value || fieldConfig.default || 0}
+              onChange={(e) => setConfig({ ...config, [fieldKey]: parseInt(e.target.value) || 0 })}
+              min={fieldConfig.min}
+              max={fieldConfig.max}
+              required={fieldConfig.required}
+            />
+            {fieldConfig.description && (
+              <p className="text-xs text-muted-foreground mt-1">{fieldConfig.description}</p>
+            )}
           </div>
         );
-        
-      case 'websocket_config':
+      
+      case 'boolean':
         return (
-          <div className="space-y-4">
-            <div className="bg-muted rounded-lg p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="font-medium">Service Status</h4>
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    serviceStatus === 'running' ? 'bg-green-500' :
-                    serviceStatus === 'starting' ? 'bg-yellow-500 animate-pulse' :
-                    serviceStatus === 'failed' ? 'bg-red-500' : 'bg-gray-400'
-                  }`} />
-                  <span className="text-sm capitalize">{serviceStatus}</span>
-                </div>
-              </div>
-              
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleServiceAction('start')}
-                  disabled={serviceStatus === 'running' || serviceStatus === 'starting'}
-                >
-                  <Play className="w-3 h-3 mr-1" />
-                  Start
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleServiceAction('stop')}
-                  disabled={serviceStatus === 'stopped'}
-                >
-                  <Square className="w-3 h-3 mr-1" />
-                  Stop
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleServiceAction('restart')}
-                  disabled={serviceStatus === 'stopped'}
-                >
-                  <RefreshCw className="w-3 h-3 mr-1" />
-                  Restart
-                </Button>
-              </div>
-            </div>
-            
-            <div>
-              <Label htmlFor="url">WebSocket URL</Label>
-              <Input
-                id="url"
-                value={config.url || 'ws://localhost'}
-                onChange={(e) => setConfig({ ...config, url: e.target.value })}
-                placeholder="ws://localhost"
-                className="mt-1"
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="port">Port</Label>
-              <Input
-                id="port"
-                type="number"
-                value={config.port || 8080}
-                onChange={(e) => setConfig({ ...config, port: parseInt(e.target.value) })}
-                className="mt-1"
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="service_command">Service Start Command</Label>
-              <Input
-                id="service_command"
-                value={config.service_command || ''}
-                onChange={(e) => setConfig({ ...config, service_command: e.target.value })}
-                placeholder="node websocket-server.js"
-                className="mt-1"
-              />
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="auto_start"
-                checked={config.auto_start || false}
-                onChange={(e) => setConfig({ ...config, auto_start: e.target.checked })}
-                className="rounded"
-              />
-              <Label htmlFor="auto_start">Auto Start Service</Label>
-            </div>
-            
-            <div>
-              <Label htmlFor="health_check_url">Health Check URL</Label>
-              <Input
-                id="health_check_url"
-                value={config.health_check_url || ''}
-                onChange={(e) => setConfig({ ...config, health_check_url: e.target.value })}
-                placeholder="http://localhost:8080/health"
-                className="mt-1"
-              />
-            </div>
+          <div key={fieldKey} className="flex items-center space-x-2">
+            <Checkbox
+              id={fieldKey}
+              checked={value !== undefined ? value : fieldConfig.default || false}
+              onCheckedChange={(checked) => setConfig({ ...config, [fieldKey]: checked })}
+            />
+            <Label htmlFor={fieldKey}>{fieldConfig.label || fieldKey}</Label>
+            {fieldConfig.description && (
+              <p className="text-xs text-muted-foreground ml-6">{fieldConfig.description}</p>
+            )}
           </div>
         );
-
-      case 'live_desktop':
+      
+      case 'select':
         return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="width">Width</Label>
-                <Input
-                  id="width"
-                  type="number"
-                  value={config.width || 1200}
-                  onChange={(e) => setConfig({ ...config, width: parseInt(e.target.value) })}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="height">Height</Label>
-                <Input
-                  id="height"
-                  type="number"
-                  value={config.height || 900}
-                  onChange={(e) => setConfig({ ...config, height: parseInt(e.target.value) })}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <Label htmlFor="fps">FPS: {config.fps || 30}</Label>
-              <input
-                type="range"
-                id="fps"
-                min="1"
-                max="60"
-                value={config.fps || 30}
-                onChange={(e) => setConfig({ ...config, fps: parseInt(e.target.value) })}
-                className="w-full mt-1"
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="quality">Quality: {config.quality || 80}%</Label>
-              <input
-                type="range"
-                id="quality"
-                min="10"
-                max="100"
-                value={config.quality || 80}
-                onChange={(e) => setConfig({ ...config, quality: parseInt(e.target.value) })}
-                className="w-full mt-1"
-              />
-            </div>
+          <div key={fieldKey}>
+            <Label htmlFor={fieldKey}>{fieldConfig.label || fieldKey}</Label>
+            <Select
+              value={value || fieldConfig.default}
+              onValueChange={(newValue) => setConfig({ ...config, [fieldKey]: newValue })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={`Select ${fieldConfig.label || fieldKey}`} />
+              </SelectTrigger>
+              <SelectContent>
+                {fieldConfig.options?.map((option: string) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldConfig.description && (
+              <p className="text-xs text-muted-foreground mt-1">{fieldConfig.description}</p>
+            )}
           </div>
         );
-
-      case 'click_action':
+      
+      case 'object':
         return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="x">X Coordinate</Label>
-                <Input
-                  id="x"
-                  type="number"
-                  value={config.x || 0}
-                  onChange={(e) => setConfig({ ...config, x: parseInt(e.target.value) })}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="y">Y Coordinate</Label>
-                <Input
-                  id="y"
-                  type="number"
-                  value={config.y || 0}
-                  onChange={(e) => setConfig({ ...config, y: parseInt(e.target.value) })}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <Label htmlFor="button">Mouse Button</Label>
-              <select
-                id="button"
-                value={config.button || 'left'}
-                onChange={(e) => setConfig({ ...config, button: e.target.value })}
-                className="mt-1 w-full px-3 py-2 border border-input rounded-md"
-              >
-                <option value="left">Left Click</option>
-                <option value="right">Right Click</option>
-                <option value="middle">Middle Click</option>
-              </select>
-            </div>
+          <div key={fieldKey}>
+            <Label htmlFor={fieldKey}>{fieldConfig.label || fieldKey}</Label>
+            <Textarea
+              id={fieldKey}
+              value={JSON.stringify(value || fieldConfig.default || {}, null, 2)}
+              onChange={(e) => {
+                try {
+                  setConfig({ ...config, [fieldKey]: JSON.parse(e.target.value) });
+                } catch {
+                  // Invalid JSON, keep raw value for now
+                }
+              }}
+              placeholder={`Enter ${fieldConfig.label || fieldKey} as JSON`}
+              rows={4}
+            />
+            {fieldConfig.description && (
+              <p className="text-xs text-muted-foreground mt-1">{fieldConfig.description}</p>
+            )}
           </div>
         );
-
+      
       default:
         return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="genericConfig">Configuration (JSON)</Label>
-              <Textarea
-                id="genericConfig"
-                value={JSON.stringify(config, null, 2)}
-                onChange={(e) => {
-                  try {
-                    setConfig(JSON.parse(e.target.value));
-                  } catch {
-                    // Invalid JSON, keep the text for user to fix
-                  }
-                }}
-                placeholder="{}"
-                className="mt-1"
-              />
-            </div>
+          <div key={fieldKey}>
+            <Label htmlFor={fieldKey}>{fieldConfig.label || fieldKey}</Label>
+            <Input
+              id={fieldKey}
+              value={value || fieldConfig.default || ''}
+              onChange={(e) => setConfig({ ...config, [fieldKey]: e.target.value })}
+              placeholder={`Enter ${fieldConfig.label || fieldKey}`}
+            />
           </div>
         );
     }
+  };
+
+  // Function to render configuration fields based on node template
+  const renderConfigFields = () => {
+    if (!node || !nodeTemplate?.configSchema) {
+      return (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">No configuration options available for this node.</p>
+        </div>
+      );
+    }
+
+    const configSchema = nodeTemplate.configSchema;
+    const fields = Object.entries(configSchema).filter(([_, fieldConfig]: [string, any]) => !fieldConfig.hidden);
+
+    if (fields.length === 0) {
+      return (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">This node has no configurable options.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {fields.map(([fieldKey, fieldConfig]) => renderConfigField(fieldKey, fieldConfig))}
+      </div>
+    );
   };
 
   return (
