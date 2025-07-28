@@ -4,7 +4,7 @@
  * Clean, minimal workflow builder with standardized data flow
  */
 
-import React, { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import {
   ReactFlow,
   Node,
@@ -97,9 +97,26 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
     [readOnly, nodes, setEdges]
   );
 
+  // Event listener for config button clicks
+  useEffect(() => {
+    const handleOpenNodeConfig = (event: CustomEvent) => {
+      const { nodeId, nodeData } = event.detail;
+      const node = nodes.find(n => n.id === nodeId);
+      if (node) {
+        setSelectedNode(node);
+        setIsConfigModalOpen(true);
+      }
+    };
+
+    window.addEventListener('openNodeConfig', handleOpenNodeConfig as EventListener);
+    return () => {
+      window.removeEventListener('openNodeConfig', handleOpenNodeConfig as EventListener);
+    };
+  }, [nodes]);
+
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
-    setSelectedNode(node);
-    setIsConfigModalOpen(true);
+    // Only for node selection - config moved to dedicated button
+    console.log('Node selected:', node.id);
   }, []);
 
   const addNode = useCallback((templateId: string) => {

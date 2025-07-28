@@ -7,7 +7,7 @@
 import React from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, CheckCircle, XCircle, Database, Wifi, Zap, Settings } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, Database, Wifi, Zap, Settings, Cog } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { NodeDependency } from '../../types/dataFlow';
 import ManualTriggerNode from './workflow/ManualTriggerNode';
@@ -171,10 +171,24 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
 
   return (
     <div className={`
-      relative rounded-xl px-5 py-4 ${isInterfaceNode ? 'min-w-[300px] max-w-[340px]' : 'min-w-[240px] max-w-[280px]'} transition-all duration-300 hover:shadow-xl cursor-pointer
+      relative rounded-xl px-5 py-4 ${isInterfaceNode ? 'min-w-[300px] max-w-[340px]' : 'min-w-[240px] max-w-[280px]'} transition-all duration-300 hover:shadow-xl cursor-move
       ${getNodeStyle()}
       ${selected ? 'ring-2 ring-blue-500 ring-offset-2 scale-105' : 'hover:scale-102'}
     `} style={{ height: `${nodeHeight}px` }}>
+      
+      {/* Config Button - Upper Right Corner */}
+      {hasConfigSchema && (
+        <button
+          className="absolute -top-2 -right-2 w-6 h-6 bg-gray-700 hover:bg-gray-600 text-white rounded-full shadow-lg flex items-center justify-center z-40 transition-colors nodrag"
+          onClick={(e) => {
+            e.stopPropagation();
+            window.dispatchEvent(new CustomEvent('openNodeConfig', { detail: { nodeId: id, nodeData: data } }));
+          }}
+          title="Configure node"
+        >
+          <Cog className="w-3 h-3" />
+        </button>
+      )}
       
       {/* Multiple Input Handles - only for non-trigger nodes */}
       {!isTriggerNode && !isConfigNode && inputHandles.map((input, index) => {
