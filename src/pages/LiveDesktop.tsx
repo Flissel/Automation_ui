@@ -236,40 +236,10 @@ const LiveDesktop: React.FC = () => {
   // ============================================================================
 
   const renderScenarioSelector = () => <Card className="mb-6">
-      <CardHeader>
-        <CardTitle>Workflow Scenarios</CardTitle>
-        <CardDescription>Choose a workflow configuration for your use case</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {demoScenarios.map(scenario => <Button key={scenario.id} variant={selectedScenario === scenario.id ? "default" : "outline"} className="h-auto p-4 flex-col items-start space-y-2" onClick={() => setSelectedScenario(scenario.id)}>
-              <div className="flex items-center space-x-2 w-full">
-                {scenario.icon}
-                <span className="font-medium">{scenario.title}</span>
-              </div>
-              <p className="text-xs text-left opacity-70">{scenario.description}</p>
-            </Button>)}
-        </div>
-      </CardContent>
+      
+      
     </Card>;
-  const renderViewModeSelector = () => <Card className="mb-6">
-      <CardHeader>
-        <CardTitle>Display Mode</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex space-x-2">
-          <Button variant={viewMode === 'interface' ? "default" : "outline"} onClick={() => setViewMode('interface')}>
-            Interface View
-          </Button>
-          <Button variant={viewMode === 'results' ? "default" : "outline"} onClick={() => setViewMode('results')}>
-            Results View
-          </Button>
-          <Button variant={viewMode === 'combined' ? "default" : "outline"} onClick={() => setViewMode('combined')}>
-            Combined View
-          </Button>
-        </div>
-      </CardContent>
-    </Card>;
+  const renderViewModeSelector = () => {};
   const renderScenarioInfo = () => <Card className="mb-6">
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
@@ -431,49 +401,8 @@ const LiveDesktop: React.FC = () => {
 
         {/* Implementation Guide */}
         <Card>
-          <CardHeader>
-            <CardTitle>Filesystem-Based Architecture</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="font-medium mb-2">Interface Node Features</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• WebSocket configuration management</li>
-                  <li>• Trigger and action coordination</li>
-                  <li>• Filesystem bridge integration</li>
-                  <li>• Real-time status monitoring</li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-medium mb-2">Result Collection</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Automated data aggregation</li>
-                  <li>• Filesystem-based persistence</li>
-                  <li>• Real-time result filtering</li>
-                  <li>• Export capabilities (JSON, CSV, XML)</li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-medium mb-2">WebSocket Integration</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Bidirectional communication</li>
-                  <li>• Automatic reconnection</li>
-                  <li>• File-based message queuing</li>
-                  <li>• Error handling and recovery</li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-medium mb-2">Workflow Automation</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Multiple trigger types</li>
-                  <li>• Action chaining and coordination</li>
-                  <li>• Result tracking and analytics</li>
-                  <li>• Scalable architecture</li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
+          
+          
         </Card>
       </div>
     </div>;
