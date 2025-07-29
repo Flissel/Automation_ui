@@ -27,6 +27,7 @@ export interface LiveDesktopConfig {
   ocrRegions: OCRRegion[];
   createdAt: string;
   updatedAt: string;
+  category?: string;
 }
 
 export interface OCRRegion {

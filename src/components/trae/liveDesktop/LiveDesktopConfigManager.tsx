@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Save, Upload, Download, Trash2, Plus, Settings, Copy } from 'lucide-react';
 import { LiveDesktopConfig, LiveDesktopTemplate } from '@/types/liveDesktop';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface LiveDesktopConfigManagerProps {
   currentConfig: LiveDesktopConfig | null;
@@ -70,16 +71,47 @@ export const LiveDesktopConfigManager: React.FC<LiveDesktopConfigManagerProps> =
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const { toast } = useToast();
 
-  // Load saved configurations from localStorage
+  // Load saved configurations from Supabase on mount
   useEffect(() => {
-    const saved = localStorage.getItem('liveDesktopConfigs');
-    if (saved) {
+    const loadConfigs = async () => {
       try {
-        setSavedConfigs(JSON.parse(saved));
+        const { data, error } = await supabase
+          .from('live_desktop_configs')
+          .select('*')
+          .order('updated_at', { ascending: false });
+        
+        if (data) {
+          setSavedConfigs(data.map(item => {
+            const config = item.configuration as any;
+            return {
+              id: item.id,
+              name: item.name,
+              description: item.description || '',
+              websocketUrl: config.websocketUrl || 'wss://dgzreelowtzquljhxskq.functions.supabase.co/live-desktop-stream',
+              streaming: config.streaming || { fps: 10, quality: 75, scale: 0.8 },
+              connection: config.connection || { timeout: 30, maxReconnectAttempts: 5, reconnectInterval: 5 },
+              ocr: config.ocr || { enabled: false, extractionInterval: 30, autoSend: false },
+              ocrRegions: config.ocrRegions || [],
+              createdAt: item.created_at,
+              updatedAt: item.updated_at,
+              category: item.category || 'custom'
+            } as LiveDesktopConfig;
+          }));
+        }
+        if (error) {
+          console.error('Error loading configs from Supabase:', error);
+          // Fallback to localStorage
+          const saved = localStorage.getItem('liveDesktopConfigs');
+          if (saved) {
+            setSavedConfigs(JSON.parse(saved));
+          }
+        }
       } catch (error) {
-        console.error('Failed to load saved configurations:', error);
+        console.error('Error loading saved configs:', error);
       }
-    }
+    };
+    
+    loadConfigs();
   }, []);
 
   // Save configurations to localStorage
@@ -88,7 +120,7 @@ export const LiveDesktopConfigManager: React.FC<LiveDesktopConfigManagerProps> =
     setSavedConfigs(configs);
   };
 
-  const handleSaveCurrentConfig = () => {
+  const handleSaveCurrentConfig = async () => {
     if (!currentConfig) {
       toast({
         title: "No Configuration",
@@ -98,29 +130,48 @@ export const LiveDesktopConfigManager: React.FC<LiveDesktopConfigManagerProps> =
       return;
     }
 
-    const configToSave = {
-      ...currentConfig,
-      updatedAt: new Date().toISOString()
-    };
+    try {
+      const configToSave = {
+        id: currentConfig.id,
+        name: currentConfig.name,
+        description: currentConfig.description,
+        configuration: currentConfig as any, // Convert to JSON-compatible type
+        updated_at: new Date().toISOString(),
+        category: currentConfig.category || 'custom'
+      };
 
-    // Check if config already exists
-    const existingIndex = savedConfigs.findIndex(c => c.id === configToSave.id);
-    let updatedConfigs;
+      const { data, error } = await supabase
+        .from('live_desktop_configs')
+        .upsert(configToSave)
+        .select()
+        .single();
 
-    if (existingIndex >= 0) {
-      updatedConfigs = [...savedConfigs];
-      updatedConfigs[existingIndex] = configToSave;
-    } else {
-      updatedConfigs = [...savedConfigs, configToSave];
+      if (error) throw error;
+
+      // Update local state
+      const updated = savedConfigs.map(config => 
+        config.id === currentConfig.id ? { ...currentConfig, updatedAt: data.updated_at } : config
+      );
+
+      if (!updated.some(config => config.id === currentConfig.id)) {
+        updated.push({ ...currentConfig, updatedAt: data.updated_at });
+      }
+
+      setSavedConfigs(updated);
+      onConfigSave(currentConfig);
+      
+      toast({
+        title: "Configuration Saved",
+        description: `"${currentConfig.name}" has been saved successfully`,
+      });
+    } catch (error) {
+      console.error('Error saving config:', error);
+      toast({
+        title: "Save Failed",
+        description: "Failed to save configuration to database",
+        variant: "destructive",
+      });
     }
-
-    saveToStorage(updatedConfigs);
-    onConfigSave(configToSave);
-
-    toast({
-      title: "Configuration Saved",
-      description: `"${configToSave.name}" has been saved successfully`,
-    });
   };
 
   const handleLoadConfig = (config: LiveDesktopConfig) => {

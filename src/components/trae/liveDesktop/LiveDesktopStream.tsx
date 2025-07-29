@@ -81,7 +81,7 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
     setIsConnecting(true);
 
     try {
-      const wsUrl = `${config.websocketUrl}/live-desktop/${config.id}`;
+      const wsUrl = `wss://dgzreelowtzquljhxskq.functions.supabase.co/live-desktop-stream`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 

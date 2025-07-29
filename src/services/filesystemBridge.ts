@@ -129,7 +129,7 @@ export class FilesystemBridge extends SimpleEventEmitter {
   public async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const wsUrl = `${this.config.websocketUrl}:${this.config.websocketPort}`;
+        const wsUrl = 'wss://dgzreelowtzquljhxskq.functions.supabase.co/filesystem-bridge';
         console.log(`Attempting to connect to WebSocket: ${wsUrl}`);
         
         this.websocket = new WebSocket(wsUrl);
@@ -557,8 +557,8 @@ export class FilesystemBridge extends SimpleEventEmitter {
 // Export default configuration
 export const defaultFilesystemBridgeConfig: FilesystemBridgeConfig = {
   baseDataPath: './workflow-data',
-  websocketUrl: 'ws://localhost',
-  websocketPort: 8080,
+  websocketUrl: 'wss://dgzreelowtzquljhxskq.functions.supabase.co/filesystem-bridge',
+  websocketPort: 443,
   watchInterval: 1000,
   autoCleanup: true,
   maxFileAge: 3600000 // 1 hour

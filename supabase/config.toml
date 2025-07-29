@@ -1,1 +1,13 @@
 project_id = "dgzreelowtzquljhxskq"
+
+[functions.filesystem-bridge]
+verify_jwt = false
+
+[functions.live-desktop-stream]
+verify_jwt = false
+
+[functions.ocr-processor]
+verify_jwt = false
+
+[functions.desktop-actions]
+verify_jwt = false
