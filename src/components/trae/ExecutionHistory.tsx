@@ -19,6 +19,8 @@ import {
   AlertCircle 
 } from 'lucide-react';
 import { WorkflowExecution, NodeExecution } from '@/types/execution';
+import { ExecutionEngine } from '@/components/trae/workflow/ExecutionEngine';
+import { Node, Edge } from '@xyflow/react';
 
 // Mock data for demonstration
 const mockExecutions: WorkflowExecution[] = [
@@ -148,7 +150,19 @@ const formatTimestamp = (timestamp: string) => {
   return new Date(timestamp).toLocaleString();
 };
 
-const ExecutionHistory: React.FC = () => {
+interface ExecutionHistoryProps {
+  nodes: Node[];
+  edges: Edge[];
+  workflowName: string;
+  onNodeUpdate: (nodeId: string, updates: any) => void;
+}
+
+const ExecutionHistory: React.FC<ExecutionHistoryProps> = ({ 
+  nodes, 
+  edges, 
+  workflowName, 
+  onNodeUpdate 
+}) => {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const toggleRowExpansion = (executionId: string) => {
@@ -163,18 +177,22 @@ const ExecutionHistory: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-4">
+      <ExecutionEngine
+        nodes={nodes}
+        edges={edges}
+        workflowName={workflowName}
+        onNodeUpdate={onNodeUpdate}
+        onExecutionComplete={(results) => {
+          console.log('Workflow execution completed:', results);
+        }}
+      />
+      
+      <div className="flex items-center justify-between mb-4 mt-4">
         <div>
-          <h3 className="text-sm font-medium text-foreground">Workflow Executions</h3>
+          <h3 className="text-sm font-medium text-foreground">Execution History</h3>
           <p className="text-xs text-muted-foreground">
-            {mockExecutions.length} executions
+            {mockExecutions.length} past executions
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-xs text-muted-foreground">Live</span>
-          </div>
         </div>
       </div>
 

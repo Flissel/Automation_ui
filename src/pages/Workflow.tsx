@@ -14,6 +14,9 @@ import AppHeader from '@/components/layout/AppHeader';
 
 const Workflow: React.FC = () => {
   const {
+    nodes,
+    edges,
+    setNodes,
     panelSizes,
     setPanelSizes,
     activeDebugTab,
@@ -157,7 +160,18 @@ const Workflow: React.FC = () => {
                 </TabsList>
                 
                 <TabsContent value="executions" className="flex-1 p-4 m-0 min-h-0 overflow-auto">
-                  <ExecutionHistory />
+                  <ExecutionHistory 
+                    nodes={nodes} 
+                    edges={edges} 
+                    workflowName={workflowName}
+                    onNodeUpdate={(nodeId, updates) => {
+                      setNodes(prevNodes => 
+                        prevNodes.map(node => 
+                          node.id === nodeId ? { ...node, data: { ...node.data, ...updates } } : node
+                        )
+                      );
+                    }}
+                  />
                 </TabsContent>
                 
                 <TabsContent value="console" className="flex-1 p-4 m-0 min-h-0 overflow-auto">

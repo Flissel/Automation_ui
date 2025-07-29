@@ -127,33 +127,81 @@ export class FilesystemBridge extends SimpleEventEmitter {
    * Connect to WebSocket service
    */
   public async connect(): Promise<void> {
-    try {
-      const wsUrl = `${this.config.websocketUrl}:${this.config.websocketPort}`;
-      this.websocket = new WebSocket(wsUrl);
+    return new Promise((resolve, reject) => {
+      try {
+        const wsUrl = `${this.config.websocketUrl}:${this.config.websocketPort}`;
+        console.log(`Attempting to connect to WebSocket: ${wsUrl}`);
+        
+        this.websocket = new WebSocket(wsUrl);
 
       this.websocket.onopen = () => {
+        console.log(`WebSocket connected to ${wsUrl}`);
         this.isConnected = true;
         this.reconnectAttempts = 0;
         this.emit('connected', { url: wsUrl });
         this.startFileWatching();
+        this.sendInitialHandshake();
+        this.processQueuedCommands(); // Process any queued commands
+        resolve();
       };
 
-      this.websocket.onmessage = (event) => {
-        this.handleWebSocketMessage(event.data);
-      };
+        this.websocket.onmessage = (event) => {
+          this.handleWebSocketMessage(event.data);
+        };
 
-      this.websocket.onclose = () => {
-        this.isConnected = false;
-        this.emit('disconnected');
-        this.attemptReconnect();
-      };
+        this.websocket.onclose = (event) => {
+          console.log(`WebSocket closed: ${event.code} ${event.reason}`);
+          this.isConnected = false;
+          this.emit('disconnected', { code: event.code, reason: event.reason });
+          
+          if (event.code !== 1000) { // 1000 = normal closure
+            this.attemptReconnect();
+          }
+        };
 
-      this.websocket.onerror = (error) => {
-        this.emit('error', { error, context: 'websocket' });
-      };
+        this.websocket.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          this.emit('error', { error, context: 'websocket' });
+          reject(error);
+        };
 
-    } catch (error) {
-      this.emit('error', { error, context: 'connection' });
+        // Connection timeout
+        setTimeout(() => {
+          if (this.websocket?.readyState !== WebSocket.OPEN) {
+            this.websocket?.close();
+            reject(new Error('WebSocket connection timeout'));
+          }
+        }, this.config.maxFileAge || 10000);
+
+      } catch (error) {
+        console.error('WebSocket connection setup failed:', error);
+        this.emit('error', { error, context: 'connection' });
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Send initial handshake to establish connection
+   */
+  private sendInitialHandshake(): void {
+    if (this.isConnected && this.websocket) {
+      const handshake = {
+        type: 'handshake',
+        data: {
+          clientType: 'workflow_engine',
+          version: '1.0.0',
+          timestamp: Date.now(),
+          capabilities: [
+            'action_commands',
+            'desktop_stream',
+            'file_operations'
+          ]
+        }
+      };
+      
+      this.websocket.send(JSON.stringify(handshake));
+      console.log('Handshake sent to WebSocket server');
     }
   }
 
@@ -192,22 +240,70 @@ export class FilesystemBridge extends SimpleEventEmitter {
   private handleWebSocketMessage(data: string): void {
     try {
       const message = JSON.parse(data);
+      console.log('WebSocket message received:', message.type, message);
       
       switch (message.type) {
+        case 'handshake_ack':
+          this.handleHandshakeAcknowledgment(message.data);
+          break;
         case 'desktop_stream':
           this.writeDesktopData(message.data);
           break;
         case 'action_result':
           this.writeActionResult(message.data);
           break;
+        case 'action_status':
+          this.handleActionStatus(message.data);
+          break;
         case 'system_status':
           this.writeSystemStatus(message.data);
           break;
+        case 'error':
+          this.handleServerError(message.data);
+          break;
+        case 'ping':
+          this.sendPong();
+          break;
         default:
+          console.warn('Unknown message type:', message.type);
           this.emit('unknownMessage', message);
       }
     } catch (error) {
+      console.error('Error parsing WebSocket message:', error);
       this.emit('error', { error, context: 'message_parsing' });
+    }
+  }
+
+  /**
+   * Handle handshake acknowledgment from server
+   */
+  private handleHandshakeAcknowledgment(data: any): void {
+    console.log('Handshake acknowledged by server:', data);
+    this.emit('handshakeComplete', data);
+  }
+
+  /**
+   * Handle action status updates
+   */
+  private handleActionStatus(data: any): void {
+    console.log('Action status update:', data);
+    this.emit('actionStatus', data);
+  }
+
+  /**
+   * Handle server errors
+   */
+  private handleServerError(data: any): void {
+    console.error('Server error:', data);
+    this.emit('serverError', data);
+  }
+
+  /**
+   * Send pong response to ping
+   */
+  private sendPong(): void {
+    if (this.isConnected && this.websocket) {
+      this.websocket.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
     }
   }
 
@@ -229,15 +325,57 @@ export class FilesystemBridge extends SimpleEventEmitter {
       }
     };
 
-    // In a real implementation, you would write to the actual filesystem
-    // For now, we'll emit events and send via WebSocket
-    this.emit('fileWritten', { path: filePath, data });
+    console.log(`Writing action command: ${command.type} (${command.id})`);
     
+    // Emit local event for monitoring
+    this.emit('fileWritten', { path: filePath, data });
+    this.emit('actionQueued', { commandId: command.id, nodeId: command.nodeId, type: command.type });
+    
+    // Send via WebSocket if connected
     if (this.isConnected && this.websocket) {
-      this.websocket.send(JSON.stringify({
+      const message = {
         type: 'action_command',
-        data: data
-      }));
+        data: data,
+        timestamp: Date.now()
+      };
+      
+      this.websocket.send(JSON.stringify(message));
+      console.log(`Action command sent via WebSocket: ${command.id}`);
+    } else {
+      console.warn(`WebSocket not connected - action command queued locally: ${command.id}`);
+      // Queue command for later transmission
+      this.queueCommand(command);
+    }
+  }
+
+  /**
+   * Queue commands for later transmission when connection is restored
+   */
+  private queuedCommands: ActionCommand[] = [];
+  
+  private queueCommand(command: ActionCommand): void {
+    this.queuedCommands.push(command);
+    this.emit('commandQueued', { commandId: command.id, queueLength: this.queuedCommands.length });
+  }
+
+  /**
+   * Process queued commands when connection is restored
+   */
+  private async processQueuedCommands(): Promise<void> {
+    if (this.queuedCommands.length === 0) return;
+    
+    console.log(`Processing ${this.queuedCommands.length} queued commands`);
+    
+    const commands = [...this.queuedCommands];
+    this.queuedCommands = [];
+    
+    for (const command of commands) {
+      try {
+        await this.writeActionCommand(command);
+      } catch (error) {
+        console.error(`Failed to process queued command ${command.id}:`, error);
+        this.queueCommand(command); // Re-queue failed command
+      }
     }
   }
 
