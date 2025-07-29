@@ -354,18 +354,18 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
     id: 'http_request_action',
     type: 'http_request_action',
     label: 'HTTP Request',
-    description: 'Make HTTP request via filesystem bridge',
+    description: 'Make HTTP request',
     category: 'actions',
     icon: 'Globe',
     color: '#ef4444',
     input: {
       id: 'http_input',
-      name: 'Interface Bridge',
+      name: 'Data',
       type: 'data',
       required: true,
-      accepts: ['filesystem_bridge', 'type_result', 'click_result', 'webhook_payload'],
-      description: 'Connect from interface or previous action',
-      placeholder: 'Connect interface bridge'
+      accepts: ['type_result', 'click_result', 'webhook_payload'],
+      description: 'Connect data to send',
+      placeholder: 'Connect data source'
     },
     outputs: [
       {
@@ -380,27 +380,9 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
     configSchema: {
       url: { type: 'string', required: true, label: 'URL' },
       method: { type: 'select', options: ['GET', 'POST', 'PUT', 'DELETE'], default: 'POST' },
-      headers: { type: 'object', default: {}, label: 'Headers' },
-      // Filesystem integration
-      output_to_filesystem: { type: 'boolean', default: true, label: 'Output to Filesystem' },
-      command_file: { type: 'string', default: 'http_command.json', label: 'Command Filename' },
-      wait_for_execution: { type: 'boolean', default: true, label: 'Wait for Execution' },
-      execution_timeout: { type: 'number', default: 10000, label: 'Execution Timeout (ms)' }
+      headers: { type: 'object', default: {}, label: 'Headers' }
     },
-    defaultConfig: { 
-      url: '', 
-      method: 'POST', 
-      headers: {},
-      output_to_filesystem: true,
-      command_file: 'http_command.json',
-      wait_for_execution: true,
-      execution_timeout: 10000
-    },
-    filesystemConfig: {
-      dataPath: './workflow-data/actions/http',
-      watchFiles: true,
-      outputFormat: 'json'
-    }
+    defaultConfig: { url: '', method: 'POST', headers: {} }
   },
   
   // LOGIC NODES
@@ -482,12 +464,12 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
     color: '#9333ea',
     input: {
       id: 'ocr_region_input',
-      name: 'Interface Bridge',
+      name: 'Desktop Stream',
       type: 'data',
       required: true,
-      accepts: ['filesystem_bridge', 'desktop_stream', 'interface_status'],
-      description: 'Connect from Live Desktop Interface',
-      placeholder: 'Connect interface bridge'
+      accepts: ['desktop_stream'],
+      description: 'Connect from Live Desktop',
+      placeholder: 'Connect desktop stream'
     },
     outputs: [
       {
@@ -505,30 +487,9 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
       width: { type: 'number', required: true, label: 'Width' },
       height: { type: 'number', required: true, label: 'Height' },
       label: { type: 'string', default: 'Region 1', label: 'Region Label' },
-      enabled: { type: 'boolean', default: true, label: 'Enabled' },
-      // Filesystem integration
-      output_to_filesystem: { type: 'boolean', default: true, label: 'Output to Filesystem' },
-      command_file: { type: 'string', default: 'ocr_region_command.json', label: 'Command Filename' },
-      wait_for_execution: { type: 'boolean', default: true, label: 'Wait for Execution' },
-      execution_timeout: { type: 'number', default: 5000, label: 'Execution Timeout (ms)' }
+      enabled: { type: 'boolean', default: true, label: 'Enabled' }
     },
-    defaultConfig: { 
-      x: 100, 
-      y: 100, 
-      width: 200, 
-      height: 50, 
-      label: 'Region 1', 
-      enabled: true,
-      output_to_filesystem: true,
-      command_file: 'ocr_region_command.json',
-      wait_for_execution: true,
-      execution_timeout: 5000
-    },
-    filesystemConfig: {
-      dataPath: './workflow-data/actions/ocr-region',
-      watchFiles: true,
-      outputFormat: 'json'
-    }
+    defaultConfig: { x: 100, y: 100, width: 200, height: 50, label: 'Region 1', enabled: true }
   },
 
   ocr_extract: {
@@ -567,27 +528,13 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
         options: ['none', 'grayscale', 'threshold', 'blur'], 
         default: 'grayscale',
         label: 'Image Preprocessing'
-      },
-      // Filesystem integration
-      output_to_filesystem: { type: 'boolean', default: true, label: 'Output to Filesystem' },
-      command_file: { type: 'string', default: 'ocr_command.json', label: 'Command Filename' },
-      wait_for_execution: { type: 'boolean', default: true, label: 'Wait for Execution' },
-      execution_timeout: { type: 'number', default: 10000, label: 'Execution Timeout (ms)' }
+      }
     },
     defaultConfig: { 
       interval: 240000, // 4 minutes
       confidence_threshold: 0.7,
       auto_start: true,
-      preprocessing: 'grayscale',
-      output_to_filesystem: true,
-      command_file: 'ocr_command.json',
-      wait_for_execution: true,
-      execution_timeout: 10000
-    },
-    filesystemConfig: {
-      dataPath: './workflow-data/actions/ocr',
-      watchFiles: true,
-      outputFormat: 'json'
+      preprocessing: 'grayscale'
     }
   },
 
@@ -628,27 +575,13 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
         options: ['json', 'form-data', 'raw'],
         default: 'json',
         label: 'Data Format'
-      },
-      // Filesystem integration
-      output_to_filesystem: { type: 'boolean', default: true, label: 'Output to Filesystem' },
-      command_file: { type: 'string', default: 'n8n_command.json', label: 'Command Filename' },
-      wait_for_execution: { type: 'boolean', default: true, label: 'Wait for Execution' },
-      execution_timeout: { type: 'number', default: 30000, label: 'Execution Timeout (ms)' }
+      }
     },
     defaultConfig: { 
       webhook_url: '',
       timeout: 30000,
       retry_attempts: 3,
-      data_format: 'json',
-      output_to_filesystem: true,
-      command_file: 'n8n_command.json',
-      wait_for_execution: true,
-      execution_timeout: 30000
-    },
-    filesystemConfig: {
-      dataPath: './workflow-data/actions/n8n',
-      watchFiles: true,
-      outputFormat: 'json'
+      data_format: 'json'
     }
   },
 
@@ -737,16 +670,36 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
     category: 'results',
     icon: 'Database',
     color: '#059669',
-    // Result node with single input for action data
-    input: {
-      id: 'action_results_input',
-      name: 'Action Results',
-      type: 'data',
-      required: true,
-      accepts: ['click_result', 'type_result', 'http_response', 'extracted_text', 'n8n_response', 'filesystem_save_result'],
-      description: 'Connect action node outputs',
-      placeholder: 'Connect action results'
-    },
+    // Result nodes accept multiple action outputs and workflow data
+    inputs: [
+      {
+        id: 'action_results_input',
+        name: 'Action Results',
+        type: 'data',
+        required: false,
+        accepts: ['click_result', 'type_result', 'http_response', 'extracted_text', 'n8n_response', 'filesystem_save_result'],
+        description: 'Connect action node outputs',
+        placeholder: 'Connect action results'
+      },
+      {
+        id: 'workflow_data_input',
+        name: 'Workflow Data',
+        type: 'data',
+        required: false,
+        accepts: ['workflow_data', 'processed_data', 'user_input', 'external_data', 'config_data'],
+        description: 'Connect any workflow data for processing',
+        placeholder: 'Connect workflow data'
+      },
+      {
+        id: 'filesystem_input',
+        name: 'Filesystem Bridge',
+        type: 'data',
+        required: true,
+        accepts: ['filesystem_bridge'],
+        description: 'Connect filesystem bridge from interface',
+        placeholder: 'Connect filesystem bridge'
+      }
+    ],
     outputs: [
       {
         id: 'aggregated_results_output',
