@@ -1,0 +1,347 @@
+/**
+ * Live Desktop Stream Component
+ * Enhanced streaming component with OCR region overlay
+ */
+
+import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Play, Pause, Square, Wifi, WifiOff, Monitor, Maximize } from 'lucide-react';
+import { LiveDesktopConfig, LiveDesktopStatus, OCRRegion } from '@/types/liveDesktop';
+import { useToast } from '@/hooks/use-toast';
+
+interface LiveDesktopStreamProps {
+  config: LiveDesktopConfig;
+  onStatusChange: (status: LiveDesktopStatus) => void;
+  onFrameReceived?: (frameData: any) => void;
+  showControls?: boolean;
+  enableFullscreen?: boolean;
+  className?: string;
+}
+
+export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
+  config,
+  onStatusChange,
+  onFrameReceived,
+  showControls = true,
+  enableFullscreen = true,
+  className = ''
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const [status, setStatus] = useState<LiveDesktopStatus>({
+    connected: false,
+    streaming: false,
+    connectionName: null,
+    latency: 0,
+    fpsActual: 0,
+    bytesReceived: 0,
+    lastFrameTime: null
+  });
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [frameCount, setFrameCount] = useState(0);
+  const { toast } = useToast();
+
+  // Update parent with status changes
+  useEffect(() => {
+    onStatusChange(status);
+  }, [status, onStatusChange]);
+
+  // Draw frame to canvas
+  const drawFrame = useCallback((imageData: string) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const img = new Image();
+    img.onload = () => {
+      // Clear canvas and draw frame
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      
+      setFrameCount(prev => prev + 1);
+      
+      // Notify parent of new frame
+      onFrameReceived?.({ 
+        imageData, 
+        timestamp: Date.now(), 
+        frameNumber: frameCount 
+      });
+    };
+    img.src = `data:image/jpeg;base64,${imageData}`;
+  }, [frameCount, onFrameReceived]);
+
+  // Connect to WebSocket
+  const connect = useCallback(async () => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    setIsConnecting(true);
+
+    try {
+      const wsUrl = `${config.websocketUrl}/live-desktop/${config.id}`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        setStatus(prev => ({
+          ...prev,
+          connected: true,
+          connectionName: config.name
+        }));
+        setIsConnecting(false);
+
+        // Send configuration
+        ws.send(JSON.stringify({
+          type: 'configure',
+          config: {
+            fps: config.streaming.fps,
+            quality: config.streaming.quality,
+            scale: config.streaming.scale
+          }
+        }));
+
+        toast({
+          title: "Connected",
+          description: `Connected to ${config.name}`,
+        });
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          switch (data.type) {
+            case 'frame':
+              if (data.image) {
+                drawFrame(data.image);
+                setStatus(prev => ({
+                  ...prev,
+                  streaming: true,
+                  fpsActual: data.fps || prev.fpsActual,
+                  latency: data.latency || prev.latency,
+                  bytesReceived: prev.bytesReceived + (event.data.length || 0),
+                  lastFrameTime: new Date().toISOString()
+                }));
+              }
+              break;
+            
+            case 'status':
+              setStatus(prev => ({ ...prev, ...data.status }));
+              break;
+              
+            default:
+              console.log('Unknown message type:', data.type);
+          }
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        toast({
+          title: "Connection Error",
+          description: "Failed to connect to live desktop stream",
+          variant: "destructive",
+        });
+        setIsConnecting(false);
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        setStatus(prev => ({
+          ...prev,
+          connected: false,
+          streaming: false,
+          connectionName: null
+        }));
+        setIsConnecting(false);
+
+        // Auto-reconnect if enabled
+        if (config.connection.maxReconnectAttempts > 0) {
+          setTimeout(() => {
+            connect();
+          }, config.connection.reconnectInterval * 1000);
+        }
+      };
+
+      // Connection timeout
+      setTimeout(() => {
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.close();
+          setIsConnecting(false);
+          toast({
+            title: "Connection Timeout",
+            description: "Failed to connect within timeout period",
+            variant: "destructive",
+          });
+        }
+      }, config.connection.timeout * 1000);
+
+    } catch (error) {
+      console.error('Failed to create WebSocket connection:', error);
+      setIsConnecting(false);
+      toast({
+        title: "Connection Failed",
+        description: "Unable to establish WebSocket connection",
+        variant: "destructive",
+      });
+    }
+  }, [config, drawFrame, toast]);
+
+  // Disconnect WebSocket
+  const disconnect = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+  }, []);
+
+  // Start/stop streaming
+  const toggleStreaming = useCallback(() => {
+    if (!wsRef.current) return;
+
+    const action = status.streaming ? 'stop' : 'start';
+    wsRef.current.send(JSON.stringify({
+      type: action + '_stream'
+    }));
+  }, [status.streaming]);
+
+  // Enable fullscreen
+  const enterFullscreen = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    if (canvas.requestFullscreen) {
+      canvas.requestFullscreen();
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      disconnect();
+    };
+  }, [disconnect]);
+
+  return (
+    <div className={`space-y-4 ${className}`}>
+      {/* Stream Display */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Monitor className="w-5 h-5" />
+              {config.name}
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Badge variant={status.connected ? "default" : "secondary"}>
+                {status.connected ? (
+                  <><Wifi className="w-3 h-3 mr-1" /> Connected</>
+                ) : (
+                  <><WifiOff className="w-3 h-3 mr-1" /> Disconnected</>
+                )}
+              </Badge>
+              {status.streaming && (
+                <Badge variant="outline">
+                  {status.fpsActual} FPS
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="relative">
+            <canvas
+              ref={canvasRef}
+              width={800}
+              height={600}
+              className="w-full bg-muted border rounded-lg"
+              style={{ aspectRatio: '4/3' }}
+            />
+            
+            {!status.streaming && (
+              <div className="absolute inset-0 flex items-center justify-center bg-muted/80 rounded-lg">
+                <div className="text-center space-y-2">
+                  <Monitor className="w-12 h-12 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    {status.connected ? 'Stream stopped' : 'Not connected'}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Stream Info */}
+          {status.streaming && (
+            <div className="mt-4 grid grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Latency:</span>
+                <span className="ml-1 font-mono">{status.latency}ms</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Frames:</span>
+                <span className="ml-1 font-mono">{frameCount}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Data:</span>
+                <span className="ml-1 font-mono">
+                  {Math.round(status.bytesReceived / 1024)}KB
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Last Frame:</span>
+                <span className="ml-1 font-mono">
+                  {status.lastFrameTime ? new Date(status.lastFrameTime).toLocaleTimeString() : 'None'}
+                </span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Controls */}
+      {showControls && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {!status.connected ? (
+                  <Button onClick={connect} disabled={isConnecting}>
+                    <Play className="w-4 h-4 mr-2" />
+                    {isConnecting ? 'Connecting...' : 'Connect'}
+                  </Button>
+                ) : (
+                  <>
+                    <Button onClick={toggleStreaming} disabled={!status.connected}>
+                      {status.streaming ? (
+                        <><Pause className="w-4 h-4 mr-2" /> Pause</>
+                      ) : (
+                        <><Play className="w-4 h-4 mr-2" /> Stream</>
+                      )}
+                    </Button>
+                    <Button variant="outline" onClick={disconnect}>
+                      <Square className="w-4 h-4 mr-2" />
+                      Disconnect
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              {enableFullscreen && status.streaming && (
+                <Button variant="outline" onClick={enterFullscreen}>
+                  <Maximize className="w-4 h-4 mr-2" />
+                  Fullscreen
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};

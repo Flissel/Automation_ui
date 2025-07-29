@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Node, Edge } from '@xyflow/react';
+import { LiveDesktopConfig } from '@/types/liveDesktop';
 
 interface WorkflowState {
   // Current workflow state
@@ -8,6 +9,9 @@ interface WorkflowState {
   edges: Edge[];
   workflowName: string;
   selectedNode: Node | null;
+  
+  // Live Desktop integration
+  availableLiveDesktops: LiveDesktopConfig[];
   
   // UI state persistence
   panelSizes: {
@@ -25,6 +29,10 @@ interface WorkflowState {
   setPanelSizes: (sizes: { canvas: number; debug: number }) => void;
   setActiveDebugTab: (tab: string) => void;
   setIsLibraryOpen: (isOpen: boolean) => void;
+  
+  // Live Desktop operations
+  setAvailableLiveDesktops: (configs: LiveDesktopConfig[]) => void;
+  addLiveDesktopConfig: (config: LiveDesktopConfig) => void;
   
   // Workflow operations
   addNode: (node: Node) => void;
@@ -44,6 +52,9 @@ export const useWorkflowStore = create<WorkflowState>()(
       workflowName: 'Untitled Workflow',
       selectedNode: null,
       
+      // Live Desktop state
+      availableLiveDesktops: [],
+      
       // UI state
       panelSizes: {
         canvas: 70,
@@ -62,6 +73,12 @@ export const useWorkflowStore = create<WorkflowState>()(
       setPanelSizes: (panelSizes) => set({ panelSizes }),
       setActiveDebugTab: (activeDebugTab) => set({ activeDebugTab }),
       setIsLibraryOpen: (isLibraryOpen) => set({ isLibraryOpen }),
+      
+      // Live Desktop operations
+      setAvailableLiveDesktops: (availableLiveDesktops) => set({ availableLiveDesktops }),
+      addLiveDesktopConfig: (config) => set((state) => ({
+        availableLiveDesktops: [...state.availableLiveDesktops, config]
+      })),
       
       // Workflow operations
       addNode: (node) => set((state) => ({
