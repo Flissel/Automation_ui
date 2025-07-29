@@ -166,7 +166,7 @@ const Workflow: React.FC = () => {
                     workflowName={workflowName}
                     onNodeUpdate={(nodeId, updates) => {
                       setNodes(prevNodes => 
-                        prevNodes.map(node => 
+                        prevNodes.map((node: any) => 
                           node.id === nodeId ? { ...node, data: { ...node.data, ...updates } } : node
                         )
                       );

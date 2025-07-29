@@ -72,6 +72,60 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [navigate, showBackButton, backPath]);
-  return;
+
+  return (
+    <header className="border-b bg-card px-6 py-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          {showBackButton && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(backPath)}
+              className="h-8 w-8 p-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
+          
+          <div>
+            <Breadcrumb>
+              <BreadcrumbList>
+                {breadcrumbs.map((breadcrumb, index) => (
+                  <React.Fragment key={breadcrumb.path}>
+                    <BreadcrumbItem>
+                      <BreadcrumbLink
+                        href={breadcrumb.path}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          navigate(breadcrumb.path);
+                        }}
+                        className="flex items-center space-x-1"
+                      >
+                        {breadcrumb.icon && <breadcrumb.icon className="h-4 w-4" />}
+                        <span>{breadcrumb.label}</span>
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    {index < breadcrumbs.length - 1 && <BreadcrumbSeparator />}
+                  </React.Fragment>
+                ))}
+              </BreadcrumbList>
+            </Breadcrumb>
+            
+            <div className="mt-1">
+              <h1 className="text-lg font-semibold">{title}</h1>
+              {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+            </div>
+          </div>
+        </div>
+        
+        {actions && (
+          <div className="flex items-center space-x-2">
+            {actions}
+          </div>
+        )}
+      </div>
+    </header>
+  );
 };
 export default AppHeader;

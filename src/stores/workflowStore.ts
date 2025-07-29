@@ -18,7 +18,7 @@ interface WorkflowState {
   isLibraryOpen: boolean;
   
   // Actions
-  setNodes: (nodes: Node[]) => void;
+  setNodes: (nodes: Node[] | ((prevNodes: Node[]) => Node[])) => void;
   setEdges: (edges: Edge[]) => void;
   setWorkflowName: (name: string) => void;
   setSelectedNode: (node: Node | null) => void;
@@ -53,7 +53,9 @@ export const useWorkflowStore = create<WorkflowState>()(
       isLibraryOpen: false,
       
       // Actions
-      setNodes: (nodes) => set({ nodes }),
+      setNodes: (nodes) => set(state => ({ 
+        nodes: typeof nodes === 'function' ? nodes(state.nodes) : nodes 
+      })),
       setEdges: (edges) => set({ edges }),
       setWorkflowName: (workflowName) => set({ workflowName }),
       setSelectedNode: (selectedNode) => set({ selectedNode }),
