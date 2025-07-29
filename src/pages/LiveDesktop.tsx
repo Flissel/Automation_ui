@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Monitor, Grid, Maximize2, Settings, Workflow, Database } from 'lucide-react';
+import { ArrowLeft, Monitor, Grid, Maximize2, Settings, Workflow, Database, Play, Square } from 'lucide-react';
 import { LiveDesktopInterface } from '@/components/trae/LiveDesktopInterface';
 import { WorkflowResult } from '@/components/trae/WorkflowResult';
 
@@ -215,6 +215,7 @@ const LiveDesktop: React.FC = () => {
   const [viewMode, setViewMode] = useState<'interface' | 'results' | 'combined'>('interface');
   const [interfaceStatus, setInterfaceStatus] = useState<any>({});
   const [resultData, setResultData] = useState<any[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
 
   const currentScenario = demoScenarios.find(s => s.id === selectedScenario) || demoScenarios[0];
 
@@ -402,20 +403,42 @@ const LiveDesktop: React.FC = () => {
     );
   };
 
-  const renderInterfaceView = () => (
-    <div className="flex justify-center">
-      <LiveDesktopInterface
-        interfaceId={`interface-${currentScenario.id}`}
-        websocketConfig={currentScenario.websocketConfig}
-        triggers={currentScenario.triggers}
-        actions={currentScenario.actions}
-        autoStart={true}
-        onStatusChange={handleInterfaceStatusChange}
-        onError={(error) => handleError('LiveDesktopInterface', error)}
-        className="w-full max-w-4xl"
-      />
-    </div>
-  );
+  const renderInterfaceView = () => {
+    if (!isConnected) {
+      return (
+        <div className="flex flex-col items-center justify-center p-12 text-center">
+          <Monitor className="w-16 h-16 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Ready to Connect</h3>
+          <p className="text-muted-foreground mb-6 max-w-md">
+            Start the WebSocket connection to begin live desktop automation with the selected scenario.
+          </p>
+          <Button 
+            onClick={() => setIsConnected(true)}
+            size="lg"
+            className="min-w-32"
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Start Connection
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex justify-center">
+        <LiveDesktopInterface
+          interfaceId={`interface-${currentScenario.id}`}
+          websocketConfig={currentScenario.websocketConfig}
+          triggers={currentScenario.triggers}
+          actions={currentScenario.actions}
+          autoStart={false}
+          onStatusChange={handleInterfaceStatusChange}
+          onError={(error) => handleError('LiveDesktopInterface', error)}
+          className="w-full max-w-4xl"
+        />
+      </div>
+    );
+  };
 
   const renderResultsView = () => (
     <div className="flex justify-center">
@@ -429,33 +452,65 @@ const LiveDesktop: React.FC = () => {
     </div>
   );
 
-  const renderCombinedView = () => (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Live Desktop Interface</h3>
-        <LiveDesktopInterface
-          interfaceId={`interface-${currentScenario.id}`}
-          websocketConfig={currentScenario.websocketConfig}
-          triggers={currentScenario.triggers}
-          actions={currentScenario.actions}
-          autoStart={true}
-          onStatusChange={handleInterfaceStatusChange}
-          onError={(error) => handleError('LiveDesktopInterface', error)}
-          className="w-full"
-        />
+  const renderCombinedView = () => {
+    if (!isConnected) {
+      return (
+        <div className="flex flex-col items-center justify-center p-12 text-center">
+          <Grid className="w-16 h-16 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Ready for Combined View</h3>
+          <p className="text-muted-foreground mb-6 max-w-md">
+            Start the connection to see both the live desktop interface and workflow results.
+          </p>
+          <Button 
+            onClick={() => setIsConnected(true)}
+            size="lg"
+            className="min-w-32"
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Start Connection
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Live Desktop Interface</h3>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setIsConnected(false)}
+            >
+              <Square className="w-4 h-4 mr-2" />
+              Stop
+            </Button>
+          </div>
+          <LiveDesktopInterface
+            interfaceId={`interface-${currentScenario.id}`}
+            websocketConfig={currentScenario.websocketConfig}
+            triggers={currentScenario.triggers}
+            actions={currentScenario.actions}
+            autoStart={false}
+            onStatusChange={handleInterfaceStatusChange}
+            onError={(error) => handleError('LiveDesktopInterface', error)}
+            className="w-full"
+          />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold mb-4">Workflow Results</h3>
+          <WorkflowResult
+            resultId={`results-${currentScenario.id}`}
+            refreshInterval={5000}
+            onResultUpdate={(aggregation) => handleResultUpdate([])}
+            onError={(error) => handleError('WorkflowResult', error)}
+            className="w-full"
+          />
+        </div>
       </div>
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Workflow Results</h3>
-        <WorkflowResult
-          resultId={`results-${currentScenario.id}`}
-          refreshInterval={5000}
-          onResultUpdate={(aggregation) => handleResultUpdate([])}
-          onError={(error) => handleError('WorkflowResult', error)}
-          className="w-full"
-        />
-      </div>
-    </div>
-  );
+    );
+  };
 
   // ============================================================================
   // MAIN CONTENT RENDERING
