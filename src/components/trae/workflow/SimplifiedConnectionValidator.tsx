@@ -53,12 +53,12 @@ export class SimplifiedConnectionValidator {
     const sourceCategory = sourceTemplate.category;
     const targetCategory = targetTemplate.category;
 
-    // Rule 1: Config nodes can only connect to Interface nodes
+    // Rule 1: Config nodes can only connect to Interface nodes (warning first, then allow)
     if (sourceCategory === 'config') {
       if (targetCategory !== 'interface') {
         return {
-          valid: false,
-          error: `Config nodes (${sourceTemplate.label}) can only connect to Interface nodes, not ${targetCategory} nodes`
+          valid: true,
+          warning: `Config nodes (${sourceTemplate.label}) work best when connected to Interface nodes. Consider adding a Live Desktop Interface node.`
         };
       }
       
@@ -78,12 +78,12 @@ export class SimplifiedConnectionValidator {
       return { valid: true };
     }
 
-    // Rule 2: Trigger nodes can only connect to Interface nodes
+    // Rule 2: Trigger nodes can only connect to Interface nodes (warning first, then allow)
     if (sourceCategory === 'triggers') {
       if (targetCategory !== 'interface') {
         return {
-          valid: false,
-          error: `Trigger nodes (${sourceTemplate.label}) can only connect to Interface nodes, not ${targetCategory} nodes`
+          valid: true,
+          warning: `Trigger nodes (${sourceTemplate.label}) work best when connected to Interface nodes. Consider adding a Live Desktop Interface node.`
         };
       }
       
@@ -103,12 +103,12 @@ export class SimplifiedConnectionValidator {
       return { valid: true };
     }
 
-    // Rule 3: Interface nodes can connect to Action nodes
+    // Rule 3: Interface nodes can connect to Action nodes (more permissive)
     if (sourceCategory === 'interface') {
-      if (!['actions', 'logic', 'results'].includes(targetCategory)) {
+      if (!['actions', 'logic', 'results', 'triggers'].includes(targetCategory)) {
         return {
-          valid: false,
-          error: `Interface nodes (${sourceTemplate.label}) can only connect to Action, Logic, or Result nodes, not ${targetCategory} nodes`
+          valid: true,
+          warning: `Interface nodes (${sourceTemplate.label}) work best when connected to Action, Logic, or Result nodes.`
         };
       }
       
@@ -185,14 +185,14 @@ export class SimplifiedConnectionValidator {
       return { valid: false, error: `${targetTemplate.label} has no valid input` };
     }
 
-    // Check if target accepts what source provides
+    // Check if target accepts what source provides (more permissive)
     const sourceProvides = sourceOutput.provides;
     const targetAccepts = targetInput.accepts;
 
     if (!targetAccepts || !targetAccepts.includes(sourceProvides)) {
       return {
-        valid: false,
-        error: `${targetTemplate.label} (${targetInput.name}) cannot accept "${sourceProvides}" from ${sourceTemplate.label} (${sourceOutput.name})`
+        valid: true,
+        warning: `Data types may not match: ${targetTemplate.label} (${targetInput.name}) expects different data than what ${sourceTemplate.label} (${sourceOutput.name}) provides. Connection allowed but may need configuration.`
       };
     }
 

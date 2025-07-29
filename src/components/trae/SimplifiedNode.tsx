@@ -7,10 +7,11 @@
 import React from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, CheckCircle, XCircle, Database, Wifi, Zap } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, Database, Wifi, Zap, Settings, Cog } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { NodeDependency } from '../../types/dataFlow';
 import ManualTriggerNode from './workflow/ManualTriggerNode';
+import { SIMPLIFIED_NODE_TEMPLATES } from '@/config/simplifiedNodeTemplates';
 
 interface SimplifiedNodeData {
   label: string;
@@ -46,13 +47,13 @@ interface SimplifiedNodeProps {
   selected?: boolean;
 }
 
-// C4 Architecture Connector Styling with improved positioning
+// C4 Architecture Connector Styling - Enhanced for easier connections
 const getConnectorStyle = (type: string, provides?: string, accepts?: string[]) => {
   // Config connections (purple) - WebSocket Service → Live Desktop Interface
   if (type === 'config' || provides === 'websocket_connection') {
     return {
-      className: 'w-4 h-4 bg-purple-500 border-2 border-white shadow-lg hover:bg-purple-600 transition-all duration-200 hover:scale-110',
-      icon: <Wifi className="w-2 h-2 text-white" />,
+      className: 'w-6 h-6 bg-purple-500 border-2 border-white shadow-lg hover:bg-purple-400 rounded-full cursor-pointer',
+      icon: <Wifi className="w-3 h-3 text-white" />,
       color: '#8b5cf6'
     };
   }
@@ -60,8 +61,8 @@ const getConnectorStyle = (type: string, provides?: string, accepts?: string[]) 
   // Trigger connections (green) - Manual Trigger → Live Desktop Interface
   if (type === 'trigger' || provides === 'execution_start' || provides === 'webhook_payload') {
     return {
-      className: 'w-4 h-4 bg-emerald-500 border-2 border-white shadow-lg hover:bg-emerald-600 transition-all duration-200 hover:scale-110',
-      icon: <Zap className="w-2 h-2 text-white" />,
+      className: 'w-6 h-6 bg-emerald-500 border-2 border-white shadow-lg hover:bg-emerald-400 rounded-full cursor-pointer',
+      icon: <Zap className="w-3 h-3 text-white" />,
       color: '#10b981'
     };
   }
@@ -69,15 +70,15 @@ const getConnectorStyle = (type: string, provides?: string, accepts?: string[]) 
   // Filesystem connections (orange) - Actions → Filesystem Bridge
   if (provides === 'filesystem_bridge' || accepts?.includes('filesystem_bridge')) {
     return {
-      className: 'w-4 h-4 bg-orange-500 border-2 border-white shadow-lg hover:bg-orange-600 transition-all duration-200 hover:scale-110',
-      icon: <Database className="w-2 h-2 text-white" />,
+      className: 'w-6 h-6 bg-orange-500 border-2 border-white shadow-lg hover:bg-orange-400 rounded-full cursor-pointer',
+      icon: <Database className="w-3 h-3 text-white" />,
       color: '#f97316'
     };
   }
   
   // Data connections (blue) - Interface → Actions → Logic → Results
   return {
-    className: 'w-4 h-4 bg-blue-500 border-2 border-white shadow-lg hover:bg-blue-600 transition-all duration-200 hover:scale-110',
+    className: 'w-6 h-6 bg-blue-500 border-2 border-white shadow-lg hover:bg-blue-400 rounded-full cursor-pointer',
     icon: null,
     color: '#3b82f6'
   };
@@ -98,10 +99,14 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
     ? (LucideIcons as any)[data.icon] 
     : LucideIcons.Settings;
 
-  // Check if node is properly configured
-  const isConfigured = data.config && Object.keys(data.config).length > 0 
-    ? Object.values(data.config).some(v => v !== undefined && v !== '')
-    : false;
+  // Check if node is properly configured using template schema
+  const nodeTemplate = data.type ? SIMPLIFIED_NODE_TEMPLATES[data.type as keyof typeof SIMPLIFIED_NODE_TEMPLATES] : null;
+  const hasConfigSchema = nodeTemplate?.configSchema && Object.keys(nodeTemplate.configSchema).length > 0;
+  const hasRequiredConfig = hasConfigSchema && Object.entries(nodeTemplate.configSchema).some(([_, fieldConfig]: [string, any]) => fieldConfig.required);
+  const isConfigured = hasRequiredConfig ? 
+    Object.entries(nodeTemplate.configSchema).every(([key, fieldConfig]: [string, any]) => 
+      !fieldConfig.required || (data.config && data.config[key] !== undefined && data.config[key] !== '')
+    ) : true;
 
   // Check dependencies status
   const missingDependencies = data.dependencies?.filter(dep => dep.status === 'missing') || [];
@@ -166,10 +171,24 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
 
   return (
     <div className={`
-      relative rounded-xl px-5 py-4 ${isInterfaceNode ? 'min-w-[300px] max-w-[340px]' : 'min-w-[240px] max-w-[280px]'} transition-all duration-300 hover:shadow-xl cursor-pointer
+      relative rounded-xl px-5 py-4 ${isInterfaceNode ? 'min-w-[300px] max-w-[340px]' : 'min-w-[240px] max-w-[280px]'} transition-all duration-300 hover:shadow-xl cursor-move
       ${getNodeStyle()}
       ${selected ? 'ring-2 ring-blue-500 ring-offset-2 scale-105' : 'hover:scale-102'}
     `} style={{ height: `${nodeHeight}px` }}>
+      
+      {/* Config Button - Upper Right Corner */}
+      {hasConfigSchema && (
+        <button
+          className="absolute -top-2 -right-2 w-6 h-6 bg-gray-700 hover:bg-gray-600 text-white rounded-full shadow-lg flex items-center justify-center z-40 transition-colors nodrag"
+          onClick={(e) => {
+            e.stopPropagation();
+            window.dispatchEvent(new CustomEvent('openNodeConfig', { detail: { nodeId: id, nodeData: data } }));
+          }}
+          title="Configure node"
+        >
+          <Cog className="w-3 h-3" />
+        </button>
+      )}
       
       {/* Multiple Input Handles - only for non-trigger nodes */}
       {!isTriggerNode && !isConfigNode && inputHandles.map((input, index) => {
@@ -183,10 +202,10 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
             type="target"
             position={Position.Left}
             className={connectorStyle.className}
-            style={{ left: -8, top: topPosition }}
+            style={{ left: -12, top: topPosition }}
           >
             <div className="absolute inset-0 flex items-center justify-center">
-              {connectorStyle.icon || <div className="w-1 h-1 bg-white rounded-full" />}
+              {connectorStyle.icon || <div className="w-2 h-2 bg-white rounded-full" />}
             </div>
             {/* Improved tooltip positioning */}
             <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 text-xs text-gray-700 whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity bg-white px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-200 pointer-events-none">
@@ -324,10 +343,10 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
             type="source"
             position={Position.Right}
             className={connectorStyle.className}
-            style={{ right: -8, top: topPosition }}
+            style={{ right: -12, top: topPosition }}
           >
             <div className="absolute inset-0 flex items-center justify-center">
-              {connectorStyle.icon || <div className="w-1 h-1 bg-white rounded-full" />}
+              {connectorStyle.icon || <div className="w-2 h-2 bg-white rounded-full" />}
             </div>
             {/* Improved tooltip positioning */}
             <div className="absolute -top-12 right-1/2 transform translate-x-1/2 text-xs text-gray-700 whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity bg-white px-3 py-2 rounded-lg shadow-xl z-30 border border-gray-200 pointer-events-none">
@@ -359,7 +378,7 @@ const SimplifiedNode: React.FC<SimplifiedNodeProps> = ({ data, id, selected }) =
             type="source"
             position={Position.Right}
             className={connectorStyle.className}
-            style={{ right: -8, top: topPosition }}
+            style={{ right: -12, top: topPosition }}
           >
             <div className="absolute inset-0 flex items-center justify-center">
               {connectorStyle.icon}
