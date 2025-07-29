@@ -42,15 +42,27 @@ class DesktopCaptureClient:
         self.frame_count = 0
         self.capture_thread: Optional[threading.Thread] = None
         self.running = False
+        self.frame_queue = None  # Will be initialized as asyncio.Queue
+        self.loop = None
 
     async def connect(self):
         """Connect to the WebSocket server."""
         try:
+            # Store the event loop for later use
+            self.loop = asyncio.get_event_loop()
+            
+            # Initialize the async frame queue
+            self.frame_queue = asyncio.Queue()
+            
             # Add client type and ID to URL parameters
             url = f"{self.server_url}?client_type=desktop&client_id={self.client_id}"
             logger.info(f"Connecting to {url}")
             
-            self.websocket = await websockets.connect(url)
+            # Connect with longer timeout and disabled ping
+            self.websocket = await asyncio.wait_for(
+                websockets.connect(url, ping_interval=None, ping_timeout=None),
+                timeout=30.0
+            )
             self.running = True
             
             logger.info(f"Connected as desktop client: {self.client_id}")
@@ -58,11 +70,25 @@ class DesktopCaptureClient:
             # Send capability report
             await self.send_capabilities()
             
+            # Wait for handshake acknowledgment
+            handshake_success = await self.wait_for_handshake_ack()
+            if not handshake_success:
+                logger.error("Handshake failed - disconnecting")
+                await self.disconnect()
+                return
+            
+            # Start frame processor task
+            asyncio.create_task(self.process_frame_queue())
+            
             # Start message handler
             await self.handle_messages()
             
+        except asyncio.TimeoutError:
+            logger.error("Connection timeout - server may be unavailable")
+            await self.disconnect()
         except Exception as e:
             logger.error(f"Connection error: {e}")
+            logger.error(f"Exception type: {type(e)}")
             await self.disconnect()
 
     async def disconnect(self):
@@ -80,9 +106,13 @@ class DesktopCaptureClient:
     async def send_capabilities(self):
         """Send client capabilities to the server."""
         capabilities = {
-            'type': 'capability_report',
-            'clientId': self.client_id,
-            'capabilities': {
+            'type': 'handshake',
+            'timestamp': time.time(),
+            'clientInfo': {
+                'clientType': 'desktop_capture',
+                'clientId': self.client_id,
+                'version': '1.0.0',
+                'capabilities': ['desktop_stream', 'screen_capture', 'mouse_control', 'keyboard_control'],
                 'screen_capture': True,
                 'multiple_monitors': True,
                 'mouse_control': True,
@@ -91,12 +121,47 @@ class DesktopCaptureClient:
                 'max_resolution': [1920, 1080],
                 'supported_formats': ['jpeg', 'png'],
                 'compression_levels': [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-            },
-            'timestamp': time.time()
+            }
         }
         
         await self.send_message(capabilities)
-        logger.info("Sent capability report")
+        logger.info("Sent handshake with capabilities")
+
+    async def wait_for_handshake_ack(self):
+        """Wait for handshake acknowledgment from the server."""
+        try:
+            # Wait for handshake acknowledgment with timeout
+            timeout = 10.0  # 10 second timeout
+            start_time = time.time()
+            
+            while time.time() - start_time < timeout:
+                try:
+                    # Check for incoming message with short timeout
+                    message = await asyncio.wait_for(self.websocket.recv(), timeout=1.0)
+                    data = json.loads(message)
+                    
+                    if data.get('type') == 'connection_established':
+                        logger.info("Connection established message received")
+                        continue
+                    elif data.get('type') == 'handshake_ack':
+                        logger.info("Handshake acknowledgment received")
+                        return True
+                    else:
+                        logger.warning(f"Unexpected message during handshake: {data.get('type')}")
+                        
+                except asyncio.TimeoutError:
+                    # Continue waiting
+                    continue
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON during handshake: {e}")
+                    continue
+                    
+            logger.error("Timeout waiting for handshake acknowledgment")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error waiting for handshake ack: {e}")
+            return False
 
     async def send_message(self, message: Dict[str, Any]):
         """Send a message to the server."""
@@ -127,7 +192,15 @@ class DesktopCaptureClient:
         message_type = data.get('type')
         logger.info(f"Received message: {message_type}")
 
-        if message_type == 'start_capture':
+        if message_type == 'connection_established':
+            logger.info(f"Connection established: {data}")
+            # Connection is now fully established
+            
+        elif message_type == 'handshake_ack':
+            logger.info(f"Handshake acknowledged: {data}")
+            # Handshake completed successfully
+            
+        elif message_type == 'start_capture':
             config = data.get('config', {})
             await self.start_capture(config)
             
@@ -201,6 +274,29 @@ class DesktopCaptureClient:
         self.capture_config.update(config)
         logger.info(f"Updated config: {self.capture_config}")
 
+    async def process_frame_queue(self):
+        """Process frames from the queue and send them via WebSocket."""
+        while self.running:
+            try:
+                # Get frame from queue with timeout using asyncio
+                frame_data = await asyncio.wait_for(self.frame_queue.get(), timeout=0.1)
+                if frame_data:
+                    await self.send_frame(
+                        frame_data['image_data'], 
+                        frame_data['width'],
+                        frame_data['height'],
+                        frame_data['original_width'],
+                        frame_data['original_height'],
+                        frame_data.get('is_single', False)
+                    )
+                    self.frame_queue.task_done()
+            except asyncio.TimeoutError:
+                # No frames in queue, continue
+                continue
+            except Exception as e:
+                logger.error(f"Frame processing error: {e}")
+                await asyncio.sleep(0.1)
+
     def capture_loop(self):
         """Main capture loop (runs in separate thread)."""
         fps = self.capture_config.get('fps', 10)
@@ -213,13 +309,24 @@ class DesktopCaptureClient:
                 start_time = time.time()
                 
                 # Capture screenshot
-                screenshot = self.capture_screenshot()
-                if screenshot:
-                    # Send frame asynchronously
-                    asyncio.run_coroutine_threadsafe(
-                        self.send_frame(screenshot), 
-                        asyncio.get_event_loop()
-                    )
+                screenshot_data = self.capture_screenshot()
+                if screenshot_data:
+                    # Add frame to queue for async processing using thread-safe method
+                    frame_data = {
+                        'image_data': screenshot_data['image_data'],
+                        'width': screenshot_data['width'],
+                        'height': screenshot_data['height'],
+                        'original_width': screenshot_data['original_width'],
+                        'original_height': screenshot_data['original_height'],
+                        'is_single': False
+                    }
+                    # Use asyncio.run_coroutine_threadsafe to put item in async queue from thread
+                    if self.loop and self.frame_queue:
+                        future = asyncio.run_coroutine_threadsafe(
+                            self.frame_queue.put(frame_data), 
+                            self.loop
+                        )
+                        # Don't wait for the future to complete to avoid blocking
                     self.frame_count += 1
 
                 # Calculate sleep time to maintain FPS
@@ -235,11 +342,12 @@ class DesktopCaptureClient:
 
         logger.info("Capture loop ended")
 
-    def capture_screenshot(self) -> Optional[str]:
-        """Capture a single screenshot and return as base64 encoded string."""
+    def capture_screenshot(self) -> Optional[dict]:
+        """Capture a single screenshot and return as base64 encoded string with dimensions."""
         try:
             # Capture the screen
             screenshot = ImageGrab.grab()
+            original_width, original_height = screenshot.size
             
             # Apply scaling if needed
             scale = self.capture_config.get('scale', 1.0)
@@ -247,6 +355,8 @@ class DesktopCaptureClient:
                 width, height = screenshot.size
                 new_size = (int(width * scale), int(height * scale))
                 screenshot = screenshot.resize(new_size, Image.Resampling.LANCZOS)
+
+            final_width, final_height = screenshot.size
 
             # Convert to bytes
             buffer = BytesIO()
@@ -262,7 +372,13 @@ class DesktopCaptureClient:
             buffer.seek(0)
             image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
             
-            return image_data
+            return {
+                'image_data': image_data,
+                'width': final_width,
+                'height': final_height,
+                'original_width': original_width,
+                'original_height': original_height
+            }
 
         except Exception as e:
             logger.error(f"Screenshot capture error: {e}")
@@ -271,11 +387,19 @@ class DesktopCaptureClient:
     async def capture_single_screenshot(self):
         """Capture and send a single screenshot."""
         logger.info("Capturing single screenshot")
-        screenshot = self.capture_screenshot()
-        if screenshot:
-            await self.send_frame(screenshot, is_single=True)
+        screenshot_data = self.capture_screenshot()
+        if screenshot_data:
+            frame_data = {
+                'image_data': screenshot_data['image_data'],
+                'width': screenshot_data['width'],
+                'height': screenshot_data['height'],
+                'original_width': screenshot_data['original_width'],
+                'original_height': screenshot_data['original_height'],
+                'is_single': True
+            }
+            await self.frame_queue.put(frame_data)
 
-    async def send_frame(self, image_data: str, is_single: bool = False):
+    async def send_frame(self, image_data: str, width: int, height: int, original_width: int, original_height: int, is_single: bool = False):
         """Send a frame to the server."""
         message = {
             'type': 'frame_data',
@@ -283,10 +407,18 @@ class DesktopCaptureClient:
             'frameNumber': self.frame_count,
             'timestamp': time.time(),
             'isSingle': is_single,
+            'width': width,
+            'height': height,
             'metadata': {
                 'clientId': self.client_id,
                 'config': self.capture_config,
-                'dataSize': len(image_data)
+                'dataSize': len(image_data),
+                'dimensions': {
+                    'width': width,
+                    'height': height,
+                    'original_width': original_width,
+                    'original_height': original_height
+                }
             }
         }
 
@@ -295,7 +427,7 @@ class DesktopCaptureClient:
 async def main():
     parser = argparse.ArgumentParser(description='Desktop Capture Client for TRAE Unity AI Platform')
     parser.add_argument('--server-url', 
-                       default='wss://dgzreelowtzquljhxskq.functions.supabase.co/live-desktop-stream',
+                       default='ws://localhost:8084',
                        help='WebSocket server URL')
     parser.add_argument('--client-id', 
                        help='Optional client ID (will generate if not provided)')

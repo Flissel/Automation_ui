@@ -129,7 +129,7 @@ export class FilesystemBridge extends SimpleEventEmitter {
   public async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const wsUrl = 'wss://dgzreelowtzquljhxskq.functions.supabase.co/filesystem-bridge';
+        const wsUrl = 'ws://localhost:8084';
         console.log(`Attempting to connect to WebSocket: ${wsUrl}`);
         
         this.websocket = new WebSocket(wsUrl);
@@ -140,7 +140,7 @@ export class FilesystemBridge extends SimpleEventEmitter {
         this.reconnectAttempts = 0;
         this.emit('connected', { url: wsUrl });
         this.startFileWatching();
-        this.sendInitialHandshake();
+        // Note: Handshake will be sent after receiving connection_established message
         this.processQueuedCommands(); // Process any queued commands
         resolve();
       };
@@ -150,11 +150,43 @@ export class FilesystemBridge extends SimpleEventEmitter {
         };
 
         this.websocket.onclose = (event) => {
-          console.log(`WebSocket closed: ${event.code} ${event.reason}`);
+          console.log('WebSocket closed:', event.code, event.reason);
+          console.log('Close event details:', {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean,
+            timestamp: new Date().toISOString(),
+            readyState: this.websocket?.readyState
+          });
+          
+          // Log the exact close code meanings
+          const closeCodeMeanings = {
+            1000: 'Normal Closure',
+            1001: 'Going Away',
+            1002: 'Protocol Error',
+            1003: 'Unsupported Data',
+            1005: 'No Status Received',
+            1006: 'Abnormal Closure',
+            1007: 'Invalid frame payload data',
+            1008: 'Policy Violation',
+            1009: 'Message Too Big',
+            1010: 'Mandatory Extension',
+            1011: 'Internal Server Error',
+            1015: 'TLS Handshake'
+          };
+          
+          console.log(`Close code ${event.code} means: ${closeCodeMeanings[event.code] || 'Unknown'}`);
+          
+          // Log stack trace to see what triggered the close
+          console.log('WebSocket close stack trace:', new Error().stack);
+          
           this.isConnected = false;
+          this.websocket = null;
           this.emit('disconnected', { code: event.code, reason: event.reason });
           
-          if (event.code !== 1000) { // 1000 = normal closure
+          // Attempt reconnection for abnormal closures
+          if (event.code !== 1000 && event.code !== 1001) {
+            console.log('Abnormal closure detected, attempting reconnect...');
             this.attemptReconnect();
           }
         };
@@ -186,6 +218,9 @@ export class FilesystemBridge extends SimpleEventEmitter {
    */
   private sendInitialHandshake(): void {
     if (this.isConnected && this.websocket) {
+      console.log('About to send handshake - WebSocket state:', this.websocket.readyState);
+      console.log('WebSocket ready states: CONNECTING=0, OPEN=1, CLOSING=2, CLOSED=3');
+      
       const handshake = {
         type: 'handshake',
         data: {
@@ -200,8 +235,30 @@ export class FilesystemBridge extends SimpleEventEmitter {
         }
       };
       
-      this.websocket.send(JSON.stringify(handshake));
-      console.log('Handshake sent to WebSocket server');
+      try {
+        this.websocket.send(JSON.stringify(handshake));
+        console.log('Handshake sent to WebSocket server');
+        console.log('WebSocket state after sending handshake:', this.websocket.readyState);
+        
+        // Check connection state after a short delay
+        setTimeout(() => {
+          if (this.websocket) {
+            console.log('WebSocket state 10ms after handshake:', this.websocket.readyState);
+          }
+        }, 10);
+        
+        setTimeout(() => {
+          if (this.websocket) {
+            console.log('WebSocket state 100ms after handshake:', this.websocket.readyState);
+          }
+        }, 100);
+      } catch (error) {
+        console.error('Error sending handshake:', error);
+      }
+    } else {
+      console.error('Cannot send handshake - WebSocket not connected or not available');
+      console.log('isConnected:', this.isConnected);
+      console.log('websocket:', this.websocket);
     }
   }
 
@@ -240,14 +297,28 @@ export class FilesystemBridge extends SimpleEventEmitter {
   private handleWebSocketMessage(data: string): void {
     try {
       const message = JSON.parse(data);
-      console.log('WebSocket message received:', message.type, message);
       
       switch (message.type) {
+        case 'connection_established':
+          this.handleConnectionEstablished(message);
+          break;
         case 'handshake_ack':
-          this.handleHandshakeAcknowledgment(message.data);
+          this.handleHandshakeAcknowledgment(message);
           break;
         case 'desktop_stream':
           this.writeDesktopData(message.data);
+          break;
+        case 'desktop_connected':
+          this.emit('desktop_connected', message.data);
+          break;
+        case 'desktop_disconnected':
+          this.emit('desktop_disconnected', message.data);
+          break;
+        case 'frame_data':
+          this.emit('frame_data', message);
+          break;
+        case 'stream_status':
+          this.emit('stream_status', message.data);
           break;
         case 'action_result':
           this.writeActionResult(message.data);
@@ -264,22 +335,103 @@ export class FilesystemBridge extends SimpleEventEmitter {
         case 'ping':
           this.sendPong();
           break;
+        case 'pong':
+          this.handlePong(message);
+          break;
         default:
           console.warn('Unknown message type:', message.type);
           this.emit('unknownMessage', message);
       }
     } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
+      console.error('Error parsing or handling WebSocket message:', error);
+      console.error('Raw message data:', data);
       this.emit('error', { error, context: 'message_parsing' });
     }
   }
 
   /**
-   * Handle handshake acknowledgment from server
+   * Handle connection established message
    */
-  private handleHandshakeAcknowledgment(data: any): void {
-    console.log('Handshake acknowledged by server:', data);
-    this.emit('handshakeComplete', data);
+  private handleConnectionEstablished(message: any): void {
+    this.isConnected = true;
+    
+    // Emit connected event with WebSocket URL data
+    const connectionData = {
+      url: `ws://localhost:${this.config.websocketPort}`,
+      serverInfo: message.serverInfo || {},
+      timestamp: new Date().toISOString()
+    };
+    
+    this.emit('connected', connectionData);
+    
+    // Send handshake
+    this.sendHandshake();
+  }
+
+  /**
+   * Send handshake to server
+   */
+  private sendHandshake(): void {
+    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+      console.error('Cannot send handshake: WebSocket not connected');
+      return;
+    }
+
+    const handshake = {
+      type: 'handshake',
+      timestamp: new Date().toISOString(),
+      clientInfo: {
+        clientType: 'web_interface',
+        version: '1.0.0',
+        timestamp: Date.now(),
+        capabilities: ['desktop_stream', 'action_commands', 'file_operations']
+      }
+    };
+
+    this.websocket.send(JSON.stringify(handshake));
+  }
+
+  /**
+   * Handle pong response from server
+   */
+  private handlePong(message: any): void {
+    console.log('Received pong from server');
+    this.emit('pong', message);
+  }
+
+  /**
+   * Test WebSocket connection with minimal setup
+   */
+  public testConnection(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      console.log('Testing WebSocket connection...');
+      const testWs = new WebSocket('ws://localhost:8084');
+      
+      testWs.onopen = () => {
+        console.log('Test WebSocket connected successfully');
+        testWs.close();
+        resolve();
+      };
+      
+      testWs.onclose = (event) => {
+        console.log('Test WebSocket closed:', event.code, event.reason);
+      };
+      
+      testWs.onerror = (error) => {
+        console.error('Test WebSocket error:', error);
+        reject(error);
+      };
+      
+      setTimeout(() => {
+        if (testWs.readyState !== WebSocket.OPEN) {
+          testWs.close();
+          reject(new Error('Test connection timeout'));
+        }
+      }, 5000);
+    });
+  }
+  private handleHandshakeAcknowledgment(message: any): void {
+    this.emit('handshakeComplete', message);
   }
 
   /**

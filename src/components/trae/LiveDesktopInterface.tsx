@@ -104,7 +104,7 @@ interface LiveDesktopInterfaceProps {
 
 const DEFAULT_WEBSOCKET_CONFIG: WebSocketConfig = {
   url: 'ws://localhost',
-  port: 8080,
+  port: 8084,
   autoReconnect: true,
   reconnectInterval: 5000,
   maxReconnectAttempts: 5,
@@ -117,7 +117,7 @@ const DEFAULT_WEBSOCKET_CONFIG: WebSocketConfig = {
 const DEFAULT_FILESYSTEM_CONFIG: FilesystemBridgeConfig = {
   baseDataPath: './workflow-data',
   websocketUrl: 'ws://localhost',
-  websocketPort: 8080,
+  websocketPort: 8084,
   watchInterval: 1000,
   autoCleanup: true,
   maxFileAge: 3600000 // 1 hour
@@ -168,6 +168,13 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [recentData, setRecentData] = useState<WorkflowData[]>([]);
 
+  // Desktop streaming state
+  const [desktopStreamActive, setDesktopStreamActive] = useState(false);
+  const [desktopConnected, setDesktopConnected] = useState(false);
+  const [streamQuality, setStreamQuality] = useState<'low' | 'medium' | 'high'>('medium');
+  const [frameRate, setFrameRate] = useState(30);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
   const filesystemBridgeRef = useRef<FilesystemBridge | null>(null);
   const { toast } = useToast();
 
@@ -201,9 +208,12 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
 
         if (onStatusChange) {
           onStatusChange({
-            ...interfaceStatus,
             websocketConnected: true,
-            filesystemBridgeActive: true
+            filesystemBridgeActive: true,
+            triggersActive: 0,
+            actionsActive: 0,
+            lastDataTransfer: null,
+            dataTransferCount: 0
           });
         }
       });
@@ -257,6 +267,48 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
         }
       });
 
+      // Desktop streaming event handlers
+      bridge.on('desktop_connected', (data) => {
+        setDesktopConnected(true);
+        toast({
+          title: "Desktop Client Connected",
+          description: "Desktop capture client is now connected",
+        });
+      });
+
+      bridge.on('desktop_disconnected', (data) => {
+        setDesktopConnected(false);
+        setDesktopStreamActive(false);
+        
+        // Clear canvas
+        if (canvasRef.current) {
+          const ctx = canvasRef.current.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+          }
+        }
+
+        toast({
+          title: "Desktop Client Disconnected",
+          description: "Desktop capture client has disconnected",
+          variant: "destructive"
+        });
+      });
+
+      bridge.on('frame_data', (data) => {
+        if (data.frameData) {
+          handleFrameData(data.frameData, data.width, data.height);
+        }
+      });
+
+      bridge.on('stream_status', (data) => {
+        if (data.status === 'started') {
+          setDesktopStreamActive(true);
+        } else if (data.status === 'stopped') {
+          setDesktopStreamActive(false);
+        }
+      });
+
       // Connect to WebSocket
       await bridge.connect();
 
@@ -274,7 +326,7 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [fsConfig, onStatusChange, onDataOutput, onError, interfaceStatus]);
+  }, [fsConfig, onStatusChange, onDataOutput, onError]);
 
   // ============================================================================
   // TRIGGER MANAGEMENT
@@ -385,6 +437,105 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
   }, []);
 
   // ============================================================================
+  // DESKTOP STREAMING MANAGEMENT
+  // ============================================================================
+
+  const startDesktopStream = useCallback(async () => {
+    if (!filesystemBridgeRef.current) {
+      toast({
+        title: "Bridge Not Ready",
+        description: "Filesystem bridge must be connected first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Send start desktop stream command
+      const streamCommand = {
+        type: 'start_desktop_stream',
+        quality: streamQuality,
+        frameRate: frameRate,
+        timestamp: Date.now()
+      };
+
+      filesystemBridgeRef.current.sendWebSocketData('start_desktop_stream', streamCommand);
+      setDesktopStreamActive(true);
+
+      toast({
+        title: "Desktop Stream Started",
+        description: "Waiting for desktop client connection...",
+      });
+
+    } catch (error) {
+      toast({
+        title: "Stream Start Failed",
+        description: "Failed to start desktop stream",
+        variant: "destructive"
+      });
+    }
+  }, [streamQuality, frameRate]);
+
+  const stopDesktopStream = useCallback(async () => {
+    if (!filesystemBridgeRef.current) return;
+
+    try {
+      const streamCommand = {
+        type: 'stop_desktop_stream',
+        timestamp: Date.now()
+      };
+
+      filesystemBridgeRef.current.sendWebSocketData('stop_desktop_stream', streamCommand);
+      setDesktopStreamActive(false);
+      setDesktopConnected(false);
+
+      // Clear canvas
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        }
+      }
+
+      toast({
+        title: "Desktop Stream Stopped",
+        description: "Stream has been disconnected",
+      });
+
+    } catch (error) {
+      toast({
+        title: "Stream Stop Failed",
+        description: "Failed to stop desktop stream",
+        variant: "destructive"
+      });
+    }
+  }, []);
+
+  const handleFrameData = useCallback((frameData: string, width?: number, height?: number) => {
+    if (!canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const img = new Image();
+    img.onload = () => {
+      // Use provided dimensions or fall back to image natural dimensions
+      const imageWidth = width || img.naturalWidth;
+      const imageHeight = height || img.naturalHeight;
+      
+      // Update canvas dimensions to match the image
+      canvas.width = imageWidth;
+      canvas.height = imageHeight;
+      
+      // Clear canvas and draw the new frame
+      ctx.clearRect(0, 0, imageWidth, imageHeight);
+      ctx.drawImage(img, 0, 0, imageWidth, imageHeight);
+    };
+    img.src = `data:image/jpeg;base64,${frameData}`;
+  }, []);
+
+  // ============================================================================
   // LIFECYCLE EFFECTS
   // ============================================================================
 
@@ -398,7 +549,7 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
         filesystemBridgeRef.current.disconnect();
       }
     };
-  }, [autoStart, initializeFilesystemBridge]);
+  }, [autoStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ============================================================================
   // RENDER COMPONENT
@@ -431,8 +582,9 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
 
         <CardContent>
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="stream">Desktop Stream</TabsTrigger>
               <TabsTrigger value="triggers">Triggers</TabsTrigger>
               <TabsTrigger value="actions">Actions</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -511,12 +663,60 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
 
                 <Button 
                   variant="outline"
-                  onClick={() => filesystemBridgeRef.current?.disconnect()}
+                  onClick={() => {
+                    if (filesystemBridgeRef.current) {
+                      filesystemBridgeRef.current.disconnect();
+                      
+                      // Clear desktop states
+                      setDesktopConnected(false);
+                      setDesktopStreamActive(false);
+                      
+                      // Clear canvas
+                      if (canvasRef.current) {
+                        const ctx = canvasRef.current.getContext('2d');
+                        if (ctx) {
+                          ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                        }
+                      }
+                    }
+                  }}
                   disabled={!interfaceStatus.filesystemBridgeActive}
                   className="flex items-center gap-2"
                 >
                   <Square className="h-4 w-4" />
                   Stop Bridge
+                </Button>
+
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    if (filesystemBridgeRef.current) {
+                      // First disconnect if connected
+                      filesystemBridgeRef.current.disconnect();
+                      
+                      // Clear states
+                      setDesktopConnected(false);
+                      setDesktopStreamActive(false);
+                      
+                      // Clear canvas
+                      if (canvasRef.current) {
+                        const ctx = canvasRef.current.getContext('2d');
+                        if (ctx) {
+                          ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                        }
+                      }
+                      
+                      // Wait a moment then reconnect
+                      setTimeout(() => {
+                        initializeFilesystemBridge();
+                      }, 1000);
+                    }
+                  }}
+                  disabled={isLoading}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Reconnect
                 </Button>
               </div>
 
@@ -540,6 +740,139 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
                   </CardContent>
                 </Card>
               )}
+            </TabsContent>
+
+            {/* Desktop Stream Tab */}
+            <TabsContent value="stream" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* Stream Controls */}
+                <div className="lg:col-span-1 space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Monitor className="h-4 w-4" />
+                        Stream Controls
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex flex-col gap-2">
+                        <Button 
+                          onClick={startDesktopStream}
+                          disabled={!interfaceStatus.filesystemBridgeActive || desktopStreamActive}
+                          className="flex items-center gap-2"
+                        >
+                          <Play className="h-4 w-4" />
+                          {desktopStreamActive ? 'Stream Active' : 'Start Stream'}
+                        </Button>
+
+                        <Button 
+                          variant="outline"
+                          onClick={stopDesktopStream}
+                          disabled={!desktopStreamActive}
+                          className="flex items-center gap-2"
+                        >
+                          <Square className="h-4 w-4" />
+                          Stop Stream
+                        </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="stream-quality">Stream Quality</Label>
+                        <select
+                          id="stream-quality"
+                          value={streamQuality}
+                          onChange={(e) => setStreamQuality(e.target.value as 'low' | 'medium' | 'high')}
+                          className="w-full p-2 border rounded"
+                          disabled={desktopStreamActive}
+                        >
+                          <option value="low">Low (Fast)</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High (Quality)</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="frame-rate">Frame Rate: {frameRate} FPS</Label>
+                        <input
+                          id="frame-rate"
+                          type="range"
+                          min="5"
+                          max="60"
+                          step="5"
+                          value={frameRate}
+                          onChange={(e) => setFrameRate(parseInt(e.target.value))}
+                          className="w-full"
+                          disabled={desktopStreamActive}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Stream Status</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Desktop Client:</span>
+                        <Badge variant={desktopConnected ? "default" : "destructive"}>
+                          {desktopConnected ? 'Connected' : 'Disconnected'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Stream:</span>
+                        <Badge variant={desktopStreamActive ? "default" : "secondary"}>
+                          {desktopStreamActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Quality:</span>
+                        <span className="text-sm capitalize">{streamQuality}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Frame Rate:</span>
+                        <span className="text-sm">{frameRate} FPS</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Stream Display */}
+                <div className="lg:col-span-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Monitor className="h-4 w-4" />
+                        Live Desktop Stream
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '16/9' }}>
+                        <canvas
+                          ref={canvasRef}
+                          className="w-full h-full object-contain"
+                          style={{ maxHeight: '400px' }}
+                        />
+                        {!desktopStreamActive && (
+                          <div className="absolute inset-0 flex items-center justify-center text-white">
+                            <div className="text-center">
+                              <Monitor className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                              <p className="text-sm opacity-75">
+                                {!interfaceStatus.filesystemBridgeActive 
+                                  ? 'Connect bridge first' 
+                                  : !desktopConnected 
+                                    ? 'Waiting for desktop client...' 
+                                    : 'Click Start Stream to begin'
+                                }
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </TabsContent>
 
             {/* Triggers Tab */}

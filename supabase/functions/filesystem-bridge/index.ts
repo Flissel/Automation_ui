@@ -36,43 +36,106 @@ serve(async (req) => {
   
   console.log("Filesystem Bridge WebSocket connected");
 
+  // Keep track of heartbeat interval
+  let heartbeatInterval: number | null = null;
+
   socket.onopen = () => {
-    console.log("Filesystem bridge connection opened");
-    socket.send(JSON.stringify({
-      type: 'connection_established',
-      timestamp: new Date().toISOString(),
-      capabilities: ['file_operations', 'workflow_commands', 'action_execution']
-    }));
+    console.log('WebSocket connection opened');
+    
+    // Send connection established message
+    try {
+      socket.send(JSON.stringify({
+        type: 'connection_established',
+        timestamp: new Date().toISOString(),
+        serverInfo: {
+          version: '1.0.0',
+          capabilities: ['file_operations', 'action_commands', 'workflow_data']
+        }
+      }));
+      console.log('Connection established message sent');
+      
+      // Start heartbeat to keep connection alive
+      heartbeatInterval = setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) {
+          try {
+            socket.send(JSON.stringify({
+              type: 'ping',
+              timestamp: new Date().toISOString()
+            }));
+            console.log('Heartbeat ping sent');
+          } catch (error) {
+            console.error('Error sending heartbeat:', error);
+            if (heartbeatInterval) {
+              clearInterval(heartbeatInterval);
+            }
+          }
+        } else {
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+          }
+        }
+      }, 30000); // Send ping every 30 seconds
+      
+    } catch (error) {
+      console.error('Error sending connection established message:', error);
+    }
   };
 
   socket.onmessage = async (event) => {
     try {
       const message = JSON.parse(event.data);
-      console.log("Received message:", message);
+      console.log('Received message:', message.type);
 
       switch (message.type) {
+        case 'handshake':
+          // Handle client handshake
+          socket.send(JSON.stringify({
+            type: 'handshake_ack',
+            timestamp: new Date().toISOString(),
+            clientInfo: message.data
+          }));
+          break;
+
         case 'action_command':
           await handleActionCommand(message.data, socket);
           break;
+
         case 'file_operation':
           await handleFileOperation(message.data, socket);
           break;
+
         case 'workflow_data_request':
           await handleWorkflowDataRequest(message.data, socket);
           break;
+
         case 'ping':
-          socket.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
+          // Respond to ping with pong
+          socket.send(JSON.stringify({
+            type: 'pong',
+            timestamp: new Date().toISOString()
+          }));
           break;
+
         default:
-          console.log("Unknown message type:", message.type);
+          console.log('Unknown message type:', message.type);
+          socket.send(JSON.stringify({
+            type: 'error',
+            error: `Unknown message type: ${message.type}`,
+            timestamp: new Date().toISOString()
+          }));
       }
     } catch (error) {
-      console.error("Error processing message:", error);
-      socket.send(JSON.stringify({
-        type: 'error',
-        error: error.message,
-        timestamp: new Date().toISOString()
-      }));
+      console.error('Error processing message:', error);
+      try {
+        socket.send(JSON.stringify({
+          type: 'error',
+          error: 'Failed to process message',
+          details: error.message,
+          timestamp: new Date().toISOString()
+        }));
+      } catch (sendError) {
+        console.error('Error sending error message:', sendError);
+      }
     }
   };
 
@@ -82,6 +145,10 @@ serve(async (req) => {
 
   socket.onclose = () => {
     console.log("Filesystem bridge connection closed");
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
   };
 
   return response;
