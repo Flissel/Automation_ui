@@ -71,7 +71,7 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
         frameNumber: frameCount 
       });
     };
-    img.src = `data:image/jpeg;base64,${imageData}`;
+    img.src = imageData.startsWith('data:') ? imageData : `data:image/jpeg;base64,${imageData}`;
   }, [frameCount, onFrameReceived]);
 
   // Connect to WebSocket
@@ -81,7 +81,7 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
     setIsConnecting(true);
 
     try {
-      const wsUrl = `wss://dgzreelowtzquljhxskq.functions.supabase.co/live-desktop-stream`;
+      const wsUrl = `wss://dgzreelowtzquljhxskq.functions.supabase.co/live-desktop-stream?client_type=web&config_id=${config.id}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -94,15 +94,8 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
         }));
         setIsConnecting(false);
 
-        // Send configuration
-        ws.send(JSON.stringify({
-          type: 'configure',
-          config: {
-            fps: config.streaming.fps,
-            quality: config.streaming.quality,
-            scale: config.streaming.scale
-          }
-        }));
+        // Connection will be established automatically
+        // Configuration will be loaded from database
 
         toast({
           title: "Connected",
@@ -113,24 +106,61 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('WebSocket message:', data.type);
           
           switch (data.type) {
-            case 'frame':
-              if (data.image) {
-                drawFrame(data.image);
+            case 'connection_established':
+              console.log('Connection established:', data);
+              setStatus(prev => ({
+                ...prev,
+                connected: true,
+                connectionName: config.name
+              }));
+              break;
+
+            case 'frame_data':
+              if (data.frameData) {
+                drawFrame(data.frameData);
                 setStatus(prev => ({
                   ...prev,
                   streaming: true,
-                  fpsActual: data.fps || prev.fpsActual,
-                  latency: data.latency || prev.latency,
+                  fpsActual: prev.fpsActual,
                   bytesReceived: prev.bytesReceived + (event.data.length || 0),
                   lastFrameTime: new Date().toISOString()
                 }));
               }
               break;
-            
-            case 'status':
-              setStatus(prev => ({ ...prev, ...data.status }));
+
+            case 'desktop_status':
+              console.log('Desktop status:', data);
+              setStatus(prev => ({
+                ...prev,
+                streaming: data.isStreaming,
+                latency: data.latency || prev.latency
+              }));
+              break;
+
+            case 'desktop_disconnected':
+              console.log('Desktop disconnected:', data.desktopClientId);
+              setStatus(prev => ({
+                ...prev,
+                streaming: false,
+                connectionName: null
+              }));
+              toast({
+                title: "Desktop Disconnected",
+                description: "Desktop client has disconnected",
+                variant: "destructive",
+              });
+              break;
+
+            case 'error':
+              console.error('Server error:', data.error);
+              toast({
+                title: "Server Error",
+                description: data.error,
+                variant: "destructive",
+              });
               break;
               
             default:
@@ -207,9 +237,14 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
 
     const action = status.streaming ? 'stop' : 'start';
     wsRef.current.send(JSON.stringify({
-      type: action + '_stream'
+      type: action + '_stream',
+      config: {
+        fps: config.streaming.fps,
+        quality: config.streaming.quality,
+        scale: config.streaming.scale
+      }
     }));
-  }, [status.streaming]);
+  }, [status.streaming, config]);
 
   // Enable fullscreen
   const enterFullscreen = useCallback(() => {
