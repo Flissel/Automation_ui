@@ -15,6 +15,9 @@ const heartbeatIntervals = new Map();
 const desktopClients = new Map();
 const webClients = new Map();
 
+// Track streaming state for each desktop client
+const streamingStates = new Map();
+
 wss.on('connection', function connection(ws, req) {
   console.log('New WebSocket connection established');
   console.log('Client IP:', req.socket.remoteAddress);
@@ -33,7 +36,7 @@ wss.on('connection', function connection(ws, req) {
     ws.send(JSON.stringify(connectionMessage));
     console.log('Connection established message sent');
     
-    // Start heartbeat to keep connection alive
+    // Start heartbeat to keep connection alive (reduced frequency and logging)
     const heartbeatInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         try {
@@ -42,7 +45,10 @@ wss.on('connection', function connection(ws, req) {
             timestamp: new Date().toISOString()
           };
           ws.send(JSON.stringify(pingMessage));
-          console.log('Heartbeat ping sent');
+          // Reduced logging for heartbeat
+          if (Math.random() < 0.1) { // Only log 10% of heartbeats
+            console.log('Heartbeat ping sent');
+          }
         } catch (error) {
           console.error('Error sending heartbeat:', error);
           clearInterval(heartbeatInterval);
@@ -52,7 +58,7 @@ wss.on('connection', function connection(ws, req) {
         clearInterval(heartbeatInterval);
         heartbeatIntervals.delete(ws);
       }
-    }, 30000); // Send ping every 30 seconds
+    }, 60000); // Send ping every 60 seconds (reduced frequency)
     
     heartbeatIntervals.set(ws, heartbeatInterval);
     
@@ -134,9 +140,12 @@ wss.on('connection', function connection(ws, req) {
 
         case 'start_desktop_stream':
           console.log('Starting desktop stream request from web client');
-          // Forward to all desktop clients
-          desktopClients.forEach((desktopWs, desktopId) => {
-            if (desktopWs.readyState === WebSocket.OPEN) {
+          const targetDesktopId = message.desktopClientId;
+          
+          if (targetDesktopId) {
+            // Start specific desktop client
+            const targetDesktop = desktopClients.get(targetDesktopId);
+            if (targetDesktop && targetDesktop.readyState === WebSocket.OPEN) {
               const startMessage = {
                 type: 'start_capture',
                 config: message.config || {
@@ -147,37 +156,84 @@ wss.on('connection', function connection(ws, req) {
                 },
                 timestamp: new Date().toISOString()
               };
-              desktopWs.send(JSON.stringify(startMessage));
-              console.log(`Sent start_capture to desktop client: ${desktopId}`);
+              targetDesktop.send(JSON.stringify(startMessage));
+              streamingStates.set(targetDesktopId, true);
+              console.log(`Sent start_capture to specific desktop client: ${targetDesktopId}`);
+            } else {
+              console.log(`Desktop client ${targetDesktopId} not found or not connected`);
             }
-          });
+          } else {
+            // Forward to all desktop clients (legacy behavior)
+            desktopClients.forEach((desktopWs, desktopId) => {
+              if (desktopWs.readyState === WebSocket.OPEN) {
+                const startMessage = {
+                  type: 'start_capture',
+                  config: message.config || {
+                    fps: 10,
+                    quality: 80,
+                    scale: 1.0,
+                    format: 'jpeg'
+                  },
+                  timestamp: new Date().toISOString()
+                };
+                desktopWs.send(JSON.stringify(startMessage));
+                streamingStates.set(desktopId, true);
+                console.log(`Sent start_capture to desktop client: ${desktopId}`);
+              }
+            });
+          }
           break;
 
         case 'stop_desktop_stream':
           console.log('Stopping desktop stream request from web client');
-          // Forward to all desktop clients
-          desktopClients.forEach((desktopWs, desktopId) => {
-            if (desktopWs.readyState === WebSocket.OPEN) {
+          const stopTargetDesktopId = message.desktopClientId;
+          
+          if (stopTargetDesktopId) {
+            // Stop specific desktop client
+            const targetDesktop = desktopClients.get(stopTargetDesktopId);
+            if (targetDesktop && targetDesktop.readyState === WebSocket.OPEN) {
               const stopMessage = {
                 type: 'stop_capture',
                 timestamp: new Date().toISOString()
               };
-              desktopWs.send(JSON.stringify(stopMessage));
-              console.log(`Sent stop_capture to desktop client: ${desktopId}`);
+              targetDesktop.send(JSON.stringify(stopMessage));
+              streamingStates.set(stopTargetDesktopId, false);
+              console.log(`Sent stop_capture to specific desktop client: ${stopTargetDesktopId}`);
+            } else {
+              console.log(`Desktop client ${stopTargetDesktopId} not found or not connected`);
             }
-          });
+          } else {
+            // Forward to all desktop clients (legacy behavior)
+            desktopClients.forEach((desktopWs, desktopId) => {
+              if (desktopWs.readyState === WebSocket.OPEN) {
+                const stopMessage = {
+                  type: 'stop_capture',
+                  timestamp: new Date().toISOString()
+                };
+                desktopWs.send(JSON.stringify(stopMessage));
+                streamingStates.set(desktopId, false);
+                console.log(`Sent stop_capture to desktop client: ${desktopId}`);
+              }
+            });
+          }
           break;
 
         case 'frame_data':
-          console.log('Received frame data from desktop client, forwarding to web clients');
+          // Reduce frame data logging to prevent terminal spam
+          if (Math.random() < 0.01) { // Only log 1% of frames
+            console.log('Received frame data from desktop client, forwarding to web clients');
+          }
+          
           // Forward frame data to all web clients
           webClients.forEach((webWs, webId) => {
             if (webWs.readyState === WebSocket.OPEN) {
               try {
-                webWs.send(JSON.stringify(message));
-                console.log(`Forwarded frame to web client: ${webId}`);
+                webWs.send(data.toString());
+                if (Math.random() < 0.01) { // Only log 1% of forwards
+                  console.log(`Forwarded frame data to web client: ${webId}`);
+                }
               } catch (error) {
-                console.error(`Error forwarding frame to web client ${webId}:`, error);
+                console.error(`Error forwarding frame data to web client ${webId}:`, error);
               }
             }
           });
@@ -255,6 +311,24 @@ wss.on('connection', function connection(ws, req) {
           ws.send(JSON.stringify(workflowData));
           break;
 
+        case 'get_desktop_clients':
+          console.log('Received request for desktop clients list');
+          // Send list of available desktop clients
+          const desktopClientsList = Array.from(desktopClients.keys()).map(clientId => ({
+            id: clientId,
+            connected: desktopClients.get(clientId).readyState === WebSocket.OPEN,
+            timestamp: new Date().toISOString()
+          }));
+          
+          const clientsListMessage = {
+            type: 'desktop_clients_list',
+            clients: desktopClientsList,
+            timestamp: new Date().toISOString()
+          };
+          ws.send(JSON.stringify(clientsListMessage));
+          console.log(`Sent desktop clients list: ${desktopClientsList.length} clients`);
+          break;
+
         case 'ping':
           console.log('Received ping from client, sending pong');
           // Respond to ping with pong
@@ -267,6 +341,36 @@ wss.on('connection', function connection(ws, req) {
 
         case 'pong':
           console.log('Received pong from client');
+          break;
+
+        case 'desktop_stream_status':
+          console.log('Received desktop stream status from client:', message);
+          // Forward status to all web clients
+          webClients.forEach((webWs, webId) => {
+            if (webWs.readyState === WebSocket.OPEN) {
+              try {
+                const statusMessage = {
+                  type: 'desktop_stream_status',
+                  desktopClientId: ws.clientId || message.desktopClientId,
+                  status: message.status,
+                  timestamp: new Date().toISOString()
+                };
+                webWs.send(JSON.stringify(statusMessage));
+                console.log(`Forwarded desktop stream status to web client: ${webId}`);
+              } catch (error) {
+                console.error(`Error forwarding desktop stream status to web client ${webId}:`, error);
+              }
+            }
+          });
+          break;
+
+        case 'client_disconnect':
+          console.log('Received client disconnect message:', message);
+          // Client is gracefully disconnecting
+          if (ws.clientId) {
+            console.log(`Client ${ws.clientId} is disconnecting gracefully`);
+            // The actual cleanup will happen in the 'close' event handler
+          }
           break;
 
         default:

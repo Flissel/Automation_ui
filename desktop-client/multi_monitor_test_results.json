@@ -1,0 +1,95 @@
+{
+  "monitor_detection": {
+    "status": "PASSED",
+    "monitor_count": 2,
+    "monitors": {
+      "monitor_0": {
+        "index": 0,
+        "name": "Primary Monitor",
+        "x": 0,
+        "y": 0,
+        "width": 1920,
+        "height": 1080,
+        "is_primary": true
+      },
+      "monitor_1": {
+        "index": 1,
+        "name": "Secondary Monitor",
+        "x": 1920,
+        "y": 0,
+        "width": 1920,
+        "height": 1080,
+        "is_primary": false
+      }
+    }
+  },
+  "enhanced_capabilities": {
+    "status": "PASSED",
+    "capabilities": {
+      "clientType": "desktop_capture",
+      "clientId": "9a538d59-16f1-4249-a955-a6a1b25bc7bc",
+      "version": "1.0.0",
+      "capabilities": [
+        "desktop_stream",
+        "screen_capture",
+        "mouse_control",
+        "keyboard_control"
+      ],
+      "screen_capture": true,
+      "multiple_monitors": true,
+      "mouse_control": true,
+      "keyboard_control": true,
+      "file_operations": true,
+      "max_resolution": [
+        1920,
+        1080
+      ],
+      "supported_formats": [
+        "jpeg",
+        "png"
+      ],
+      "compression_levels": [
+        1,
+        10,
+        20,
+        30,
+        40,
+        50,
+        60,
+        70,
+        80,
+        90,
+        100
+      ]
+    }
+  },
+  "connection_with_enhancements": {
+    "status": "SKIPPED",
+    "reason": "Server not available"
+  },
+  "capture_modes": {
+    "status": "PASSED",
+    "tested_modes": [
+      "all_monitors",
+      "primary",
+      "specific_monitor"
+    ],
+    "final_config": {
+      "fps": 15,
+      "quality": 90,
+      "scale": 0.8,
+      "format": "png",
+      "capture_mode": "primary"
+    }
+  },
+  "screenshot_functionality": {
+    "status": "PASSED",
+    "dimensions": {
+      "width": 1920,
+      "height": 1080,
+      "original_width": 1920,
+      "original_height": 1080
+    },
+    "data_size": 333840
+  }
+}

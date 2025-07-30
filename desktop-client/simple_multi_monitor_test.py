@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """
-Desktop Capture Client for TRAE Unity AI Platform
-Captures desktop screenshots and streams them to the Supabase edge function.
-
-Requirements:
-- pip install websockets pillow pynput pyautogui
+Simple Multi-Monitor Test Client for TRAE Unity AI Platform
+Tests multi-monitor detection and capture without external dependencies.
 
 Usage:
-python desktop_capture_client.py --server-url wss://dgzreelowtzquljhxskq.functions.supabase.co/live-desktop-stream
+python simple_multi_monitor_test.py --server-url ws://localhost:8084
 """
 
 import asyncio
@@ -23,17 +20,25 @@ import uuid
 import threading
 import signal
 import sys
-import tkinter as tk
 from typing import Optional, Dict, Any, List
+import tkinter as tk
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Configure logging with clear formatting for debugging
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
-class DesktopCaptureClient:
+class SimpleMultiMonitorTestClient:
+    """
+    Simple multi-monitor test client using tkinter for monitor detection.
+    Follows TRAE Unity AI Platform naming conventions and coding standards.
+    """
+    
     def __init__(self, server_url: str, client_id: Optional[str] = None):
         """
-        Initialize the desktop capture client.
+        Initialize the simple multi-monitor test client.
         
         Args:
             server_url: WebSocket server URL to connect to
@@ -44,13 +49,13 @@ class DesktopCaptureClient:
         self.websocket: Optional[websockets.WebSocketServerProtocol] = None
         self.is_capturing = False
         
-        # Capture configuration
+        # Capture configuration following TRAE standards
         self.capture_config = {
-            'fps': 30,
-            'quality': 80,
-            'scale': 1.0,
+            'fps': 5,  # Lower FPS for testing
+            'quality': 60,  # Lower quality for testing
+            'scale': 0.5,  # Smaller scale for testing
             'format': 'jpeg',
-            'capture_mode': 'all_monitors'  # 'primary', 'all_monitors', 'specific_monitor'
+            'capture_mode': 'all_monitors'
         }
         
         # Monitor detection and management
@@ -63,12 +68,12 @@ class DesktopCaptureClient:
         self.loop = None
         
         # Initialize monitor detection
-        self._detect_monitors()
+        self._detect_monitors_simple()
 
-    def _detect_monitors(self):
+    def _detect_monitors_simple(self):
         """
-        Detect available monitors using tkinter.
-        Enhanced to support multiple monitor detection.
+        Simple monitor detection using tkinter.
+        Follows TRAE Unity AI Platform standards for clear debugging.
         """
         try:
             # Create a temporary tkinter root to get screen info
@@ -148,7 +153,10 @@ class DesktopCaptureClient:
             logger.warning("Using fallback single monitor configuration")
 
     async def connect(self):
-        """Connect to the WebSocket server."""
+        """
+        Connect to the WebSocket server with enhanced error handling.
+        Follows TRAE Unity AI Platform connection standards.
+        """
         try:
             # Store the event loop for later use
             self.loop = asyncio.get_event_loop()
@@ -167,9 +175,9 @@ class DesktopCaptureClient:
             )
             self.running = True
             
-            logger.info(f"Connected as desktop client: {self.client_id}")
+            logger.info(f"Connected as simple multi-monitor test client: {self.client_id}")
             
-            # Send capability report
+            # Send capability report with monitor information
             await self.send_capabilities()
             
             # Wait for handshake acknowledgment
@@ -193,77 +201,46 @@ class DesktopCaptureClient:
             logger.error(f"Exception type: {type(e)}")
             await self.disconnect()
 
-    async def disconnect(self):
-        """Disconnect from the WebSocket server."""
-        logger.info("Initiating disconnect...")
-        self.running = False
-        
-        # Stop capture if running
-        if self.is_capturing:
-            await self.stop_capture()
-        
-        # Wait for capture thread to finish
-        if self.capture_thread and self.capture_thread.is_alive():
-            logger.info("Waiting for capture thread to finish...")
-            self.capture_thread.join(timeout=3)
-            if self.capture_thread.is_alive():
-                logger.warning("Capture thread did not finish gracefully")
-        
-        # Close WebSocket connection
-        if self.websocket:
-            try:
-                # Send disconnect message if possible
-                await self.send_message({
-                    'type': 'client_disconnect',
-                    'clientId': self.client_id,
-                    'timestamp': time.time()
-                })
-                await asyncio.sleep(0.1)  # Brief delay to ensure message is sent
-            except Exception as e:
-                logger.warning(f"Could not send disconnect message: {e}")
-            
-            try:
-                await self.websocket.close()
-                logger.info("WebSocket connection closed")
-            except Exception as e:
-                logger.warning(f"Error closing WebSocket: {e}")
-        
-        logger.info("Disconnect completed")
-
     async def send_capabilities(self):
-        """Send client capabilities to the server."""
+        """
+        Send enhanced client capabilities including monitor information.
+        Follows TRAE Unity AI Platform capability reporting standards.
+        """
         capabilities = {
             'type': 'handshake',
             'timestamp': time.time(),
             'clientInfo': {
-                'clientType': 'desktop_capture',
+                'clientType': 'simple_multi_monitor_test',
                 'clientId': self.client_id,
                 'version': '1.0.0',
-                'capabilities': ['desktop_stream', 'screen_capture', 'mouse_control', 'keyboard_control'],
+                'capabilities': [
+                    'desktop_stream', 
+                    'screen_capture', 
+                    'multi_monitor_test'
+                ],
                 'screen_capture': True,
-                'multiple_monitors': True,
-                'mouse_control': True,
-                'keyboard_control': True,
-                'file_operations': True,
-                'max_resolution': [1920, 1080],
+                'multiple_monitors': len(self.monitor_info) > 1,
+                'monitor_count': len(self.monitor_info),
+                'monitor_info': self.monitor_info,
                 'supported_formats': ['jpeg', 'png'],
                 'compression_levels': [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
             }
         }
         
         await self.send_message(capabilities)
-        logger.info("Sent handshake with capabilities")
+        logger.info(f"Sent handshake with simple multi-monitor capabilities ({len(self.monitor_info)} monitors)")
 
     async def wait_for_handshake_ack(self):
-        """Wait for handshake acknowledgment from the server."""
+        """
+        Wait for handshake acknowledgment from the server.
+        Enhanced with better error handling following TRAE standards.
+        """
         try:
-            # Wait for handshake acknowledgment with timeout
-            timeout = 10.0  # 10 second timeout
+            timeout = 10.0
             start_time = time.time()
             
             while time.time() - start_time < timeout:
                 try:
-                    # Check for incoming message with short timeout
                     message = await asyncio.wait_for(self.websocket.recv(), timeout=1.0)
                     data = json.loads(message)
                     
@@ -277,7 +254,6 @@ class DesktopCaptureClient:
                         logger.warning(f"Unexpected message during handshake: {data.get('type')}")
                         
                 except asyncio.TimeoutError:
-                    # Continue waiting
                     continue
                 except json.JSONDecodeError as e:
                     logger.error(f"Invalid JSON during handshake: {e}")
@@ -291,7 +267,7 @@ class DesktopCaptureClient:
             return False
 
     async def send_message(self, message: Dict[str, Any]):
-        """Send a message to the server."""
+        """Send a message to the server with error handling."""
         if self.websocket:
             try:
                 await self.websocket.send(json.dumps(message))
@@ -321,11 +297,9 @@ class DesktopCaptureClient:
 
         if message_type == 'connection_established':
             logger.info(f"Connection established: {data}")
-            # Connection is now fully established
             
         elif message_type == 'handshake_ack':
             logger.info(f"Handshake acknowledged: {data}")
-            # Handshake completed successfully
             
         elif message_type == 'start_capture':
             config = data.get('config', {})
@@ -334,12 +308,9 @@ class DesktopCaptureClient:
         elif message_type == 'stop_capture':
             await self.stop_capture()
             
-        elif message_type == 'config_update':
-            config = data.get('config', {})
-            self.update_config(config)
-            
         elif message_type == 'capture_screenshot':
-            await self.capture_single_screenshot()
+            monitor_id = data.get('monitor_id', 'all')
+            await self.capture_single_screenshot(monitor_id)
             
         elif message_type == 'ping':
             await self.send_message({
@@ -347,37 +318,29 @@ class DesktopCaptureClient:
                 'timestamp': time.time()
             })
             
-        elif message_type == 'frame_data':
-            # Desktop client should not normally receive frame_data messages
-            # This might indicate a server-side routing issue
-            logger.debug(f"Received frame_data message (unexpected for desktop client)")
-            # Silently ignore to prevent spam, but log at debug level for troubleshooting
-            
         else:
             logger.warning(f"Unknown message type: {message_type}")
 
     async def start_capture(self, config: Dict[str, Any]):
-        """Start continuous screen capture."""
+        """Start continuous multi-monitor screen capture."""
         if self.is_capturing:
             logger.warning("Capture already running")
             return
 
-        # Update configuration
         self.capture_config.update(config)
         self.is_capturing = True
         self.frame_count = 0
 
-        logger.info(f"Starting capture with config: {self.capture_config}")
+        logger.info(f"Starting simple multi-monitor capture with config: {self.capture_config}")
 
-        # Send status update
         await self.send_message({
             'type': 'stream_status',
             'streaming': True,
             'config': self.capture_config,
+            'monitor_info': self.monitor_info,
             'timestamp': time.time()
         })
 
-        # Start capture in separate thread to avoid blocking
         self.capture_thread = threading.Thread(target=self.capture_loop)
         self.capture_thread.daemon = True
         self.capture_thread.start()
@@ -389,80 +352,55 @@ class DesktopCaptureClient:
             return
 
         self.is_capturing = False
-        logger.info("Stopping capture")
+        logger.info("Stopping simple multi-monitor capture")
 
-        # Wait for capture thread to finish
         if self.capture_thread and self.capture_thread.is_alive():
             self.capture_thread.join(timeout=2)
 
-        # Send status update
         await self.send_message({
             'type': 'stream_status',
             'streaming': False,
             'timestamp': time.time()
         })
 
-    def update_config(self, config: Dict[str, Any]):
-        """Update capture configuration."""
-        self.capture_config.update(config)
-        logger.info(f"Updated config: {self.capture_config}")
-
     async def process_frame_queue(self):
         """Process frames from the queue and send them via WebSocket."""
         while self.running:
             try:
-                # Get frame from queue with timeout using asyncio
                 frame_data = await asyncio.wait_for(self.frame_queue.get(), timeout=0.1)
                 if frame_data:
-                    await self.send_frame(
-                        frame_data['image_data'], 
-                        frame_data['width'],
-                        frame_data['height'],
-                        frame_data['original_width'],
-                        frame_data['original_height'],
-                        frame_data.get('is_single', False)
-                    )
+                    await self.send_frame(frame_data)
                     self.frame_queue.task_done()
             except asyncio.TimeoutError:
-                # No frames in queue, continue
                 continue
             except Exception as e:
                 logger.error(f"Frame processing error: {e}")
                 await asyncio.sleep(0.1)
 
     def capture_loop(self):
-        """Main capture loop (runs in separate thread)."""
-        fps = self.capture_config.get('fps', 10)
+        """Main capture loop for simple multi-monitor testing."""
+        fps = self.capture_config.get('fps', 5)
         frame_interval = 1.0 / fps
 
-        logger.info(f"Starting capture loop at {fps} FPS")
+        logger.info(f"Starting simple multi-monitor capture loop at {fps} FPS")
 
         while self.is_capturing and self.running:
             try:
                 start_time = time.time()
                 
-                # Capture screenshot
-                screenshot_data = self.capture_screenshot()
-                if screenshot_data:
-                    # Add frame to queue for async processing using thread-safe method
-                    frame_data = {
-                        'image_data': screenshot_data['image_data'],
-                        'width': screenshot_data['width'],
-                        'height': screenshot_data['height'],
-                        'original_width': screenshot_data['original_width'],
-                        'original_height': screenshot_data['original_height'],
-                        'is_single': False
-                    }
-                    # Use asyncio.run_coroutine_threadsafe to put item in async queue from thread
-                    if self.loop and self.frame_queue:
-                        future = asyncio.run_coroutine_threadsafe(
-                            self.frame_queue.put(frame_data), 
-                            self.loop
-                        )
-                        # Don't wait for the future to complete to avoid blocking
-                    self.frame_count += 1
+                # Test different capture methods
+                screenshot_data_list = self.test_multi_monitor_capture()
+                
+                for screenshot_data in screenshot_data_list:
+                    if screenshot_data:
+                        if self.loop and self.frame_queue:
+                            future = asyncio.run_coroutine_threadsafe(
+                                self.frame_queue.put(screenshot_data), 
+                                self.loop
+                            )
+                        
+                self.frame_count += 1
 
-                # Calculate sleep time to maintain FPS
                 elapsed = time.time() - start_time
                 sleep_time = max(0, frame_interval - elapsed)
                 
@@ -470,20 +408,61 @@ class DesktopCaptureClient:
                     time.sleep(sleep_time)
 
             except Exception as e:
-                logger.error(f"Capture loop error: {e}")
-                time.sleep(0.1)  # Brief pause before retrying
+                logger.error(f"Simple multi-monitor capture loop error: {e}")
+                time.sleep(0.1)
 
-        logger.info("Capture loop ended")
+        logger.info("Simple multi-monitor capture loop ended")
 
-    def capture_screenshot(self) -> Optional[dict]:
-        """Capture a single screenshot and return as base64 encoded string with dimensions."""
+    def test_multi_monitor_capture(self) -> List[Dict[str, Any]]:
+        """Test multi-monitor capture methods."""
+        screenshot_data_list = []
+        
         try:
-            # Capture the screen
-            screenshot = ImageGrab.grab()
+            # Method 1: Full virtual screen capture
+            logger.debug("Capturing full virtual screen")
+            full_screenshot = ImageGrab.grab()
+            full_data = self._process_screenshot(full_screenshot, 'full_virtual_screen')
+            if full_data:
+                screenshot_data_list.append(full_data)
+            
+            # Method 2: Try to capture individual monitors if we detected multiple
+            if len(self.monitor_info) > 1:
+                for monitor_id, monitor_info in self.monitor_info.items():
+                    logger.debug(f"Attempting to capture {monitor_id}")
+                    monitor_data = self.capture_monitor_by_bbox(monitor_info, monitor_id)
+                    if monitor_data:
+                        screenshot_data_list.append(monitor_data)
+                        
+        except Exception as e:
+            logger.error(f"Error in test multi-monitor capture: {e}")
+            
+        return screenshot_data_list
+
+    def capture_monitor_by_bbox(self, monitor_info: Dict[str, Any], monitor_id: str) -> Optional[Dict[str, Any]]:
+        """Capture screenshot from specific monitor using bounding box."""
+        try:
+            bbox = (
+                monitor_info['x'],
+                monitor_info['y'],
+                monitor_info['x'] + monitor_info['width'],
+                monitor_info['y'] + monitor_info['height']
+            )
+            
+            logger.debug(f"Capturing {monitor_id} with bbox: {bbox}")
+            screenshot = ImageGrab.grab(bbox=bbox)
+            
+            return self._process_screenshot(screenshot, monitor_id)
+            
+        except Exception as e:
+            logger.error(f"Error capturing monitor {monitor_id}: {e}")
+            return None
+
+    def _process_screenshot(self, screenshot: Image.Image, monitor_id: str) -> Optional[Dict[str, Any]]:
+        """Process a screenshot image and return formatted data."""
+        try:
             original_width, original_height = screenshot.size
             
-            # Apply scaling if needed
-            scale = self.capture_config.get('scale', 1.0)
+            scale = self.capture_config.get('scale', 0.5)
             if scale != 1.0:
                 width, height = screenshot.size
                 new_size = (int(width * scale), int(height * scale))
@@ -491,17 +470,15 @@ class DesktopCaptureClient:
 
             final_width, final_height = screenshot.size
 
-            # Convert to bytes
             buffer = BytesIO()
             format_type = self.capture_config.get('format', 'jpeg').upper()
-            quality = self.capture_config.get('quality', 80)
+            quality = self.capture_config.get('quality', 60)
             
             if format_type == 'JPEG':
                 screenshot.save(buffer, format='JPEG', quality=quality, optimize=True)
             else:
                 screenshot.save(buffer, format='PNG', optimize=True)
 
-            # Encode as base64
             buffer.seek(0)
             image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
             
@@ -510,55 +487,91 @@ class DesktopCaptureClient:
                 'width': final_width,
                 'height': final_height,
                 'original_width': original_width,
-                'original_height': original_height
+                'original_height': original_height,
+                'monitor_id': monitor_id,
+                'is_single': False
             }
 
         except Exception as e:
-            logger.error(f"Screenshot capture error: {e}")
+            logger.error(f"Screenshot processing error for {monitor_id}: {e}")
             return None
 
-    async def capture_single_screenshot(self):
-        """Capture and send a single screenshot."""
-        logger.info("Capturing single screenshot")
-        screenshot_data = self.capture_screenshot()
-        if screenshot_data:
-            frame_data = {
-                'image_data': screenshot_data['image_data'],
-                'width': screenshot_data['width'],
-                'height': screenshot_data['height'],
-                'original_width': screenshot_data['original_width'],
-                'original_height': screenshot_data['original_height'],
-                'is_single': True
-            }
-            await self.frame_queue.put(frame_data)
+    async def capture_single_screenshot(self, monitor_id: str = 'all'):
+        """Capture and send a single screenshot from specified monitor(s)."""
+        logger.info(f"Capturing single screenshot from {monitor_id}")
+        
+        screenshot_data_list = self.test_multi_monitor_capture()
+        
+        for screenshot_data in screenshot_data_list:
+            if screenshot_data:
+                screenshot_data['is_single'] = True
+                await self.frame_queue.put(screenshot_data)
 
-    async def send_frame(self, image_data: str, width: int, height: int, original_width: int, original_height: int, is_single: bool = False):
+    async def send_frame(self, frame_data: Dict[str, Any]):
         """Send a frame to the server."""
         message = {
             'type': 'frame_data',
-            'frameData': image_data,
+            'frameData': frame_data['image_data'],
             'frameNumber': self.frame_count,
             'timestamp': time.time(),
-            'isSingle': is_single,
-            'width': width,
-            'height': height,
+            'isSingle': frame_data.get('is_single', False),
+            'width': frame_data['width'],
+            'height': frame_data['height'],
+            'monitorId': frame_data.get('monitor_id', 'unknown'),
             'metadata': {
                 'clientId': self.client_id,
+                'clientType': 'simple_multi_monitor_test',
                 'config': self.capture_config,
-                'dataSize': len(image_data),
+                'dataSize': len(frame_data['image_data']),
                 'dimensions': {
-                    'width': width,
-                    'height': height,
-                    'original_width': original_width,
-                    'original_height': original_height
-                }
+                    'width': frame_data['width'],
+                    'height': frame_data['height'],
+                    'original_width': frame_data['original_width'],
+                    'original_height': frame_data['original_height']
+                },
+                'monitor_info': self.monitor_info.get(frame_data.get('monitor_id', ''), {})
             }
         }
 
         await self.send_message(message)
 
+    async def disconnect(self):
+        """Disconnect from the WebSocket server with proper cleanup."""
+        logger.info("Initiating simple multi-monitor test client disconnect...")
+        self.running = False
+        
+        if self.is_capturing:
+            await self.stop_capture()
+        
+        if self.capture_thread and self.capture_thread.is_alive():
+            logger.info("Waiting for capture thread to finish...")
+            self.capture_thread.join(timeout=3)
+            if self.capture_thread.is_alive():
+                logger.warning("Capture thread did not finish gracefully")
+        
+        if self.websocket:
+            try:
+                await self.send_message({
+                    'type': 'client_disconnect',
+                    'clientId': self.client_id,
+                    'timestamp': time.time(),
+                    'client_type': 'simple_multi_monitor_test'
+                })
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                logger.warning(f"Could not send disconnect message: {e}")
+            
+            try:
+                await self.websocket.close()
+                logger.info("WebSocket connection closed")
+            except Exception as e:
+                logger.warning(f"Error closing WebSocket: {e}")
+        
+        logger.info("Simple multi-monitor test client disconnect completed")
+
 async def main():
-    parser = argparse.ArgumentParser(description='Desktop Capture Client for TRAE Unity AI Platform')
+    """Main function following TRAE Unity AI Platform standards."""
+    parser = argparse.ArgumentParser(description='Simple Multi-Monitor Test Client for TRAE Unity AI Platform')
     parser.add_argument('--server-url', 
                        default='ws://localhost:8084',
                        help='WebSocket server URL')
@@ -575,7 +588,7 @@ async def main():
     logging.getLogger().setLevel(getattr(logging, args.log_level))
 
     # Create and run client
-    client = DesktopCaptureClient(args.server_url, args.client_id)
+    client = SimpleMultiMonitorTestClient(args.server_url, args.client_id)
     
     # Signal handler for graceful shutdown
     def signal_handler(signum, frame):
@@ -589,7 +602,7 @@ async def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     try:
-        logger.info("Starting Desktop Capture Client...")
+        logger.info("Starting Simple Multi-Monitor Test Client...")
         logger.info(f"Server URL: {args.server_url}")
         logger.info(f"Client ID: {client.client_id}")
         
@@ -604,9 +617,9 @@ async def main():
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
     finally:
-        logger.info("Shutting down client...")
+        logger.info("Shutting down simple multi-monitor test client...")
         await client.disconnect()
-        logger.info("Desktop Capture Client stopped")
+        logger.info("Simple Multi-Monitor Test Client stopped")
 
 if __name__ == '__main__':
     asyncio.run(main())

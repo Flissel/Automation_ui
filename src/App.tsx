@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import LiveDesktop from "./pages/LiveDesktop";
+import MultiDesktopStreams from "./pages/MultiDesktopStreams";
 import Workflow from "./pages/Workflow";
 import Monitoring from "./pages/Monitoring";
 import Settings from "./pages/Settings";
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/" element={<Dashboard />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/live-desktop" element={<LiveDesktop />} />
+          <Route path="/multi-desktop" element={<MultiDesktopStreams />} />
           <Route path="/workflow" element={<Workflow />} />
           <Route path="/monitoring" element={<Monitoring />} />
           <Route path="/settings" element={<Settings />} />

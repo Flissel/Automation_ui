@@ -11,9 +11,10 @@ import {
   Settings, 
   LogOut,
   Activity,
-  Users,
   Server,
-  BarChart3
+  Users,
+  BarChart3,
+  Grid
 } from "lucide-react";
 
 const Dashboard = () => {
@@ -87,6 +88,13 @@ const Dashboard = () => {
       icon: <Monitor className="w-8 h-8" />,
       action: () => navigate("/live-desktop"),
       color: "bg-blue-500"
+    },
+    {
+      title: "Multi-Desktop Streams",
+      description: "View up to 4 desktop streams simultaneously",
+      icon: <Grid className="w-8 h-8" />,
+      action: () => navigate("/multi-desktop"),
+      color: "bg-purple-500"
     },
     {
       title: "Workflow Automation",
@@ -175,7 +183,7 @@ const Dashboard = () => {
         {/* Quick Actions */}
         <div className="mb-8">
           <h3 className="text-xl font-semibold mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             {quickActions.map((action, index) => (
               <Card key={index} className="cursor-pointer hover:shadow-lg transition-shadow" onClick={action.action}>
                 <CardContent className="p-6">

@@ -37,7 +37,7 @@ serve(async (req) => {
   console.log("Filesystem Bridge WebSocket connected");
 
   // Keep track of heartbeat interval
-  let heartbeatInterval: number | null = null;
+  let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
   socket.onopen = () => {
     console.log('WebSocket connection opened');
