@@ -12,17 +12,20 @@ export interface LiveDesktopConfig {
     fps: number;
     quality: number;
     scale: number;
+    format?: string;
   };
   connection: {
     timeout: number;
     maxReconnectAttempts: number;
     reconnectInterval: number;
+    autoReconnect?: boolean;
   };
   ocr: {
     enabled: boolean;
     extractionInterval: number; // seconds
     n8nWebhookUrl?: string;
     autoSend: boolean;
+    regions?: OCRRegion[];
   };
   ocrRegions: OCRRegion[];
   createdAt: string;

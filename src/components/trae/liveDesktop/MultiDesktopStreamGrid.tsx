@@ -175,6 +175,10 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
         lastFrameTime: ''
       },
       config: {
+        id: `config_${clientId}`,
+        name: `Desktop ${streams.size + 1} Config`,
+        description: `Configuration for Desktop ${streams.size + 1}`,
+        websocketUrl: 'ws://localhost:8084',
         streaming: {
           fps: 30,
           quality: 80,
@@ -182,13 +186,20 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
           format: 'jpeg'
         },
         connection: {
-          autoReconnect: true,
-          timeout: 30000
+          timeout: 30000,
+          maxReconnectAttempts: 5,
+          reconnectInterval: 3000,
+          autoReconnect: true
         },
         ocr: {
           enabled: false,
+          extractionInterval: 5,
+          autoSend: false,
           regions: []
-        }
+        },
+        ocrRegions: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       },
       canvasRef,
       isActive: false,
@@ -561,6 +572,10 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
           lastFrameTime: ''
         },
         config: {
+          id: `config_${clientId}`,
+          name: `Desktop ${index + 1} Config`,
+          description: `Configuration for Desktop ${index + 1}`,
+          websocketUrl: 'ws://localhost:8084',
           streaming: {
             fps: 30,
             quality: 80,
@@ -568,13 +583,20 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
             format: 'jpeg'
           },
           connection: {
-            autoReconnect: true,
-            timeout: 30000
+            timeout: 30000,
+            maxReconnectAttempts: 5,
+            reconnectInterval: 3000,
+            autoReconnect: true
           },
           ocr: {
             enabled: false,
+            extractionInterval: 5,
+            autoSend: false,
             regions: []
-          }
+          },
+          ocrRegions: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         },
         canvasRef,
         isActive: true,

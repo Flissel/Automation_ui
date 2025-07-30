@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Monitor, Grid, Maximize2, Settings, Workflow, Database, Play, Square } from 'lucide-react';
+import { ArrowLeft, Monitor, Grid, Maximize2, Settings, Workflow, Database, Play, Square, Target } from 'lucide-react';
 import { LiveDesktopInterface } from '@/components/trae/LiveDesktopInterface';
 import { WorkflowResult } from '@/components/trae/WorkflowResult';
+import { FixedSizeOCRDesigner } from '@/components/trae/liveDesktop/FixedSizeOCRDesigner';
+import { LiveDesktopConfig } from '@/types/liveDesktop';
 
 // ============================================================================
 // DEMO SCENARIOS
@@ -211,10 +213,11 @@ const demoScenarios: DemoScenario[] = [{
 const LiveDesktop: React.FC = () => {
   const navigate = useNavigate();
   const [selectedScenario, setSelectedScenario] = useState<string>('monitoring');
-  const [viewMode, setViewMode] = useState<'interface' | 'results' | 'combined'>('interface');
+  const [viewMode, setViewMode] = useState<'interface' | 'results' | 'combined' | 'ocr-designer'>('ocr-designer');
   const [interfaceStatus, setInterfaceStatus] = useState<any>({});
   const [resultData, setResultData] = useState<any[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [ocrConfig, setOcrConfig] = useState<LiveDesktopConfig | null>(null);
   const currentScenario = demoScenarios.find(s => s.id === selectedScenario) || demoScenarios[0];
 
   // ============================================================================
@@ -239,7 +242,42 @@ const LiveDesktop: React.FC = () => {
       
       
     </Card>;
-  const renderViewModeSelector = () => {};
+  const renderViewModeSelector = () => (
+    <Card className="mb-6">
+      <CardContent className="pt-6">
+        <div className="flex space-x-2">
+          <Button
+            variant={viewMode === 'ocr-designer' ? 'default' : 'outline'}
+            onClick={() => setViewMode('ocr-designer')}
+          >
+            <Target className="w-4 h-4 mr-2" />
+            OCR Designer
+          </Button>
+          <Button
+            variant={viewMode === 'interface' ? 'default' : 'outline'}
+            onClick={() => setViewMode('interface')}
+          >
+            <Monitor className="w-4 h-4 mr-2" />
+            Interface
+          </Button>
+          <Button
+            variant={viewMode === 'results' ? 'default' : 'outline'}
+            onClick={() => setViewMode('results')}
+          >
+            <Database className="w-4 h-4 mr-2" />
+            Results
+          </Button>
+          <Button
+            variant={viewMode === 'combined' ? 'default' : 'outline'}
+            onClick={() => setViewMode('combined')}
+          >
+            <Grid className="w-4 h-4 mr-2" />
+            Combined
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
   const renderScenarioInfo = () => <Card className="mb-6">
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
@@ -334,12 +372,22 @@ const LiveDesktop: React.FC = () => {
       </div>;
   };
 
+  const renderOCRDesignerView = () => (
+    <FixedSizeOCRDesigner
+      config={ocrConfig || undefined}
+      onConfigChange={setOcrConfig}
+      className="w-full"
+    />
+  );
+
   // ============================================================================
   // MAIN CONTENT RENDERING
   // ============================================================================
 
   const renderMainContent = () => {
     switch (viewMode) {
+      case 'ocr-designer':
+        return renderOCRDesignerView();
       case 'interface':
         return renderInterfaceView();
       case 'results':
@@ -347,7 +395,7 @@ const LiveDesktop: React.FC = () => {
       case 'combined':
         return renderCombinedView();
       default:
-        return renderInterfaceView();
+        return renderOCRDesignerView();
     }
   };
 
@@ -389,6 +437,7 @@ const LiveDesktop: React.FC = () => {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>
+              {viewMode === 'ocr-designer' && 'OCR Zone Designer'}
               {viewMode === 'interface' && 'Live Desktop Interface'}
               {viewMode === 'results' && 'Workflow Results'}
               {viewMode === 'combined' && 'Combined Interface & Results'}
