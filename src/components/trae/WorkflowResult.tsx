@@ -656,14 +656,14 @@ ${exportData.map(result => `
                     <div>
                       <Label htmlFor="node-type">Node Type</Label>
                       <Select
-                        value={filter.nodeType || ''}
-                        onValueChange={(value) => setFilter(prev => ({ ...prev, nodeType: value || undefined }))}
+                        value={filter.nodeType || 'all-types'}
+                        onValueChange={(value) => setFilter(prev => ({ ...prev, nodeType: value === 'all-types' ? undefined : value }))}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="All types" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All types</SelectItem>
+                          <SelectItem value="all-types">All types</SelectItem>
                           {Object.keys(aggregation.nodeTypeBreakdown).map(type => (
                             <SelectItem key={type} value={type}>{type}</SelectItem>
                           ))}
@@ -674,14 +674,14 @@ ${exportData.map(result => `
                     <div>
                       <Label htmlFor="status">Status</Label>
                       <Select
-                        value={filter.status || ''}
-                        onValueChange={(value) => setFilter(prev => ({ ...prev, status: value as any || undefined }))}
+                        value={filter.status || 'all-statuses'}
+                        onValueChange={(value) => setFilter(prev => ({ ...prev, status: value === 'all-statuses' ? undefined : value as any }))}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="All statuses" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All statuses</SelectItem>
+                          <SelectItem value="all-statuses">All statuses</SelectItem>
                           <SelectItem value="completed">Completed</SelectItem>
                           <SelectItem value="failed">Failed</SelectItem>
                           <SelectItem value="pending">Pending</SelectItem>
