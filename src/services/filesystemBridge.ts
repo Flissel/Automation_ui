@@ -134,16 +134,16 @@ export class FilesystemBridge extends SimpleEventEmitter {
         
         this.websocket = new WebSocket(wsUrl);
 
-      this.websocket.onopen = () => {
-        console.log(`WebSocket connected to ${wsUrl}`);
-        this.isConnected = true;
-        this.reconnectAttempts = 0;
-        this.emit('connected', { url: wsUrl });
-        this.startFileWatching();
-        // Note: Handshake will be sent after receiving connection_established message
-        this.processQueuedCommands(); // Process any queued commands
-        resolve();
-      };
+        this.websocket.onopen = () => {
+          console.log(`WebSocket connected to ${wsUrl}`);
+          this.isConnected = true;
+          this.reconnectAttempts = 0;
+          this.emit('connected', { url: wsUrl });
+          this.startFileWatching();
+          // Note: Handshake will be sent after receiving connection_established message
+          this.processQueuedCommands(); // Process any queued commands
+          resolve();
+        };
 
         this.websocket.onmessage = (event) => {
           this.handleWebSocketMessage(event.data);
@@ -151,50 +151,27 @@ export class FilesystemBridge extends SimpleEventEmitter {
 
         this.websocket.onclose = (event) => {
           console.log('WebSocket closed:', event.code, event.reason);
-          console.log('Close event details:', {
-            code: event.code,
-            reason: event.reason,
-            wasClean: event.wasClean,
-            timestamp: new Date().toISOString(),
-            readyState: this.websocket?.readyState
-          });
-          
-          // Log the exact close code meanings
-          const closeCodeMeanings = {
-            1000: 'Normal Closure',
-            1001: 'Going Away',
-            1002: 'Protocol Error',
-            1003: 'Unsupported Data',
-            1005: 'No Status Received',
-            1006: 'Abnormal Closure',
-            1007: 'Invalid frame payload data',
-            1008: 'Policy Violation',
-            1009: 'Message Too Big',
-            1010: 'Mandatory Extension',
-            1011: 'Internal Server Error',
-            1015: 'TLS Handshake'
-          };
-          
-          console.log(`Close code ${event.code} means: ${closeCodeMeanings[event.code] || 'Unknown'}`);
-          
-          // Log stack trace to see what triggered the close
-          console.log('WebSocket close stack trace:', new Error().stack);
           
           this.isConnected = false;
           this.websocket = null;
           this.emit('disconnected', { code: event.code, reason: event.reason });
           
-          // Attempt reconnection for abnormal closures
-          if (event.code !== 1000 && event.code !== 1001) {
-            console.log('Abnormal closure detected, attempting reconnect...');
+          // Only attempt reconnection for abnormal closures and if not manually closed
+          if (event.code !== 1000 && event.code !== 1001 && this.reconnectAttempts < this.maxReconnectAttempts) {
+            console.log('Connection lost, will attempt to reconnect...');
             this.attemptReconnect();
           }
         };
 
         this.websocket.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          this.emit('error', { error, context: 'websocket' });
-          reject(error);
+          console.warn('WebSocket connection failed - service may not be available');
+          // Don't emit error for connection failures to reduce console noise
+          // this.emit('error', { error, context: 'websocket' });
+          
+          // Resolve with a "graceful failure" instead of rejecting
+          this.isConnected = false;
+          this.websocket = null;
+          resolve(); // Allow the app to continue without WebSocket
         };
 
         // Connection timeout
@@ -709,8 +686,8 @@ export class FilesystemBridge extends SimpleEventEmitter {
 // Export default configuration
 export const defaultFilesystemBridgeConfig: FilesystemBridgeConfig = {
   baseDataPath: './workflow-data',
-  websocketUrl: 'wss://dgzreelowtzquljhxskq.functions.supabase.co/filesystem-bridge',
-  websocketPort: 443,
+  websocketUrl: 'ws://localhost:8084',
+  websocketPort: 8084,
   watchInterval: 1000,
   autoCleanup: true,
   maxFileAge: 3600000 // 1 hour

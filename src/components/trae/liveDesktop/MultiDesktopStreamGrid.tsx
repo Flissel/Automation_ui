@@ -7,52 +7,97 @@
  * Version: 1.0.0
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Monitor, Play, Pause, Square, Maximize, Settings, Volume2, VolumeX } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LiveDesktopConfig, LiveDesktopStatus } from '@/types/liveDesktop';
+import { MultiStreamManager } from './MultiStreamManager';
+import { 
+  Play, 
+  Pause, 
+  Square, 
+  Monitor, 
+  Wifi, 
+  WifiOff, 
+  Activity,
+  Settings,
+  Maximize2,
+  Minimize2,
+  RefreshCw,
+  Zap
+} from 'lucide-react';
+
+/**
+ * Enhanced Multi-Desktop Stream Grid for TRAE Unity AI Platform
+ * Displays multiple desktop streams in a responsive grid layout using individual WebSocket connections
+ * Follows TRAE naming conventions and coding standards
+ */
 
 // ============================================================================
-// INTERFACES
+// INTERFACES AND TYPES
 // ============================================================================
 
-interface DesktopStreamInstance {
-  id: string;
+interface StreamState {
+  /** Unique stream identifier */
+  streamId: string;
+  /** Client ID this stream belongs to */
   clientId: string;
-  name: string;
+  /** Monitor identifier */
+  monitorId: string;
+  /** Display name for UI */
+  displayName: string;
+  /** Current stream status */
   status: LiveDesktopStatus;
-  config: LiveDesktopConfig;
+  /** Canvas reference for rendering */
   canvasRef: React.RefObject<HTMLCanvasElement>;
-  isActive: boolean;
+  /** Stream configuration */
+  config: LiveDesktopConfig;
+  /** Last frame timestamp */
   lastFrameTime: Date | null;
+  /** Frame count for performance monitoring */
+  frameCount: number;
+  /** Stream quality metrics */
+  quality: {
+    fps: number;
+    latency: number;
+    bandwidth: number;
+  };
+  /** Connection state */
+  isConnected: boolean;
+  /** Streaming state */
+  isStreaming: boolean;
 }
 
 interface MultiDesktopStreamGridProps {
-  /** WebSocket connection */
-  websocket?: WebSocket | null;
-  /** Selected client IDs */
-  selectedClients?: string[];
+  /** Selected clients with their streams */
+  selectedClients: Array<{
+    clientId: string;
+    clientName: string;
+    monitors: Array<{
+      monitorId: string;
+      name: string;
+      resolution: { width: number; height: number };
+    }>;
+  }>;
+  /** WebSocket server URL */
+  serverUrl?: string;
   /** Maximum number of concurrent streams */
   maxStreams?: number;
-  /** Grid layout (2x2, 1x4, 4x1) */
-  layout?: '2x2' | '1x4' | '4x1' | 'auto';
-  /** Enable individual stream controls */
-  enableIndividualControls?: boolean;
+  /** Grid layout configuration */
+  gridLayout?: 'auto' | '1x1' | '2x2' | '3x3' | '4x4';
+  /** Stream configuration */
+  streamConfig?: Partial<LiveDesktopConfig>;
   /** Enable fullscreen mode for individual streams */
   enableFullscreen?: boolean;
+  /** Enable stream controls */
+  enableControls?: boolean;
+  /** CSS class name */
+  className?: string;
   /** Callback when stream status changes */
   onStreamStatusChange?: (streamId: string, status: LiveDesktopStatus) => void;
-  /** Callback when frame is received */
-  onFrameReceived?: (streamId: string, frameData: any) => void;
-  /** Frame data received callback registration */
-  onFrameDataReceived?: (callback: (message: any) => void) => void;
-  /** Callback when client disconnects */
-  onClientDisconnected?: (clientId: string) => void;
-  /** CSS classes */
-  className?: string;
+  /** Callback when stream is selected */
+  onStreamSelect?: (streamId: string) => void;
 }
 
 // ============================================================================
@@ -60,88 +105,58 @@ interface MultiDesktopStreamGridProps {
 // ============================================================================
 
 export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
-  websocket,
   selectedClients = [],
+  serverUrl = 'ws://localhost:8085',
   maxStreams = 4,
-  layout = '2x2',
-  enableIndividualControls = true,
+  gridLayout = 'auto',
+  streamConfig = {},
   enableFullscreen = true,
+  enableControls = true,
+  className = '',
   onStreamStatusChange,
-  onFrameReceived,
-  onFrameDataReceived,
-  onClientDisconnected,
-  className = ''
+  onStreamSelect
 }) => {
   // ============================================================================
   // STATE MANAGEMENT
   // ============================================================================
 
-  const [streams, setStreams] = useState<Map<string, DesktopStreamInstance>>(new Map());
-  const [activeStreams, setActiveStreams] = useState<string[]>([]);
-  const [selectedStream, setSelectedStream] = useState<string | null>(null);
+  const [streamStates, setStreamStates] = useState<Map<string, StreamState>>(new Map());
   const [fullscreenStream, setFullscreenStream] = useState<string | null>(null);
+  const [selectedStream, setSelectedStream] = useState<string | null>(null);
   const [globalControls, setGlobalControls] = useState({
-    startAll: false,
-    stopAll: false,
-    muteAll: false
+    isAllConnected: false,
+    isAllStreaming: false,
+    connectionCount: 0,
+    streamingCount: 0
   });
 
-  const websocketRef = useRef<WebSocket | null>(null);
+  // Performance monitoring
+  const [performanceMetrics, setPerformanceMetrics] = useState<Map<string, {
+    fps: number;
+    latency: number;
+    frameCount: number;
+    lastUpdate: Date;
+  }>>(new Map());
 
   // ============================================================================
-  // WEBSOCKET CONNECTION MANAGEMENT
+  // CALLBACK HANDLERS
   // ============================================================================
 
-  const connectWebSocket = useCallback(() => {
-    // Use provided websocket if available, otherwise create new connection
-    if (websocket && websocket.readyState === WebSocket.OPEN) {
-      websocketRef.current = websocket;
-      console.log('Using provided WebSocket connection for multi-stream');
-      return;
-    }
-
-    try {
-      const ws = new WebSocket('ws://localhost:8084');
-      websocketRef.current = ws;
-
-      ws.onopen = () => {
-        console.log('Multi-stream WebSocket connected');
-        
-        // Send handshake for web client
-        const handshake = {
-          type: 'handshake',
-          clientInfo: {
-            clientType: 'web_multi_stream',
-            clientId: `multi_stream_${Date.now()}`,
-            capabilities: ['multi_stream', 'frame_display', 'stream_control']
-          }
-        };
-        ws.send(JSON.stringify(handshake));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          handleWebSocketMessage(message);
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-        }
-      };
-
-      ws.onclose = () => {
-        console.log('Multi-stream WebSocket disconnected');
-        // Auto-reconnect after 3 seconds
-        setTimeout(connectWebSocket, 3000);
-      };
-
-      ws.onerror = (error) => {
-        console.error('Multi-stream WebSocket error:', error);
-      };
-
-    } catch (error) {
-      console.error('Error connecting to WebSocket:', error);
-    }
-  }, [websocket]);
+  /**
+   * Update global control states
+   */
+  const updateGlobalControls = useCallback(() => {
+    const streams = Array.from(streamStates.values());
+    const connectedCount = streams.filter(s => s.isConnected).length;
+    const streamingCount = streams.filter(s => s.isStreaming).length;
+    
+    setGlobalControls({
+      isAllConnected: connectedCount === streams.length && streams.length > 0,
+      isAllStreaming: streamingCount === streams.length && streams.length > 0,
+      connectionCount: connectedCount,
+      streamingCount: streamingCount
+    });
+  }, [streamStates]);
 
   // ============================================================================
   // DESKTOP CLIENT MANAGEMENT
@@ -258,60 +273,27 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
 
     // Check for clientId with multiple fallbacks
     let clientId: string | null = null;
+=======
+  /**
+   * Update global control states
+   */
+  const updateGlobalControls = useCallback(() => {
+    const streams = Array.from(streamStates.values());
+    const connectedCount = streams.filter(s => s.isConnected).length;
+    const streamingCount = streams.filter(s => s.isStreaming).length;
+>>>>>>> 82a8998 ( Fix multi-monitor desktop streaming redundancy and display issues)
     
-    try {
-      clientId = message.desktopClientId || 
-                 (message.metadata && message.metadata.clientId) || 
-                 message.clientId ||
-                 null;
-    } catch (error) {
-      console.error('Error extracting clientId from message:', error, message);
-      return;
-    }
-
-    if (!clientId) {
-      console.warn('Frame data message missing clientId:', message);
-      return;
-    }
-
-    // Check for frameData
-    const frameData = message.frameData || message.data;
-    if (!frameData) {
-      console.warn('Frame data message missing frameData:', message);
-      return;
-    }
-
-    // Find the stream for this client
-    const stream = Array.from(streams.values()).find(s => s.clientId === clientId);
-    if (!stream) {
-      console.warn(`No stream found for clientId: ${clientId}`);
-      return;
-    }
-
-    // Update stream status with frame info
-    setStreams(prev => {
-      const newMap = new Map(prev);
-      const updatedStream = newMap.get(stream.id);
-      if (updatedStream) {
-        updatedStream.status.streaming = true;
-        updatedStream.status.lastFrameTime = new Date().toISOString();
-        updatedStream.status.bytesReceived += frameData.length || 0;
-        updatedStream.lastFrameTime = new Date();
-        newMap.set(stream.id, updatedStream);
-      }
-      return newMap;
+    setGlobalControls({
+      isAllConnected: connectedCount === streams.length && streams.length > 0,
+      isAllStreaming: streamingCount === streams.length && streams.length > 0,
+      connectionCount: connectedCount,
+      streamingCount: streamingCount
     });
+  }, [streamStates]);
 
-    // Render frame to canvas
-    renderFrameToCanvas(stream.id, frameData);
 
-    // Callback for frame received
-    if (onFrameReceived) {
-      onFrameReceived(stream.id, message);
-    }
 
-    console.log(`Frame received for stream ${stream.id}, size: ${frameData.length || 0} bytes`);
-  }, [streams, onFrameReceived]);
+
 
   // ============================================================================
   // STREAM STATUS HANDLING
@@ -329,39 +311,266 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
       return;
     }
 
-    const stream = Array.from(streams.values()).find(s => s.clientId === clientId);
-    if (!stream) {
-      console.warn(`No stream found for clientId: ${clientId}`);
+    // Use setStreamStates callback to access current state and avoid stale closure
+    setStreamStates(currentStates => {
+      // Debug: Log all available streams and their clientIds
+      const allStreams = Array.from(currentStates.values());
+      console.log(`[DEBUG] handleStreamStatus - Looking for clientId: "${clientId}"`);
+      console.log(`[DEBUG] Available streams:`, allStreams.map(s => ({
+        streamId: s.streamId,
+        clientId: s.clientId,
+        monitorId: s.monitorId
+      })));
+
+      // Find all streams for this client (for multi-monitor support)
+      const clientStreams = Array.from(currentStates.values()).filter(s => s.clientId === clientId);
+      console.log(`[DEBUG] Found ${clientStreams.length} streams for clientId: "${clientId}"`);
+      
+      if (clientStreams.length === 0) {
+        console.warn(`No streams found for clientId: ${clientId}`);
+        return currentStates; // Return unchanged state
+      }
+
+      console.log(`[MultiDesktopStreamGrid] Updating status for ${clientStreams.length} streams of client: ${clientId}`, message);
+
+      // Update all streams for this client
+      const newMap = new Map(currentStates);
+      let updatedCount = 0;
+      
+      clientStreams.forEach(stream => {
+        const updatedStream = newMap.get(stream.streamId);
+        if (updatedStream) {
+          // Extract status information from message
+          const isStreaming = message.streaming !== undefined ? message.streaming : message.status?.streaming;
+          const isConnected = message.connected !== undefined ? message.connected : message.status?.connected;
+          const status = message.status?.status || (isStreaming ? 'streaming' : (isConnected ? 'connected' : 'disconnected'));
+          
+          updatedStream.status = status;
+          updatedStream.isConnected = isConnected !== undefined ? isConnected : true;
+          updatedStream.isStreaming = isStreaming !== undefined ? isStreaming : false;
+          newMap.set(stream.streamId, updatedStream);
+          updatedCount++;
+          
+          console.log(`[MultiDesktopStreamGrid] Updated stream ${stream.streamId}: connected=${updatedStream.isConnected}, streaming=${updatedStream.isStreaming}, status=${updatedStream.status}`);
+        }
+      });
+      
+      console.log(`[MultiDesktopStreamGrid] Updated ${updatedCount} streams for client ${clientId}`);
+
+      // Callback for status change (call for each stream)
+      if (onStreamStatusChange) {
+        clientStreams.forEach(stream => {
+          const status = message.status?.status || (message.streaming ? 'streaming' : 'connected');
+          onStreamStatusChange(stream.streamId, status);
+        });
+      }
+
+      return newMap;
+    });
+  }, [onStreamStatusChange]); // Removed streamStates dependency to avoid stale closure
+
+  // ============================================================================
+  // DESKTOP CLIENT MANAGEMENT
+  // ============================================================================
+
+  const handleDesktopConnected = useCallback((clientId: string) => {
+    if (!clientId || typeof clientId !== 'string') {
+      console.warn('Invalid clientId for desktop connection:', clientId);
       return;
     }
 
-    // Update stream status
-    setStreams(prev => {
-      const newMap = new Map(prev);
-      const updatedStream = newMap.get(stream.id);
-      if (updatedStream) {
-        updatedStream.status = {
-          ...updatedStream.status,
-          ...message.status,
-          connectionName: message.status?.connectionName || `Desktop ${clientId}`
-        };
-        newMap.set(stream.id, updatedStream);
+    setStreamStates(prev => {
+      if (prev.size >= maxStreams) {
+        console.warn(`Maximum streams (${maxStreams}) reached, ignoring new desktop client`);
+        return prev;
       }
-      return newMap;
-    });
 
-    // Callback for status change
-    if (onStreamStatusChange) {
-      onStreamStatusChange(stream.id, message.status);
+      const streamId = `stream_${clientId}`;
+      const canvasRef = React.createRef<HTMLCanvasElement>();
+
+      const newStream: StreamState = {
+        streamId,
+        clientId,
+        monitorId: 'monitor_0',
+        displayName: `Desktop ${prev.size + 1}`,
+        status: 'connected',
+        canvasRef,
+        config: {
+          fps: 30,
+          quality: 80,
+          scale: 1.0,
+          format: 'jpeg',
+          enableMouse: true,
+          enableKeyboard: true
+        },
+        lastFrameTime: null,
+        frameCount: 0,
+        quality: {
+          fps: 0,
+          latency: 0,
+          bandwidth: 0
+        },
+        isConnected: true,
+        isStreaming: false
+      };
+
+      const newStates = new Map(prev);
+      newStates.set(streamId, newStream);
+      
+      console.log(`Desktop client connected: ${clientId} -> Stream: ${streamId}`);
+      return newStates;
+    });
+  }, [maxStreams]);
+
+  const handleDesktopDisconnected = useCallback((clientId: string) => {
+    if (!clientId || typeof clientId !== 'string') {
+      console.warn('Invalid clientId for desktop disconnection:', clientId);
+      return;
     }
 
-    console.log(`Stream status updated for ${stream.id}:`, message.status);
-  }, [streams, onStreamStatusChange]);
+    const streamToRemove = Array.from(streamStates.values()).find(s => s.clientId === clientId);
+    if (streamToRemove) {
+      setStreamStates(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(streamToRemove.streamId);
+        return newMap;
+      });
+      
+      if (selectedStream === streamToRemove.streamId) {
+        setSelectedStream(null);
+      }
+      if (fullscreenStream === streamToRemove.streamId) {
+        setFullscreenStream(null);
+      }
+
+      console.log(`Desktop client disconnected: ${clientId}`);
+    } else {
+      console.warn(`No stream found for disconnected clientId: ${clientId}`);
+    }
+  }, [streamStates, selectedStream, fullscreenStream]);
 
   // ============================================================================
-  // MESSAGE HANDLING
+  // FRAME HANDLING
   // ============================================================================
 
+  /**
+   * Handle incoming frame data from WebSocket
+   */
+  const handleFrameData = useCallback((message: any) => {
+    if (!message || !message.frameData) {
+      console.warn('[MultiDesktopStreamGrid] Invalid frame data message:', message);
+      return;
+    }
+
+    // Extract client and monitor information from message
+    const clientId = message.metadata?.clientId || message.clientId;
+    const monitorId = message.monitorId || 'monitor_0';
+    
+    if (!clientId) {
+      console.warn('[MultiDesktopStreamGrid] Frame data missing clientId:', message);
+      return;
+    }
+
+    // Try multiple stream ID formats to find the correct stream
+    const effectiveMonitorId = monitorId || 'monitor_0';
+    const possibleStreamIds = [
+      `${clientId}_${effectiveMonitorId}`,        // Format: clientId_monitorId
+      `${clientId}_monitor_0`,                    // Format: clientId_monitor_0 (fallback)
+      `${clientId}_monitor_1`,                    // Format: clientId_monitor_1 (fallback)
+      `stream_${clientId}`,                       // Format: stream_clientId
+      clientId                                     // Format: clientId only
+    ];
+    
+    console.log(`[MultiDesktopStreamGrid] Processing frame data for client: ${clientId}, monitor: ${monitorId}`, {
+      clientId,
+      monitorId,
+      frameSize: message.frameData?.length || 0,
+      dimensions: `${message.width}x${message.height}`,
+      possibleStreamIds
+    });
+
+    // Update stream state with new frame data
+    setStreamStates(prev => {
+      const newStates = new Map(prev);
+      let foundStream = null;
+      let foundStreamId = null;
+      
+      // Try to find the stream using different ID formats
+      for (const streamId of possibleStreamIds) {
+        const stream = newStates.get(streamId);
+        if (stream) {
+          foundStream = stream;
+          foundStreamId = streamId;
+          break;
+        }
+      }
+      
+      // If no exact match found, try to find by monitor ID
+      if (!foundStream) {
+        for (const [streamId, stream] of newStates.entries()) {
+          if (stream.clientId === clientId && stream.monitorId === effectiveMonitorId) {
+            foundStream = stream;
+            foundStreamId = streamId;
+            console.log(`[MultiDesktopStreamGrid] Found stream by clientId and monitorId match: ${streamId}`);
+            break;
+          }
+        }
+      }
+      
+      // If still no match, try to find by client ID only (for backward compatibility)
+      if (!foundStream) {
+        for (const [streamId, stream] of newStates.entries()) {
+          if (stream.clientId === clientId) {
+            foundStream = stream;
+            foundStreamId = streamId;
+            console.log(`[MultiDesktopStreamGrid] Found stream by clientId only: ${streamId}`);
+            break;
+          }
+        }
+      }
+      
+      if (foundStream && foundStreamId) {
+        // Update stream with frame data
+        foundStream.lastFrameTime = new Date();
+        foundStream.frameCount++;
+        foundStream.isConnected = true;
+        foundStream.isStreaming = true;
+        foundStream.status = 'streaming';
+        
+        // Update quality metrics
+        foundStream.quality = {
+          fps: message.metadata?.fps || foundStream.quality.fps,
+          latency: message.metadata?.latency || foundStream.quality.latency,
+          bandwidth: message.metadata?.bandwidth || foundStream.quality.bandwidth
+        };
+        
+        newStates.set(foundStreamId, foundStream);
+        
+        // Render frame to canvas using the current stream data
+        renderFrameToCanvasWithStream(foundStream, message.frameData);
+        
+        // Notify parent component
+        handleFrameReceived(foundStreamId, message);
+        
+        console.log(`[MultiDesktopStreamGrid] Successfully processed frame for stream: ${foundStreamId}`);
+      } else {
+        console.warn(`[MultiDesktopStreamGrid] No stream found for client: ${clientId}, monitor: ${monitorId}`);
+        console.log('Tried stream IDs:', possibleStreamIds);
+        console.log('Available streams:', Array.from(newStates.keys()));
+        console.log('Available stream details:', Array.from(newStates.values()).map(s => ({
+          streamId: s.streamId,
+          clientId: s.clientId,
+          monitorId: s.monitorId
+        })));
+      }
+      
+      return newStates;
+    });
+  }, []);
+
+  /**
+   * Handle WebSocket messages
+   */
   const handleWebSocketMessage = useCallback((message: any) => {
     if (!message || typeof message !== 'object') {
       console.warn('Received null, undefined, or invalid message:', message);
@@ -398,58 +607,505 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
         handleStreamStatus(message);
         break;
 
+      case 'connection_established':
+        console.log('[MultiDesktopStreamGrid] Connection established:', message);
+        // Handle connection establishment if needed
+        break;
+
+      case 'handshake_ack':
+        console.log('[MultiDesktopStreamGrid] Handshake acknowledged:', message);
+        // Handle handshake acknowledgment if needed
+        break;
+
+      case 'ping':
+        // Respond to ping with pong if needed
+        // console.log('[MultiDesktopStreamGrid] Received ping');
+        break;
+
       default:
         console.log('Unhandled message type:', message.type);
     }
   }, [handleDesktopConnected, handleDesktopDisconnected, handleFrameData, handleStreamStatus]);
 
+  /**
+   * Handle stream status changes
+   */
+  const handleStreamStatusChange = useCallback((streamId: string, status: LiveDesktopStatus) => {
+    console.log(`[MultiDesktopStreamGrid] Stream status changed: ${streamId} -> ${status}`);
+    
+    setStreamStates(prev => {
+      const newStates = new Map(prev);
+      const stream = newStates.get(streamId);
+      if (stream) {
+        stream.status = status;
+        stream.isConnected = status === 'connected' || status === 'streaming';
+        stream.isStreaming = status === 'streaming';
+        newStates.set(streamId, stream);
+      }
+      return newStates;
+    });
+
+    // Notify parent component
+    onStreamStatusChange?.(streamId, status);
+  }, [onStreamStatusChange]);
+
+  /**
+   * Handle frame received
+   */
+  const handleFrameReceived = useCallback((streamId: string, frameData: any) => {
+    // Update performance metrics
+    setPerformanceMetrics(prev => {
+      const newMetrics = new Map(prev);
+      const current = newMetrics.get(streamId) || {
+        fps: 0,
+        latency: 0,
+        frameCount: 0,
+        lastUpdate: new Date()
+      };
+
+      const now = new Date();
+      const timeDiff = now.getTime() - current.lastUpdate.getTime();
+      
+      newMetrics.set(streamId, {
+        ...current,
+        frameCount: current.frameCount + 1,
+        fps: timeDiff > 0 ? Math.round(1000 / timeDiff) : current.fps,
+        latency: frameData.latency || 0,
+        lastUpdate: now
+      });
+
+      return newMetrics;
+    });
+
+    // Update stream state
+    setStreamStates(prev => {
+      const newStates = new Map(prev);
+      const stream = newStates.get(streamId);
+      if (stream) {
+        stream.lastFrameTime = new Date();
+        stream.frameCount++;
+        newStates.set(streamId, stream);
+      }
+      return newStates;
+    });
+  }, []);
+
+  /**
+   * Handle stream connected
+   */
+  const handleStreamConnected = useCallback((streamId: string) => {
+    console.log(`[MultiDesktopStreamGrid] Stream connected: ${streamId}`);
+    // Global controls will be updated automatically via useEffect when streamStates changes
+  }, []);
+
+  /**
+   * Handle stream disconnected
+   */
+  const handleStreamDisconnected = useCallback((streamId: string) => {
+    console.log(`[MultiDesktopStreamGrid] Stream disconnected: ${streamId}`);
+    // Global controls will be updated automatically via useEffect when streamStates changes
+  }, []);
+
+  /**
+   * Get status badge variant
+   */
+  const getStatusBadgeVariant = useCallback((status: LiveDesktopStatus) => {
+    switch (status) {
+      case 'connected': return 'default';
+      case 'streaming': return 'default';
+      case 'disconnected': return 'secondary';
+      case 'error': return 'destructive';
+      default: return 'secondary';
+    }
+  }, []);
+
+  /**
+   * Get status icon
+   */
+  const getStatusIcon = useCallback((status: LiveDesktopStatus, isConnected: boolean) => {
+    if (!isConnected) return <WifiOff className="w-4 h-4" />;
+    if (status === 'streaming') return <Activity className="w-4 h-4" />;
+    if (status === 'connected') return <Wifi className="w-4 h-4" />;
+    return <Monitor className="w-4 h-4" />;
+  }, []);
+
+  // Initialize streams based on selected clients
+  useEffect(() => {
+    console.log(`[MultiDesktopStreamGrid] Updating streams for ${selectedClients.length} clients`);
+    
+    // Create new streams for selected clients
+    const newStreams = new Map<string, StreamState>();
+    let streamCount = 0;
+
+    selectedClients.forEach(client => {
+      client.monitors.forEach(monitor => {
+        if (streamCount >= maxStreams) return;
+
+        const streamId = `${client.clientId}_${monitor.monitorId}`;
+        const canvasRef = React.createRef<HTMLCanvasElement>();
+
+        const stream: StreamState = {
+          streamId,
+          clientId: client.clientId,
+          monitorId: monitor.monitorId,
+          status: 'disconnected',
+          canvasRef,
+          config: {
+            fps: 15,
+            quality: 85,
+            scale: 1.0,
+            format: 'jpeg',
+            enableMouse: true,
+            enableKeyboard: true,
+            ...streamConfig
+          },
+          lastFrameTime: null,
+          frameCount: 0,
+          quality: {
+            fps: 0,
+            latency: 0,
+            bandwidth: 0
+          },
+          isConnected: false,
+          isStreaming: false
+        };
+
+        newStreams.set(streamId, stream);
+        streamCount++;
+        
+        console.log(`[MultiDesktopStreamGrid] Created stream: ${streamId} for ${client.clientId} - ${monitor.name}`);
+      });
+    });
+
+    setStreamStates(newStreams);
+  }, [selectedClients, maxStreams]); // Removed streamConfig from dependency array to prevent infinite re-renders
+
+  // ============================================================================
+  // UTILITY FUNCTIONS (that depend on streamManager)
+  // ============================================================================
+
+  /**
+   * Get grid layout classes based on number of streams
+   */
+  const getGridLayoutClasses = useCallback(() => {
+    const streamCount = streamStates.size;
+    
+    if (gridLayout !== 'auto') {
+      return `grid-cols-${gridLayout.split('x')[1]} grid-rows-${gridLayout.split('x')[0]}`;
+    }
+
+    // Auto layout based on stream count
+    if (streamCount <= 1) return 'grid-cols-1 grid-rows-1';
+    if (streamCount <= 2) return 'grid-cols-2 grid-rows-1';
+    if (streamCount <= 4) return 'grid-cols-2 grid-rows-2';
+    if (streamCount <= 6) return 'grid-cols-3 grid-rows-2';
+    if (streamCount <= 9) return 'grid-cols-3 grid-rows-3';
+    return 'grid-cols-4 grid-rows-4';
+  }, [gridLayout, streamStates]);
+
+  const websocketRef = useRef<WebSocket | null>(null);
+
+  // ============================================================================
+  // WEBSOCKET CONNECTION MANAGEMENT
+  // ============================================================================
+
+  const connectWebSocket = useCallback(() => {
+
+    try {
+      const ws = new WebSocket('ws://localhost:8085');
+      websocketRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('Multi-stream WebSocket connected');
+        
+        // Send handshake for web client
+        const handshake = {
+          type: 'handshake',
+          clientInfo: {
+            clientType: 'web_multi_stream',
+            clientId: `multi_stream_${Date.now()}`,
+            capabilities: ['multi_stream', 'frame_display', 'stream_control']
+          }
+        };
+        ws.send(JSON.stringify(handshake));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          // Use the current handleWebSocketMessage function without creating a dependency
+          handleWebSocketMessage(message);
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('Multi-stream WebSocket disconnected');
+        // Auto-reconnect after 3 seconds
+        setTimeout(connectWebSocket, 3000);
+      };
+
+      ws.onerror = (error) => {
+        console.warn('Multi-stream WebSocket connection failed - service may not be available');
+      };
+
+    } catch (error) {
+      console.warn('WebSocket connection failed - multi-stream service may not be available');
+    }
+  }, []); // Empty dependency array to prevent recreation
+
+  // ============================================================================
+  // DESKTOP CLIENT MANAGEMENT (moved to earlier position)
+  // ============================================================================
+
+  // ============================================================================
+  // FRAME HANDLING (moved to earlier position)
+  // ============================================================================
+
+  // ============================================================================
+  // STREAM CONTROL FUNCTIONS
+  // ============================================================================
+
+  /**
+   * Connect individual stream
+   * Note: Server doesn't have separate connection step, so we mark as connected immediately
+   */
+  const connectStream = useCallback((streamId: string) => {
+    console.log(`[MultiDesktopStreamGrid] Connecting stream: ${streamId}`);
+    
+    // Update stream state to connected immediately since server doesn't have separate connection step
+    setStreamStates(prev => {
+      const newStates = new Map(prev);
+      const currentStream = newStates.get(streamId);
+      if (currentStream) {
+        newStates.set(streamId, {
+          ...currentStream,
+          isConnected: true,
+          status: 'connected',
+          lastUpdate: new Date().toISOString()
+        });
+      }
+      return newStates;
+    });
+  }, []); // No dependencies needed since we access state via setStreamStates callback
+
+  /**
+   * Disconnect individual stream
+   * Note: Server doesn't have separate disconnect message, so we update state locally
+   */
+  const disconnectStream = useCallback((streamId: string) => {
+    console.log(`[MultiDesktopStreamGrid] Disconnecting stream: ${streamId}`);
+    
+    // Update stream state to disconnected since server doesn't have separate disconnect handling
+    setStreamStates(prev => {
+      const newStates = new Map(prev);
+      const currentStream = newStates.get(streamId);
+      if (currentStream) {
+        newStates.set(streamId, {
+          ...currentStream,
+          isConnected: false,
+          isStreaming: false,
+          status: 'disconnected',
+          lastUpdate: new Date().toISOString()
+        });
+      }
+      return newStates;
+    });
+  }, []); // No dependencies needed since we access state via setStreamStates callback
+
+  /**
+   * Start individual stream
+   */
+  const startStream = useCallback((streamId: string) => {
+    console.log(`[MultiDesktopStreamGrid] Starting stream: ${streamId}`);
+    
+    // Access current stream data via setStreamStates callback
+    setStreamStates(prev => {
+      const stream = prev.get(streamId);
+      if (!stream || !stream.isConnected) {
+        console.log(`[MultiDesktopStreamGrid] Cannot start stream ${streamId}: not found or not connected`);
+        return prev; // Return unchanged state
+      }
+
+      // Send start message via WebSocket with correct field names
+      if (websocketRef.current?.readyState === WebSocket.OPEN) {
+        const startMessage = {
+          type: 'start_desktop_stream',
+          desktopClientId: stream.clientId, // Use desktopClientId as expected by server
+          monitorId: stream.monitorId,
+          streamId: streamId,
+          config: stream.config,
+          timestamp: new Date().toISOString()
+        };
+        websocketRef.current.send(JSON.stringify(startMessage));
+      }
+      
+      return prev; // Return unchanged state since WebSocket response will update streaming status
+    });
+  }, []); // No dependencies needed since we access state via setStreamStates callback
+
+  /**
+   * Stop individual stream
+   */
+  const stopStream = useCallback((streamId: string) => {
+    console.log(`[MultiDesktopStreamGrid] Stopping stream: ${streamId}`);
+    
+    // Access current stream data via setStreamStates callback
+    setStreamStates(prev => {
+      const stream = prev.get(streamId);
+      if (!stream) {
+        console.log(`[MultiDesktopStreamGrid] Cannot stop stream ${streamId}: not found`);
+        return prev; // Return unchanged state
+      }
+
+      // Send stop message via WebSocket with correct field names
+      if (websocketRef.current?.readyState === WebSocket.OPEN) {
+        const stopMessage = {
+          type: 'stop_desktop_stream',
+          desktopClientId: stream.clientId, // Use desktopClientId as expected by server
+          monitorId: stream.monitorId,
+          streamId: streamId,
+          timestamp: new Date().toISOString()
+        };
+        websocketRef.current.send(JSON.stringify(stopMessage));
+      }
+      
+      return prev; // Return unchanged state since WebSocket response will update streaming status
+    });
+  }, []); // No dependencies needed since we access state via setStreamStates callback
+
+  /**
+   * Connect all streams
+   */
+  const handleConnectAll = useCallback(() => {
+    console.log('[MultiDesktopStreamGrid] Connecting all streams...');
+    // Access current streamStates via setStreamStates callback to get latest state
+    setStreamStates(currentStreams => {
+      console.log(`[MultiDesktopStreamGrid] Found ${currentStreams.size} streams to check for connection`);
+      currentStreams.forEach((stream, streamId) => {
+        console.log(`[MultiDesktopStreamGrid] Stream ${streamId}: isConnected=${stream.isConnected}`);
+        if (!stream.isConnected) {
+          console.log(`[MultiDesktopStreamGrid] Connecting stream: ${streamId}`);
+          connectStream(streamId);
+        }
+      });
+      return currentStreams; // Return unchanged state since connectStream handles updates
+    });
+  }, [connectStream]); // Add connectStream dependency
+
+  /**
+   * Disconnect all streams
+   */
+  const handleDisconnectAll = useCallback(() => {
+    console.log('[MultiDesktopStreamGrid] Disconnecting all streams...');
+    // Access current streamStates via setStreamStates callback to get latest state
+    setStreamStates(currentStreams => {
+      console.log(`[MultiDesktopStreamGrid] Found ${currentStreams.size} streams to check for disconnection`);
+      currentStreams.forEach((stream, streamId) => {
+        if (stream.isConnected) {
+          console.log(`[MultiDesktopStreamGrid] Disconnecting stream: ${streamId}`);
+          disconnectStream(streamId);
+        }
+      });
+      return currentStreams; // Return unchanged state since disconnectStream handles updates
+    });
+  }, [disconnectStream]); // Add disconnectStream dependency
+
+  /**
+   * Start all streams
+   */
+  const handleStartAll = useCallback(() => {
+    console.log('[MultiDesktopStreamGrid] Starting all streams...');
+    // Access current streamStates via setStreamStates callback to get latest state
+    setStreamStates(currentStreams => {
+      console.log(`[MultiDesktopStreamGrid] Found ${currentStreams.size} streams to check for starting`);
+      currentStreams.forEach((stream, streamId) => {
+        console.log(`[MultiDesktopStreamGrid] Stream ${streamId}: isConnected=${stream.isConnected}, isStreaming=${stream.isStreaming}`);
+        if (stream.isConnected && !stream.isStreaming) {
+          console.log(`[MultiDesktopStreamGrid] Starting stream: ${streamId}`);
+          startStream(streamId);
+        }
+      });
+      return currentStreams; // Return unchanged state since startStream handles updates
+    });
+  }, [startStream]); // Add startStream dependency
+
+  /**
+   * Stop all streams
+   */
+  const handleStopAll = useCallback(() => {
+    console.log('[MultiDesktopStreamGrid] Stopping all streams...');
+    // Access current streamStates via setStreamStates callback to get latest state
+    setStreamStates(currentStreams => {
+      console.log(`[MultiDesktopStreamGrid] Found ${currentStreams.size} streams to check for stopping`);
+      currentStreams.forEach((stream, streamId) => {
+        if (stream.isStreaming) {
+          console.log(`[MultiDesktopStreamGrid] Stopping stream: ${streamId}`);
+          stopStream(streamId);
+        }
+      });
+      return currentStreams; // Return unchanged state since stopStream handles updates
+    });
+  }, [stopStream]); // Add stopStream dependency
+
+  /**
+   * Start individual stream
+   */
+  const handleStartStream = useCallback((streamId: string) => {
+    console.log(`[MultiDesktopStreamGrid] Starting stream: ${streamId}`);
+    startStream(streamId);
+  }, []);
+
+  /**
+   * Stop individual stream
+   */
+  const handleStopStream = useCallback((streamId: string) => {
+    console.log(`[MultiDesktopStreamGrid] Stopping stream: ${streamId}`);
+    stopStream(streamId);
+  }, []);
+
+  /**
+   * Toggle fullscreen for a stream
+   */
+  const handleToggleFullscreen = useCallback((streamId: string) => {
+    setFullscreenStream(prev => prev === streamId ? null : streamId);
+  }, []);
+
+  /**
+   * Select a stream
+   */
+  const handleSelectStream = useCallback((streamId: string) => {
+    setSelectedStream(streamId);
+    onStreamSelect?.(streamId);
+  }, [onStreamSelect]);
+
+  // ============================================================================
+  // MESSAGE HANDLING
+  // ============================================================================
+
   // ============================================================================
   // STREAM CONTROLS
   // ============================================================================
 
-  const startStream = useCallback((streamId: string) => {
-    const stream = streams.get(streamId);
-    if (!stream || !websocketRef.current) return;
-
-    const startMessage = {
-      type: 'start_desktop_stream',
-      targetClientId: stream.clientId,
-      config: stream.config.streaming
-    };
-
-    websocketRef.current.send(JSON.stringify(startMessage));
-    console.log(`Starting stream: ${streamId}`);
-  }, [streams]);
-
-  const stopStream = useCallback((streamId: string) => {
-    const stream = streams.get(streamId);
-    if (!stream || !websocketRef.current) return;
-
-    const stopMessage = {
-      type: 'stop_desktop_stream',
-      targetClientId: stream.clientId
-    };
-
-    websocketRef.current.send(JSON.stringify(stopMessage));
-    console.log(`Stopping stream: ${streamId}`);
-  }, [streams]);
-
   const startAllStreams = useCallback(() => {
-    activeStreams.forEach(streamId => startStream(streamId));
-  }, [activeStreams, startStream]);
+    // Use current streamStates without dependency to prevent re-creation
+    Array.from(streamStates.keys()).forEach(streamId => startStream(streamId));
+  }, []); // Remove dependencies
 
   const stopAllStreams = useCallback(() => {
-    activeStreams.forEach(streamId => stopStream(streamId));
-  }, [activeStreams, stopStream]);
+    // Use current streamStates without dependency to prevent re-creation
+    Array.from(streamStates.keys()).forEach(streamId => stopStream(streamId));
+  }, []); // Remove dependencies
 
   // ============================================================================
   // CANVAS RENDERING
   // ============================================================================
 
-  const renderFrameToCanvas = useCallback((streamId: string, frameData: string) => {
-    const stream = streams.get(streamId);
-    if (!stream || !stream.canvasRef.current) {
-      console.warn(`Cannot render frame: stream ${streamId} not found or canvas not available`);
+  const renderFrameToCanvasWithStream = useCallback((stream: StreamState, frameData: string) => {
+    if (!stream.canvasRef.current) {
+      console.warn(`Cannot render frame: canvas not available for stream ${stream.streamId}`);
+      console.log('Stream canvas ref:', stream.canvasRef);
       return;
     }
 
@@ -457,7 +1113,7 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
       const canvas = stream.canvasRef.current;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        console.warn(`Cannot get 2D context for stream: ${streamId}`);
+        console.warn(`Cannot get 2D context for stream: ${stream.streamId}`);
         return;
       }
 
@@ -489,29 +1145,55 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
           
           ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
         } catch (drawError) {
-          console.error(`Error drawing frame for stream ${streamId}:`, drawError);
+          console.error(`Error drawing frame for stream ${stream.streamId}:`, drawError);
         }
       };
 
       img.onerror = (error) => {
-        console.error(`Error loading image for stream ${streamId}:`, error);
+        console.error(`Error loading image for stream ${stream.streamId}:`, error);
       };
 
       img.src = `data:image/jpeg;base64,${frameData}`;
 
     } catch (error) {
-      console.error(`Error processing frame for stream ${streamId}:`, error);
+      console.error(`Error processing frame for stream ${stream.streamId}:`, error);
     }
-  }, [streams]);
+  }, []); // Remove streamStates dependency
+
+  /**
+   * Legacy renderFrameToCanvas function for backward compatibility
+   */
+  const renderFrameToCanvas = useCallback((streamId: string, frameData: string) => {
+    // Use setStreamStates callback to access current state
+    setStreamStates(prev => {
+      const stream = prev.get(streamId);
+      if (stream) {
+        // Call the new function with the stream data
+        renderFrameToCanvasWithStream(stream, frameData);
+      } else {
+        console.warn(`Cannot render frame: stream ${streamId} not found`);
+        console.log('Available streams:', Array.from(prev.keys()));
+      }
+      return prev; // Return unchanged state
+    });
+  }, [renderFrameToCanvasWithStream]);
+
+  /**
+   * Handle fullscreen toggle
+   */
+  const handleFullscreenToggle = useCallback((streamId: string) => {
+    setFullscreenStream(prev => prev === streamId ? null : streamId);
+  }, []);
 
   // ============================================================================
   // LAYOUT CALCULATION
   // ============================================================================
 
   const getGridLayout = useCallback(() => {
-    const streamCount = activeStreams.length;
+    // Use current streamStates size without dependency to prevent re-creation
+    const streamCount = streamStates.size;
     
-    switch (layout) {
+    switch (gridLayout) {
       case '2x2':
         return { cols: 2, rows: 2 };
       case '1x4':
@@ -525,12 +1207,86 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
         if (streamCount <= 4) return { cols: 2, rows: 2 };
         return { cols: 3, rows: 2 };
     }
-  }, [layout, activeStreams.length]);
+  }, [gridLayout]); // Only depend on gridLayout, not streamStates.size
 
   // ============================================================================
   // EFFECTS
   // ============================================================================
 
+
+
+  /**
+   * Auto-connect streams when they are initialized
+   * Only trigger when the size changes, not when individual stream states change
+   */
+  useEffect(() => {
+    if (streamStates.size > 0) {
+      // Auto-connect all streams after a short delay
+      const timer = setTimeout(() => {
+        // Connect all streams directly without depending on handleConnectAll
+        streamStates.forEach((stream, streamId) => {
+          if (!stream.isConnected) {
+            connectStream(streamId);
+          }
+        });
+      }, 500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [streamStates.size]); // Only depend on size, not the full streamStates
+
+  /**
+   * Update global controls when stream states change
+   * Use a timer-based approach to prevent excessive updates
+   */
+  const prevGlobalControlsRef = useRef<GlobalControls>({
+    isAllConnected: false,
+    isAllStreaming: false,
+    connectionCount: 0,
+    streamingCount: 0
+  });
+  
+  const updateGlobalControlsRef = useRef<() => void>();
+  
+  updateGlobalControlsRef.current = () => {
+    const streams = Array.from(streamStates.values());
+    const connectedCount = streams.filter(s => s.isConnected).length;
+    const streamingCount = streams.filter(s => s.isStreaming).length;
+    const totalCount = streams.length;
+    
+    const newGlobalControls = {
+      isAllConnected: connectedCount === totalCount && totalCount > 0,
+      isAllStreaming: streamingCount === totalCount && totalCount > 0,
+      connectionCount: connectedCount,
+      streamingCount: streamingCount
+    };
+    
+    // Only update if values have actually changed
+    const prev = prevGlobalControlsRef.current;
+    if (
+      prev.isAllConnected !== newGlobalControls.isAllConnected ||
+      prev.isAllStreaming !== newGlobalControls.isAllStreaming ||
+      prev.connectionCount !== newGlobalControls.connectionCount ||
+      prev.streamingCount !== newGlobalControls.streamingCount
+    ) {
+      console.log('[MultiDesktopStreamGrid] Updating global controls:', newGlobalControls);
+      setGlobalControls(newGlobalControls);
+      prevGlobalControlsRef.current = newGlobalControls;
+    }
+  };
+  
+  // Debounced update effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      updateGlobalControlsRef.current?.();
+    }, 100); // Small delay to batch updates
+    
+    return () => clearTimeout(timer);
+  }, [streamStates]);
+
+  /**
+   * Connect WebSocket when component mounts
+   */
   useEffect(() => {
     connectWebSocket();
     
@@ -539,6 +1295,7 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
         websocketRef.current.close();
       }
     };
+<<<<<<< HEAD
   }, [connectWebSocket]);
 
   // Register frame data callback with parent
@@ -623,13 +1380,13 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
         console.log(`Removed stream for unselected client: ${stream.clientId}`);
       }
     });
-  }, [selectedClients, streams]);
+  }, [selectedClients, streamStates]);
 
   // ============================================================================
   // RENDER
   // ============================================================================
 
-  const gridLayout = getGridLayout();
+  const gridLayoutClasses = getGridLayoutClasses();
 
   return (
     <div className={`multi-desktop-stream-grid ${className}`}>
@@ -638,21 +1395,50 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Monitor className="h-5 w-5" />
-            Multi-Desktop Stream ({activeStreams.length}/{maxStreams})
+            Multi-Desktop Stream ({streamStates.size}/{maxStreams})
+            <Badge variant="outline" className="ml-auto">
+              {globalControls.connectionCount} Connected | {globalControls.streamingCount} Streaming
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
-            <Button onClick={startAllStreams} size="sm">
+          <div className="flex gap-2 flex-wrap">
+            <Button 
+              onClick={handleConnectAll} 
+              size="sm"
+              disabled={globalControls.isAllConnected}
+            >
+              <Wifi className="h-4 w-4 mr-1" />
+              Connect All
+            </Button>
+            <Button 
+              onClick={handleDisconnectAll} 
+              variant="outline" 
+              size="sm"
+              disabled={globalControls.connectionCount === 0}
+            >
+              <WifiOff className="h-4 w-4 mr-1" />
+              Disconnect All
+            </Button>
+            <Button 
+              onClick={handleStartAll} 
+              size="sm"
+              disabled={!globalControls.isAllConnected || globalControls.isAllStreaming}
+            >
               <Play className="h-4 w-4 mr-1" />
               Start All
             </Button>
-            <Button onClick={stopAllStreams} variant="outline" size="sm">
-              <Pause className="h-4 w-4 mr-1" />
+            <Button 
+              onClick={handleStopAll} 
+              variant="outline" 
+              size="sm"
+              disabled={globalControls.streamingCount === 0}
+            >
+              <Square className="h-4 w-4 mr-1" />
               Stop All
             </Button>
             <Badge variant="outline">
-              Layout: {layout}
+              Layout: {gridLayout}
             </Badge>
           </div>
         </CardContent>
@@ -660,53 +1446,57 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
 
       {/* Stream Grid */}
       <div 
-        className="grid gap-4"
-        style={{
-          gridTemplateColumns: `repeat(${gridLayout.cols}, 1fr)`,
-          gridTemplateRows: `repeat(${gridLayout.rows}, 1fr)`
-        }}
+        className={`grid gap-4 ${gridLayoutClasses}`}
       >
-        {activeStreams.map((streamId) => {
-          const stream = streams.get(streamId);
-          if (!stream) return null;
+        {Array.from(streamStates.values()).map((stream) => {
+          const isFullscreen = fullscreenStream === stream.streamId;
+          const isSelected = selectedStream === stream.streamId;
+          const metrics = performanceMetrics.get(stream.streamId);
 
           return (
-            <Card key={streamId} className="relative">
+            <Card 
+              key={stream.streamId} 
+              className={`relative transition-all duration-200 ${
+                isSelected ? 'ring-2 ring-primary' : ''
+              } ${
+                isFullscreen ? 'fixed inset-4 z-50' : ''
+              }`}
+              onClick={() => handleSelectStream(stream.streamId)}
+            >
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">{stream.name}</CardTitle>
-                  <div className="flex gap-1">
+                  <CardTitle className="text-sm truncate">{stream.displayName}</CardTitle>
+                  <div className="flex gap-1 items-center">
                     <Badge 
-                      variant={stream.status.streaming ? "default" : "secondary"}
-                      className="text-xs"
+                      variant={getStatusBadgeVariant(stream.status)}
+                      className="text-xs flex items-center gap-1"
                     >
-                      {stream.status.streaming ? "Live" : "Idle"}
+                      {getStatusIcon(stream.status, stream.isConnected)}
+                      {stream.status}
                     </Badge>
-                    {enableIndividualControls && (
+                    {enableControls && (
                       <>
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => startStream(streamId)}
-                          disabled={stream.status.streaming}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            stream.isStreaming ? handleStopStream(stream.streamId) : handleStartStream(stream.streamId);
+                          }}
+                          disabled={!stream.isConnected}
                         >
-                          <Play className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => stopStream(streamId)}
-                          disabled={!stream.status.streaming}
-                        >
-                          <Square className="h-3 w-3" />
+                          {stream.isStreaming ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
                         </Button>
                         {enableFullscreen && (
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => setFullscreenStream(streamId)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleFullscreen(stream.streamId);
+                            }}
                           >
-                            <Maximize className="h-3 w-3" />
+                            {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
                           </Button>
                         )}
                       </>
@@ -717,15 +1507,19 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
               <CardContent>
                 <canvas
                   ref={stream.canvasRef}
-                  width={400}
-                  height={300}
-                  className="w-full bg-muted border rounded"
+                  width={800}
+                  height={600}
+                  className="w-full bg-muted border rounded cursor-pointer"
                   style={{ aspectRatio: '4/3' }}
                 />
-                <div className="mt-2 text-xs text-muted-foreground">
-                  FPS: {stream.status.fpsActual} | 
-                  Latency: {stream.status.latency}ms |
-                  Client: {stream.clientId.substring(0, 8)}...
+                <div className="mt-2 text-xs text-muted-foreground flex justify-between">
+                  <span>
+                    FPS: {metrics?.fps || 0} | 
+                    Latency: {stream.quality.latency}ms
+                  </span>
+                  <span>
+                    Frames: {stream.frameCount}
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -734,13 +1528,13 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
       </div>
 
       {/* No Streams Message */}
-      {activeStreams.length === 0 && (
+      {streamStates.size === 0 && (
         <Card>
           <CardContent className="text-center py-8">
             <Monitor className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">No Desktop Clients Connected</h3>
+            <h3 className="text-lg font-semibold mb-2">No Streams Configured</h3>
             <p className="text-muted-foreground">
-              Start desktop capture clients to see multiple streams here.
+              Select desktop clients and monitors to display multiple streams here.
             </p>
           </CardContent>
         </Card>

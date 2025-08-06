@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { authService } from "@/services/authService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,14 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { User, Session } from '@supabase/supabase-js';
+import { User, AuthSession } from '@/services/authService';
 
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const initialized = useRef(false);
@@ -23,29 +23,28 @@ const Auth = () => {
     if (initialized.current) return;
     initialized.current = true;
 
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          navigate("/");
-        }
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Set up auth state listener
+    const unsubscribe = authService.onAuthStateChange((user, session) => {
+      setUser(user);
       setSession(session);
-      setUser(session?.user ?? null);
       
-      if (session?.user) {
+      if (user && session) {
         navigate("/");
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Check for existing session
+    const currentSession = authService.getCurrentSession();
+    const currentUser = authService.getCurrentUser();
+    
+    setUser(currentUser);
+    setSession(currentSession);
+    
+    if (currentUser && currentSession) {
+      navigate("/");
+    }
+
+    return unsubscribe;
   }, [navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -53,18 +52,10 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
-      const redirectUrl = `${window.location.origin}/`;
-      
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectUrl
-        }
-      });
+      const result = await authService.signUp({ email, password });
 
-      if (error) {
-        if (error.message.includes("User already registered")) {
+      if (result.error) {
+        if (result.error.includes("already registered") || result.error.includes("already exists")) {
           toast({
             title: "Account exists",
             description: "This email is already registered. Please sign in instead.",
@@ -73,15 +64,18 @@ const Auth = () => {
         } else {
           toast({
             title: "Sign up failed",
-            description: error.message,
+            description: result.error,
             variant: "destructive",
           });
         }
       } else {
         toast({
-          title: "Check your email",
-          description: "We sent you a confirmation link to complete your registration.",
+          title: "Account created successfully",
+          description: "You can now sign in with your credentials.",
         });
+        // Clear form after successful signup
+        setEmail("");
+        setPassword("");
       }
     } catch (error) {
       toast({
@@ -99,13 +93,10 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const result = await authService.signIn({ email, password });
 
-      if (error) {
-        if (error.message.includes("Invalid login credentials")) {
+      if (result.error) {
+        if (result.error.includes("Invalid") || result.error.includes("credentials") || result.error.includes("unauthorized")) {
           toast({
             title: "Invalid credentials",
             description: "Please check your email and password and try again.",
@@ -114,10 +105,15 @@ const Auth = () => {
         } else {
           toast({
             title: "Sign in failed",
-            description: error.message,
+            description: result.error,
             variant: "destructive",
           });
         }
+      } else {
+        toast({
+          title: "Welcome back!",
+          description: "You have been signed in successfully.",
+        });
       }
     } catch (error) {
       toast({

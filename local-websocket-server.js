@@ -1,22 +1,31 @@
 import WebSocket, { WebSocketServer } from 'ws';
 
-// Create WebSocket server
+// Get port from environment variable or use default
+const PORT = process.env.WS_PORT || 8084;
+
+// Create WebSocket server - Accept connections from any IP address
 const wss = new WebSocketServer({ 
-  port: 8084,
+  port: PORT,
+  host: '0.0.0.0', // Listen on all network interfaces
   perMessageDeflate: false
 });
 
-console.log('WebSocket server starting on port 8084...');
+console.log(`WebSocket server starting on port ${PORT}...`);
+console.log(`Server accepting connections from all network interfaces (0.0.0.0:${PORT})`);
 
 // Keep track of heartbeat intervals for each connection
 const heartbeatIntervals = new Map();
 
-// Keep track of desktop clients and web clients
+// Keep track of desktop clients, web clients, and spawner clients
 const desktopClients = new Map();
 const webClients = new Map();
+const spawnerClients = new Map();
+const desktopInstances = new Map(); // Track dynamic desktop instances
+const dualScreenClients = new Map(); // Track dual-screen clients
 
 // Track streaming state for each desktop client
 const streamingStates = new Map();
+const dualScreenStates = new Map(); // Track dual-screen streaming states
 
 wss.on('connection', function connection(ws, req) {
   console.log('New WebSocket connection established');
@@ -85,7 +94,9 @@ wss.on('connection', function connection(ws, req) {
             desktopClients.set(clientId, ws);
             ws.clientId = clientId;
             ws.clientType = 'desktop';
-            console.log(`Registered desktop client: ${clientId}`);
+            ws.desktopId = message.clientInfo?.desktopId;
+            ws.screenId = message.clientInfo?.screenId;
+            console.log(`Registered desktop client: ${clientId} (desktop: ${ws.desktopId}, screen: ${ws.screenId})`);
             
             // Notify all web clients that a desktop client connected
             webClients.forEach((webWs, webId) => {
@@ -94,6 +105,8 @@ wss.on('connection', function connection(ws, req) {
                   const connectionMessage = {
                     type: 'desktop_connected',
                     desktopClientId: clientId,
+                    desktopId: ws.desktopId,
+                    screenId: ws.screenId,
                     timestamp: new Date().toISOString()
                   };
                   webWs.send(JSON.stringify(connectionMessage));
@@ -103,6 +116,63 @@ wss.on('connection', function connection(ws, req) {
                 }
               }
             });
+          } else if (clientType === 'multi_monitor_desktop_capture') {
+            desktopClients.set(clientId, ws);
+            ws.clientId = clientId;
+            ws.clientType = 'multi_monitor_desktop';
+            ws.capabilities = message.clientInfo?.capabilities || [];
+            ws.monitorInfo = message.clientInfo?.monitor_info || {};
+            ws.monitorCount = message.clientInfo?.monitor_count || 1;
+            console.log(`Registered multi-monitor desktop client: ${clientId} (${ws.monitorCount} monitors)`, ws.monitorInfo);
+            
+            // Notify all web clients that a multi-monitor desktop client connected
+            webClients.forEach((webWs, webId) => {
+              if (webWs.readyState === WebSocket.OPEN) {
+                try {
+                  const connectionMessage = {
+                    type: 'multi_monitor_desktop_connected',
+                    desktopClientId: clientId,
+                    capabilities: ws.capabilities,
+                    monitorInfo: ws.monitorInfo,
+                    monitorCount: ws.monitorCount,
+                    timestamp: new Date().toISOString()
+                  };
+                  webWs.send(JSON.stringify(connectionMessage));
+                  console.log(`Notified web client ${webId} of multi-monitor desktop connection`);
+                } catch (error) {
+                  console.error(`Error notifying web client ${webId}:`, error);
+                }
+              }
+            });
+          } else if (clientType === 'dual_screen_desktop') {
+            dualScreenClients.set(clientId, ws);
+            ws.clientId = clientId;
+            ws.clientType = 'dual_screen';
+            ws.capabilities = message.capabilities || {};
+            console.log(`Registered dual-screen client: ${clientId}`, ws.capabilities);
+            
+            // Notify all web clients that a dual-screen client connected
+            webClients.forEach((webWs, webId) => {
+              if (webWs.readyState === WebSocket.OPEN) {
+                try {
+                  const connectionMessage = {
+                    type: 'dual_screen_connected',
+                    clientId: clientId,
+                    capabilities: ws.capabilities,
+                    timestamp: new Date().toISOString()
+                  };
+                  webWs.send(JSON.stringify(connectionMessage));
+                  console.log(`Notified web client ${webId} of dual-screen connection`);
+                } catch (error) {
+                  console.error(`Error notifying web client ${webId}:`, error);
+                }
+              }
+            });
+          } else if (clientType === 'desktop_spawner') {
+            spawnerClients.set(clientId, ws);
+            ws.clientId = clientId;
+            ws.clientType = 'spawner';
+            console.log(`Registered desktop spawner: ${clientId}`);
           } else {
             webClients.set(clientId, ws);
             ws.clientId = clientId;
@@ -221,19 +291,78 @@ wss.on('connection', function connection(ws, req) {
         case 'frame_data':
           // Reduce frame data logging to prevent terminal spam
           if (Math.random() < 0.01) { // Only log 1% of frames
-            console.log('Received frame data from desktop client, forwarding to web clients');
+            console.log('Received frame data from desktop client:', {
+              clientId: message.metadata?.clientId,
+              desktopId: ws.desktopId,
+              screenId: ws.screenId,
+              monitorId: message.monitorId,
+              isSingle: message.isSingle,
+              dimensions: `${message.width}x${message.height}`
+            });
           }
           
-          // Forward frame data to all web clients
+          // Enhanced frame data with desktop and screen routing information
+          const enhancedFrameData = {
+            ...message,
+            serverTimestamp: new Date().toISOString(),
+            routingInfo: {
+              sourceClientId: ws.clientId || message.metadata?.clientId,
+              desktopId: ws.desktopId,
+              screenId: ws.screenId,
+              monitorId: message.monitorId || 'unknown',
+              isMultiMonitor: message.metadata?.config?.capture_mode === 'all_monitors'
+            }
+          };
+          
+          // Forward enhanced frame data to all web clients
           webClients.forEach((webWs, webId) => {
             if (webWs.readyState === WebSocket.OPEN) {
               try {
-                webWs.send(data.toString());
+                webWs.send(JSON.stringify(enhancedFrameData));
                 if (Math.random() < 0.01) { // Only log 1% of forwards
-                  console.log(`Forwarded frame data to web client: ${webId}`);
+                  console.log(`Forwarded frame data to web client: ${webId} (desktop: ${ws.desktopId}, screen: ${ws.screenId})`);
                 }
               } catch (error) {
                 console.error(`Error forwarding frame data to web client ${webId}:`, error);
+              }
+            }
+          });
+          break;
+
+        case 'dual_screen_frame':
+          // Handle dual-screen frame data
+          if (Math.random() < 0.01) { // Only log 1% of frames
+            console.log('Received dual-screen frame data:', {
+              clientId: message.client_id,
+              screenId: message.screen_id,
+              timestamp: message.timestamp,
+              dataSize: message.image_data ? message.image_data.length : 0
+            });
+          }
+          
+          // Enhanced dual-screen frame data with routing information
+          const enhancedDualScreenFrame = {
+            ...message,
+            type: 'dual_screen_frame',
+            serverTimestamp: new Date().toISOString(),
+            routingInfo: {
+              sourceClientId: ws.clientId || message.client_id,
+              clientType: 'dual_screen',
+              screenId: message.screen_id,
+              capabilities: ws.capabilities
+            }
+          };
+          
+          // Forward enhanced frame data to all web clients
+          webClients.forEach((webWs, webId) => {
+            if (webWs.readyState === WebSocket.OPEN) {
+              try {
+                webWs.send(JSON.stringify(enhancedDualScreenFrame));
+                if (Math.random() < 0.01) { // Only log 1% of forwards
+                  console.log(`Forwarded dual-screen frame to web client: ${webId} (client: ${message.client_id}, screen: ${message.screen_id})`);
+                }
+              } catch (error) {
+                console.error(`Error forwarding dual-screen frame to web client ${webId}:`, error);
               }
             }
           });
@@ -329,6 +458,46 @@ wss.on('connection', function connection(ws, req) {
           console.log(`Sent desktop clients list: ${desktopClientsList.length} clients`);
           break;
 
+        case 'request_screenshot':
+          console.log('Received screenshot request for client:', message.clientId);
+          const targetClientId = message.clientId;
+          
+          if (targetClientId) {
+            // Request screenshot from specific desktop client
+            const targetDesktop = desktopClients.get(targetClientId);
+            if (targetDesktop && targetDesktop.readyState === WebSocket.OPEN) {
+              const screenshotMessage = {
+                type: 'capture_screenshot',
+                timestamp: new Date().toISOString()
+              };
+              targetDesktop.send(JSON.stringify(screenshotMessage));
+              console.log(`Sent capture_screenshot to desktop client: ${targetClientId}`);
+            } else {
+              console.log(`Desktop client ${targetClientId} not found or not connected`);
+              // Send error response back to web client
+              const errorResponse = {
+                type: 'screenshot_error',
+                clientId: targetClientId,
+                error: 'Desktop client not found or not connected',
+                timestamp: new Date().toISOString()
+              };
+              ws.send(JSON.stringify(errorResponse));
+            }
+          } else {
+            // Request screenshots from all desktop clients
+            desktopClients.forEach((desktopWs, desktopId) => {
+              if (desktopWs.readyState === WebSocket.OPEN) {
+                const screenshotMessage = {
+                  type: 'capture_screenshot',
+                  timestamp: new Date().toISOString()
+                };
+                desktopWs.send(JSON.stringify(screenshotMessage));
+                console.log(`Sent capture_screenshot to desktop client: ${desktopId}`);
+              }
+            });
+          }
+          break;
+
         case 'ping':
           console.log('Received ping from client, sending pong');
           // Respond to ping with pong
@@ -371,6 +540,109 @@ wss.on('connection', function connection(ws, req) {
             console.log(`Client ${ws.clientId} is disconnecting gracefully`);
             // The actual cleanup will happen in the 'close' event handler
           }
+          break;
+
+        case 'create_desktop_instance':
+          console.log('Received create desktop instance request:', message);
+          // Forward to desktop spawner
+          spawnerClients.forEach((spawnerWs, spawnerId) => {
+            if (spawnerWs.readyState === WebSocket.OPEN) {
+              try {
+                const createMessage = {
+                  type: 'create_desktop_instance',
+                  desktopId: message.desktopId || `desktop_${Date.now()}`,
+                  config: message.config || {},
+                  timestamp: new Date().toISOString()
+                };
+                spawnerWs.send(JSON.stringify(createMessage));
+                console.log(`Forwarded create desktop instance to spawner: ${spawnerId}`);
+                
+                // Store desktop instance info
+                if (!desktopInstances.has(createMessage.desktopId)) {
+                  desktopInstances.set(createMessage.desktopId, {
+                    id: createMessage.desktopId,
+                    screens: new Map(),
+                    status: 'creating',
+                    created: new Date().toISOString()
+                  });
+                }
+              } catch (error) {
+                console.error(`Error forwarding create desktop instance to spawner ${spawnerId}:`, error);
+              }
+            }
+          });
+          break;
+
+        case 'remove_desktop_instance':
+          console.log('Received remove desktop instance request:', message);
+          // Forward to desktop spawner
+          spawnerClients.forEach((spawnerWs, spawnerId) => {
+            if (spawnerWs.readyState === WebSocket.OPEN) {
+              try {
+                const removeMessage = {
+                  type: 'remove_desktop_instance',
+                  desktopId: message.desktopId,
+                  timestamp: new Date().toISOString()
+                };
+                spawnerWs.send(JSON.stringify(removeMessage));
+                console.log(`Forwarded remove desktop instance to spawner: ${spawnerId}`);
+              } catch (error) {
+                console.error(`Error forwarding remove desktop instance to spawner ${spawnerId}:`, error);
+              }
+            }
+          });
+          
+          // Remove from our tracking
+          if (message.desktopId && desktopInstances.has(message.desktopId)) {
+            desktopInstances.delete(message.desktopId);
+            console.log(`Removed desktop instance: ${message.desktopId}`);
+          }
+          break;
+
+        case 'list_desktop_instances':
+          console.log('Received list desktop instances request');
+          const instancesList = Array.from(desktopInstances.values()).map(instance => ({
+            id: instance.id,
+            status: instance.status,
+            screens: Array.from(instance.screens.values()),
+            created: instance.created
+          }));
+          
+          const instancesListMessage = {
+            type: 'desktop_instances_list',
+            instances: instancesList,
+            timestamp: new Date().toISOString()
+          };
+          ws.send(JSON.stringify(instancesListMessage));
+          console.log(`Sent desktop instances list: ${instancesList.length} instances`);
+          break;
+
+        case 'desktop_instance_status':
+          console.log('Received desktop instance status update:', message);
+          // Update instance status
+          if (message.desktopId && desktopInstances.has(message.desktopId)) {
+            const instance = desktopInstances.get(message.desktopId);
+            instance.status = message.status;
+            if (message.screenId) {
+              instance.screens.set(message.screenId, {
+                id: message.screenId,
+                status: message.status,
+                clientId: message.clientId
+              });
+            }
+          }
+          
+          // Forward to web clients
+          webClients.forEach((webWs, webId) => {
+            if (webWs.readyState === WebSocket.OPEN) {
+              try {
+                webWs.send(JSON.stringify(message));
+                console.log(`Forwarded desktop instance status to web client: ${webId}`);
+              } catch (error) {
+                console.error(`Error forwarding desktop instance status to web client ${webId}:`, error);
+              }
+            }
+          });
           break;
 
         default:
@@ -427,6 +699,30 @@ wss.on('connection', function connection(ws, req) {
       } else if (ws.clientType === 'web') {
         webClients.delete(ws.clientId);
         console.log(`Removed web client: ${ws.clientId}`);
+      } else if (ws.clientType === 'spawner') {
+        spawnerClients.delete(ws.clientId);
+        console.log(`Removed spawner client: ${ws.clientId}`);
+      } else if (ws.clientType === 'dual_screen') {
+        dualScreenClients.delete(ws.clientId);
+        dualScreenStates.delete(ws.clientId);
+        console.log(`Removed dual-screen client: ${ws.clientId}`);
+        
+        // Notify web clients that dual-screen client disconnected
+        webClients.forEach((webWs, webId) => {
+          if (webWs.readyState === WebSocket.OPEN) {
+            try {
+              const disconnectMessage = {
+                type: 'dual_screen_disconnected',
+                clientId: ws.clientId,
+                timestamp: new Date().toISOString()
+              };
+              webWs.send(JSON.stringify(disconnectMessage));
+              console.log(`Notified web client ${webId} of dual-screen disconnection`);
+            } catch (error) {
+              console.error(`Error notifying web client ${webId}:`, error);
+            }
+          }
+        });
       }
     }
     
@@ -456,8 +752,8 @@ wss.on('error', function error(err) {
   console.error('WebSocket server error:', err);
 });
 
-console.log('Local WebSocket server listening on port 8084');
-console.log('WebSocket URL: ws://localhost:8084');
+console.log(`Local WebSocket server listening on port ${PORT}`);
+console.log(`WebSocket URL: ws://localhost:${PORT}`);
 
 // Graceful shutdown
 process.on('SIGINT', function() {

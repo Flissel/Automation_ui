@@ -300,14 +300,12 @@ const WorkflowVariables: React.FC = () => {
                           </Button>
                         </TableCell>
                         <TableCell>
-                          <div>
-                            <div className="font-medium text-sm">{variable.name}</div>
-                            {variable.description && (
-                              <div className="text-xs text-muted-foreground">
-                                {variable.description}
-                              </div>
-                            )}
-                          </div>
+                          <span className="font-medium text-sm">{variable.name}</span>
+                          {variable.description && (
+                            <span className="block text-xs text-muted-foreground">
+                              {variable.description}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge className={getTypeBadgeColor(variable.type)}>
@@ -317,43 +315,37 @@ const WorkflowVariables: React.FC = () => {
                         <TableCell>
                           <Badge variant="outline">{variable.dataType}</Badge>
                         </TableCell>
-                        <TableCell>
-                          <div className="max-w-xs truncate font-mono text-xs">
-                            {formatValue(variable.value, variable.dataType)}
-                          </div>
+                        <TableCell className="max-w-xs truncate font-mono text-xs">
+                          {formatValue(variable.value, variable.dataType)}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => copyValue(variable.value)}
-                              className="p-0 h-6 w-6"
-                            >
-                              <Copy className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => toggleRowExpansion(variable.id)}
-                              className="p-0 h-6 w-6"
-                            >
-                              <Eye className="w-3 h-3" />
-                            </Button>
-                          </div>
+                        <TableCell className="flex items-center space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyValue(variable.value)}
+                            className="p-0 h-6 w-6"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRowExpansion(variable.id)}
+                            className="p-0 h-6 w-6"
+                          >
+                            <Eye className="w-3 h-3" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                       {expandedRows[variable.id] && (
                         <TableRow>
-                          <TableCell colSpan={6} className="bg-muted/50">
-                            <div className="p-3">
-                              <pre className="text-xs bg-background p-3 rounded border overflow-auto max-h-40">
-                                {formatValue(variable.value, variable.dataType)}
-                              </pre>
-                              <div className="mt-2 text-xs text-muted-foreground">
-                                Last updated: {new Date(variable.timestamp).toLocaleString()}
-                              </div>
-                            </div>
+                          <TableCell colSpan={6} className="bg-muted/50 p-3">
+                            <pre className="text-xs bg-background p-3 rounded border overflow-auto max-h-40">
+                              {formatValue(variable.value, variable.dataType)}
+                            </pre>
+                            <span className="block mt-2 text-xs text-muted-foreground">
+                              Last updated: {new Date(variable.timestamp).toLocaleString()}
+                            </span>
                           </TableCell>
                         </TableRow>
                       )}
@@ -395,14 +387,12 @@ const WorkflowVariables: React.FC = () => {
                           </Button>
                         </TableCell>
                         <TableCell>
-                          <div>
-                            <div className="font-medium text-sm">{variable.name}</div>
-                            {variable.description && (
-                              <div className="text-xs text-muted-foreground">
-                                {variable.description}
-                              </div>
-                            )}
-                          </div>
+                          <span className="font-medium text-sm">{variable.name}</span>
+                          {variable.description && (
+                            <span className="block text-xs text-muted-foreground">
+                              {variable.description}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge className={getTypeBadgeColor(variable.type)}>
@@ -414,67 +404,63 @@ const WorkflowVariables: React.FC = () => {
                         </TableCell>
                         <TableCell>
                           {editingVariable === variable.id ? (
-                            <div className="flex items-center space-x-2">
+                            <>
                               <Input
                                 value={editValue}
                                 onChange={(e) => setEditValue(e.target.value)}
-                                className="h-8 text-xs font-mono"
+                                className="h-8 text-xs font-mono inline-block w-32"
                               />
-                              <Button variant="ghost" size="sm" onClick={saveEdit} className="p-0 h-6 w-6">
+                              <Button variant="ghost" size="sm" onClick={saveEdit} className="p-0 h-6 w-6 ml-1">
                                 <Save className="w-3 h-3" />
                               </Button>
-                              <Button variant="ghost" size="sm" onClick={cancelEdit} className="p-0 h-6 w-6">
+                              <Button variant="ghost" size="sm" onClick={cancelEdit} className="p-0 h-6 w-6 ml-1">
                                 <X className="w-3 h-3" />
                               </Button>
-                            </div>
+                            </>
                           ) : (
-                            <div className="max-w-xs truncate font-mono text-xs">
+                            <span className="max-w-xs truncate font-mono text-xs">
                               {formatValue(variable.value, variable.dataType)}
-                            </div>
+                            </span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-1">
+                        <TableCell className="flex items-center space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyValue(variable.value)}
+                            className="p-0 h-6 w-6"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                          {variable.isEditable && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => copyValue(variable.value)}
+                              onClick={() => startEditing(variable)}
                               className="p-0 h-6 w-6"
                             >
-                              <Copy className="w-3 h-3" />
+                              <Edit3 className="w-3 h-3" />
                             </Button>
-                            {variable.isEditable && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => startEditing(variable)}
-                                className="p-0 h-6 w-6"
-                              >
-                                <Edit3 className="w-3 h-3" />
-                              </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => toggleRowExpansion(variable.id)}
-                              className="p-0 h-6 w-6"
-                            >
-                              <Eye className="w-3 h-3" />
-                            </Button>
-                          </div>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRowExpansion(variable.id)}
+                            className="p-0 h-6 w-6"
+                          >
+                            <Eye className="w-3 h-3" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                       {expandedRows[variable.id] && (
                         <TableRow>
-                          <TableCell colSpan={6} className="bg-muted/50">
-                            <div className="p-3">
-                              <pre className="text-xs bg-background p-3 rounded border overflow-auto max-h-40">
-                                {formatValue(variable.value, variable.dataType)}
-                              </pre>
-                              <div className="mt-2 text-xs text-muted-foreground">
-                                Last modified: {new Date(variable.lastModified).toLocaleString()}
-                              </div>
-                            </div>
+                          <TableCell colSpan={6} className="bg-muted/50 p-3">
+                            <pre className="text-xs bg-background p-3 rounded border overflow-auto max-h-40">
+                              {formatValue(variable.value, variable.dataType)}
+                            </pre>
+                            <span className="block mt-2 text-xs text-muted-foreground">
+                              Last modified: {new Date(variable.lastModified).toLocaleString()}
+                            </span>
                           </TableCell>
                         </TableRow>
                       )}

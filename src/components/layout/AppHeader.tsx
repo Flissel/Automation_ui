@@ -92,7 +92,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             <Breadcrumb>
               <BreadcrumbList>
                 {breadcrumbs.map((breadcrumb, index) => (
-                  <React.Fragment key={breadcrumb.path}>
+                  <React.Fragment key={`breadcrumb-${index}-${breadcrumb.path}`}>
                     <BreadcrumbItem>
                       <BreadcrumbLink
                         href={breadcrumb.path}

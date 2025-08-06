@@ -7,7 +7,7 @@
  * Version: 1.0.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -63,30 +63,30 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
   // ============================================================================
 
   useEffect(() => {
-    // Initialize stream states for newly selected clients
-    selectedClients.forEach(clientId => {
-      if (!streamStates[clientId]) {
-        setStreamStates(prev => ({
-          ...prev,
-          [clientId]: {
+    // Initialize stream states for newly selected clients and clean up removed ones
+    setStreamStates(prev => {
+      const newState = { ...prev };
+      
+      // Initialize stream states for newly selected clients
+      selectedClients.forEach(clientId => {
+        if (!newState[clientId]) {
+          newState[clientId] = {
             active: false,
             connected: true, // Assume connected when selected
             frameData: null,
             streamInfo: null
-          }
-        }));
-      }
-    });
+          };
+        }
+      });
 
-    // Clean up stream states for clients no longer selected
-    Object.keys(streamStates).forEach(clientId => {
-      if (!selectedClients.includes(clientId)) {
-        setStreamStates(prev => {
-          const newState = { ...prev };
+      // Clean up stream states for clients no longer selected
+      Object.keys(newState).forEach(clientId => {
+        if (!selectedClients.includes(clientId)) {
           delete newState[clientId];
-          return newState;
-        });
-      }
+        }
+      });
+      
+      return newState;
     });
   }, [selectedClients]);
 
@@ -131,13 +131,13 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
 
     websocket.addEventListener('message', handleMessage);
     return () => websocket.removeEventListener('message', handleMessage);
-  }, [websocket, selectedClients]);
+  }, [websocket, selectedClients, handleFrameData, handleStreamStatus, handleClientDisconnected]);
 
   // ============================================================================
   // STREAM DATA HANDLERS
   // ============================================================================
 
-  const handleFrameData = (clientId: string, frameData: string, streamInfo: any) => {
+  const handleFrameData = useCallback((clientId: string, frameData: string, streamInfo: any) => {
     setStreamStates(prev => ({
       ...prev,
       [clientId]: {
@@ -157,9 +157,9 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
 
     // Render frame to canvas
     renderFrameToCanvas(clientId, frameData);
-  };
+  }, []);
 
-  const handleStreamStatus = (clientId: string, statusData: any) => {
+  const handleStreamStatus = useCallback((clientId: string, statusData: any) => {
     console.log('Handling stream status for', clientId, statusData);
     
     setStreamStates(prev => ({
@@ -170,9 +170,9 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
         active: statusData.streaming || statusData.active || false
       }
     }));
-  };
+  }, []);
 
-  const handleClientDisconnected = (clientId: string) => {
+  const handleClientDisconnected = useCallback((clientId: string) => {
     setStreamStates(prev => ({
       ...prev,
       [clientId]: {
@@ -185,13 +185,13 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
     
     // Notify parent component
     onClientDisconnected(clientId);
-  };
+  }, [onClientDisconnected]);
 
   // ============================================================================
   // CANVAS RENDERING
   // ============================================================================
 
-  const renderFrameToCanvas = (clientId: string, frameData: string) => {
+  const renderFrameToCanvas = useCallback((clientId: string, frameData: string) => {
     const canvas = canvasRefs.current[clientId];
     if (!canvas) return;
 
@@ -227,13 +227,13 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
     };
     
     img.src = `data:image/jpeg;base64,${frameData}`;
-  };
+  }, []);
 
   // ============================================================================
   // STREAM CONTROLS
   // ============================================================================
 
-  const startStream = (clientId: string) => {
+  const startStream = useCallback((clientId: string) => {
     if (!websocket) return;
     
     websocket.send(JSON.stringify({
@@ -248,9 +248,9 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
         active: true
       }
     }));
-  };
+  }, [websocket]);
 
-  const stopStream = (clientId: string) => {
+  const stopStream = useCallback((clientId: string) => {
     if (!websocket) return;
     
     websocket.send(JSON.stringify({
@@ -266,25 +266,25 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
         frameData: null
       }
     }));
-  };
+  }, [websocket]);
 
   // ============================================================================
   // RENDER HELPERS
   // ============================================================================
 
-  const getStreamStatus = (clientId: string) => {
+  const getStreamStatus = useCallback((clientId: string) => {
     const state = streamStates[clientId];
     
     if (!state?.connected) return { status: 'disconnected', color: 'destructive' };
     if (!state?.active) return { status: 'inactive', color: 'secondary' };
     return { status: 'streaming', color: 'success' };
-  };
+  }, [streamStates]);
 
-  const formatDataSize = (bytes: number) => {
+  const formatDataSize = useCallback((bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
+  }, []);
 
   // ============================================================================
   // MAIN RENDER

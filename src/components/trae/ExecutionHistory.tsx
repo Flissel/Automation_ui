@@ -210,7 +210,7 @@ const ExecutionHistory: React.FC<ExecutionHistoryProps> = ({
           </TableHeader>
           <TableBody>
             {mockExecutions.map((execution) => (
-              <div key={execution.id}>
+              <React.Fragment key={execution.id}>
                 <TableRow className="hover:bg-muted/50 cursor-pointer">
                   <TableCell>
                     <Button
@@ -285,7 +285,7 @@ const ExecutionHistory: React.FC<ExecutionHistoryProps> = ({
                     </TableCell>
                   </TableRow>
                 )}
-              </div>
+              </React.Fragment>
             ))}
           </TableBody>
         </Table>

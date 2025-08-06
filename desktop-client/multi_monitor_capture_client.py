@@ -590,6 +590,7 @@ class MultiMonitorDesktopCaptureClient:
     def capture_monitor_by_info(self, monitor_info: Dict[str, Any], monitor_id: str) -> Optional[Dict[str, Any]]:
         """
         Capture screenshot from specific monitor using monitor info.
+        Enhanced with black screen detection and fallback handling.
         """
         try:
             # Define the bounding box for this monitor
@@ -603,11 +604,122 @@ class MultiMonitorDesktopCaptureClient:
             # Capture the specific monitor area
             screenshot = ImageGrab.grab(bbox=bbox)
             
+            # Check if the captured image is mostly black (inactive monitor)
+            if self._is_monitor_inactive(screenshot):
+                logger.warning(f"Monitor {monitor_id} appears to be inactive (black screen)")
+                
+                # Create a placeholder image with monitor info
+                screenshot = self._create_placeholder_image(monitor_info, monitor_id)
+            
             return self._process_screenshot(screenshot, monitor_id)
             
         except Exception as e:
             logger.error(f"Error capturing monitor {monitor_id}: {e}")
             return None
+
+    def _is_monitor_inactive(self, screenshot: Image.Image) -> bool:
+        """
+        Check if a screenshot is mostly black (indicating inactive monitor).
+        Enhanced with configurable thresholds and debug options.
+        """
+        try:
+            # Check if inactive detection is disabled via config
+            if self.capture_config.get('disable_inactive_detection', False):
+                logger.debug("Inactive monitor detection is disabled via config")
+                return False
+            
+            # Sample pixels to check for black content
+            pixels = list(screenshot.getdata())
+            
+            # Check every 100th pixel for performance
+            sample_pixels = pixels[::100]
+            
+            # Configurable thresholds
+            dark_threshold = self.capture_config.get('dark_pixel_threshold', 30)  # RGB sum threshold
+            inactive_percentage = self.capture_config.get('inactive_threshold', 98)  # Percentage threshold (was 95, now 98)
+            
+            # Count pixels that are very dark (sum of RGB < threshold)
+            black_pixels = sum(1 for pixel in sample_pixels if sum(pixel[:3]) < dark_threshold)
+            total_sampled = len(sample_pixels)
+            
+            # Calculate black percentage
+            black_percentage = (black_pixels / total_sampled) * 100
+            
+            # Log detailed information for debugging
+            logger.debug(f"Monitor activity check: {black_percentage:.1f}% dark pixels (threshold: {inactive_percentage}%)")
+            
+            # Consider monitor inactive if more than threshold% of sampled pixels are black
+            is_inactive = black_percentage > inactive_percentage
+            
+            if is_inactive:
+                logger.info(f"Monitor detected as inactive: {black_percentage:.1f}% dark pixels (threshold: {inactive_percentage}%)")
+            
+            return is_inactive
+            
+        except Exception as e:
+            logger.error(f"Error checking monitor activity: {e}")
+            return False
+
+    def _create_placeholder_image(self, monitor_info: Dict[str, Any], monitor_id: str) -> Image.Image:
+        """
+        Create a placeholder image for inactive monitors.
+        """
+        try:
+            width = monitor_info['width']
+            height = monitor_info['height']
+            
+            # Create a dark gray background
+            placeholder = Image.new('RGB', (width, height), (40, 40, 40))
+            
+            # Add text overlay with monitor information
+            from PIL import ImageDraw, ImageFont
+            draw = ImageDraw.Draw(placeholder)
+            
+            try:
+                # Try to use a larger font
+                font = ImageFont.load_default()
+            except:
+                font = None
+            
+            # Monitor info text
+            text_lines = [
+                f"Monitor: {monitor_id}",
+                f"Resolution: {width}x{height}",
+                f"Position: ({monitor_info['x']}, {monitor_info['y']})",
+                f"Status: Inactive/Black Screen",
+                "",
+                "This monitor appears to be:",
+                "• Turned off",
+                "• Displaying a black screen",
+                "• Not receiving video signal",
+                "",
+                "TRAE Unity AI Platform",
+                "Multi-Monitor Capture Client"
+            ]
+            
+            # Calculate text position (centered)
+            y_offset = height // 4
+            line_height = 30
+            
+            for i, line in enumerate(text_lines):
+                if line:  # Skip empty lines for spacing
+                    text_width = draw.textlength(line, font=font) if font else len(line) * 8
+                    x_pos = (width - text_width) // 2
+                    y_pos = y_offset + (i * line_height)
+                    
+                    # Draw text with white color
+                    draw.text((x_pos, y_pos), line, fill=(255, 255, 255), font=font)
+                else:
+                    # Add extra spacing for empty lines
+                    y_offset += line_height // 2
+            
+            logger.info(f"Created placeholder image for inactive monitor {monitor_id}")
+            return placeholder
+            
+        except Exception as e:
+            logger.error(f"Error creating placeholder image: {e}")
+            # Return a simple black image as fallback
+            return Image.new('RGB', (monitor_info['width'], monitor_info['height']), (0, 0, 0))
 
     def _process_screenshot(self, screenshot: Image.Image, monitor_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -730,6 +842,9 @@ async def main():
     parser.add_argument('--combine-monitors',
                        action='store_true',
                        help='Combine all monitors into single image')
+    parser.add_argument('--disable-inactive-detection',
+                       action='store_true',
+                       help='Disable inactive monitor detection (show raw capture even if black)')
 
     args = parser.parse_args()
 
@@ -742,6 +857,10 @@ async def main():
     # Apply initial configuration
     client.capture_config['capture_mode'] = args.capture_mode
     client.capture_config['combine_monitors'] = args.combine_monitors
+    client.capture_config['disable_inactive_detection'] = args.disable_inactive_detection
+    
+    if args.disable_inactive_detection:
+        logger.info("🔧 Inactive monitor detection DISABLED - showing raw capture from all monitors")
     
     # Signal handler for graceful shutdown
     def signal_handler(signum, frame):

@@ -1,0 +1,42 @@
+# Dockerfile for OCR Processor Service
+FROM denoland/deno:1.40.2
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies for OCR
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-deu \
+    imagemagick \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy service files
+COPY ../services/ocr-processor-service.ts ./services/
+COPY ../config/ ./config/
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/temp /app/uploads
+
+# Cache dependencies
+RUN deno cache --reload services/ocr-processor-service.ts
+
+# Add health check script
+RUN echo '#!/bin/bash\ncurl -f http://localhost:8003/health || exit 1' > /app/healthcheck.sh && \
+    chmod +x /app/healthcheck.sh
+
+# Expose port
+EXPOSE 8003
+
+# Set environment variables
+ENV DENO_ENV=production
+ENV SERVICE_PORT=8003
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD /app/healthcheck.sh
+
+# Start the service
+CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "--allow-write", "--allow-run", "services/ocr-processor-service.ts"]

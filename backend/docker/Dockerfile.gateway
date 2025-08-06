@@ -1,0 +1,33 @@
+# Dockerfile for API Gateway Service
+FROM denoland/deno:1.40.2
+
+# Set working directory
+WORKDIR /app
+
+# Copy service files
+COPY ../api/gateway.ts ./api/
+COPY ../config/ ./config/
+
+# Create necessary directories
+RUN mkdir -p /app/logs
+
+# Cache dependencies
+RUN deno cache --reload api/gateway.ts
+
+# Add health check script
+RUN echo '#!/bin/bash\ncurl -f http://localhost:8080/health || exit 1' > /app/healthcheck.sh && \
+    chmod +x /app/healthcheck.sh
+
+# Expose port
+EXPOSE 8080
+
+# Set environment variables
+ENV DENO_ENV=production
+ENV SERVICE_PORT=8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD /app/healthcheck.sh
+
+# Start the service
+CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "--allow-write", "api/gateway.ts"]

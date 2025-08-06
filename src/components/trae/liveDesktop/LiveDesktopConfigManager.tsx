@@ -87,7 +87,7 @@ export const LiveDesktopConfigManager: React.FC<LiveDesktopConfigManagerProps> =
               id: item.id,
               name: item.name,
               description: item.description || '',
-              websocketUrl: config.websocketUrl || 'wss://dgzreelowtzquljhxskq.functions.supabase.co/live-desktop-stream',
+              websocketUrl: config.websocketUrl || 'ws://localhost:8084',
               streaming: config.streaming || { fps: 10, quality: 75, scale: 0.8 },
               connection: config.connection || { timeout: 30, maxReconnectAttempts: 5, reconnectInterval: 5 },
               ocr: config.ocr || { enabled: false, extractionInterval: 30, autoSend: false },

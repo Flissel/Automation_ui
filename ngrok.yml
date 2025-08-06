@@ -1,0 +1,18 @@
+# Ngrok Configuration for Desktop Streaming Application
+# This configuration allows multiple tunnels from a single ngrok session
+
+version: "2"
+
+tunnels:
+  # Web Application Tunnel
+  web-app:
+    proto: http
+    addr: 8080
+    inspect: true
+    
+  # WebSocket Server Tunnel  
+  websocket:
+    proto: tcp
+    addr: 8084
+
+# Optional: Web interface configurationweb_addr: localhost:4040

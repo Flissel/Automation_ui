@@ -256,11 +256,16 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
 
       bridge.on('error', (error) => {
         const errorMessage = `Filesystem Bridge Error: ${error.error}`;
-        toast({
-          title: "Bridge Error",
-          description: errorMessage,
-          variant: "destructive"
-        });
+        console.warn('Filesystem Bridge Error:', error);
+        
+        // Only show toast for non-connection errors to reduce noise
+        if (error.context !== 'websocket') {
+          toast({
+            title: "Bridge Error",
+            description: errorMessage,
+            variant: "destructive"
+          });
+        }
 
         if (onError) {
           onError(errorMessage);
@@ -314,10 +319,13 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
 
     } catch (error) {
       const errorMessage = `Failed to initialize filesystem bridge: ${error}`;
+      console.warn('Filesystem bridge initialization failed:', error);
+      
+      // Show a more user-friendly message
       toast({
-        title: "Initialization Error",
-        description: errorMessage,
-        variant: "destructive"
+        title: "Desktop Interface Unavailable",
+        description: "Desktop streaming service is not available. Some features may be limited.",
+        variant: "default"
       });
 
       if (onError) {

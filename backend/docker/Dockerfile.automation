@@ -1,0 +1,46 @@
+# Dockerfile for Desktop Automation Service
+FROM denoland/deno:1.40.2
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies for desktop automation
+RUN apt-get update && apt-get install -y \
+    xvfb \
+    x11vnc \
+    fluxbox \
+    wget \
+    wmctrl \
+    xdotool \
+    scrot \
+    imagemagick \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy service files
+COPY ../services/desktop-automation-service.ts ./services/
+COPY ../config/ ./config/
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/screenshots /app/temp
+
+# Cache dependencies
+RUN deno cache --reload services/desktop-automation-service.ts
+
+# Add health check script
+RUN echo '#!/bin/bash\ncurl -f http://localhost:8002/health || exit 1' > /app/healthcheck.sh && \
+    chmod +x /app/healthcheck.sh
+
+# Expose port
+EXPOSE 8002
+
+# Set environment variables
+ENV DENO_ENV=production
+ENV SERVICE_PORT=8002
+ENV DISPLAY=:99
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD /app/healthcheck.sh
+
+# Start Xvfb and the service
+CMD ["sh", "-c", "Xvfb :99 -screen 0 1920x1080x24 & fluxbox & deno run --allow-net --allow-env --allow-read --allow-write --allow-run services/desktop-automation-service.ts"]

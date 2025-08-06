@@ -44,6 +44,10 @@ class DesktopCaptureClient:
         self.websocket: Optional[websockets.WebSocketServerProtocol] = None
         self.is_capturing = False
         
+        # Desktop instance identification
+        self.desktop_id: Optional[str] = None
+        self.screen_id: Optional[str] = None
+        
         # Capture configuration
         self.capture_config = {
             'fps': 30,
@@ -87,6 +91,22 @@ class DesktopCaptureClient:
             
             logger.info(f"Screen dimensions: {screen_width}x{screen_height}")
             logger.info(f"Virtual screen dimensions: {virtual_width}x{virtual_height}")
+            
+            # Test actual capture capabilities
+            try:
+                # Test if we can capture the full virtual desktop
+                test_screenshot = ImageGrab.grab(bbox=(0, 0, virtual_width, virtual_height))
+                actual_capture_width, actual_capture_height = test_screenshot.size
+                logger.info(f"Actual capture test: {actual_capture_width}x{actual_capture_height}")
+                
+                # If the capture size matches virtual size, we can capture multiple monitors
+                if actual_capture_width == virtual_width and actual_capture_height == virtual_height:
+                    logger.info("Full virtual desktop capture confirmed")
+                else:
+                    logger.warning(f"Virtual desktop capture limited to {actual_capture_width}x{actual_capture_height}")
+                    
+            except Exception as e:
+                logger.warning(f"Virtual desktop capture test failed: {e}")
             
             # Simple heuristic: if virtual width is much larger than screen width, 
             # we likely have multiple monitors
@@ -160,9 +180,9 @@ class DesktopCaptureClient:
             url = f"{self.server_url}?client_type=desktop&client_id={self.client_id}"
             logger.info(f"Connecting to {url}")
             
-            # Connect with longer timeout and disabled ping
+            # Connect with compatible ping settings for server heartbeat
             self.websocket = await asyncio.wait_for(
-                websockets.connect(url, ping_interval=None, ping_timeout=None),
+                websockets.connect(url, ping_interval=30, ping_timeout=10),
                 timeout=30.0
             )
             self.running = True
@@ -247,12 +267,16 @@ class DesktopCaptureClient:
                 'file_operations': True,
                 'max_resolution': [1920, 1080],
                 'supported_formats': ['jpeg', 'png'],
-                'compression_levels': [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+                'compression_levels': [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                'desktopId': self.desktop_id,
+                'screenId': self.screen_id,
+                'monitorInfo': self.monitor_info,
+                'captureConfig': self.capture_config
             }
         }
         
         await self.send_message(capabilities)
-        logger.info("Sent handshake with capabilities")
+        logger.info(f"Sent handshake with capabilities for desktop {self.desktop_id}, screen {self.screen_id}")
 
     async def wait_for_handshake_ack(self):
         """Wait for handshake acknowledgment from the server."""
@@ -360,6 +384,13 @@ class DesktopCaptureClient:
         """Start continuous screen capture."""
         if self.is_capturing:
             logger.warning("Capture already running")
+            # Still send status update to inform web client of current state
+            await self.send_message({
+                'type': 'stream_status',
+                'streaming': True,
+                'config': self.capture_config,
+                'timestamp': time.time()
+            })
             return
 
         # Update configuration
@@ -420,7 +451,8 @@ class DesktopCaptureClient:
                         frame_data['height'],
                         frame_data['original_width'],
                         frame_data['original_height'],
-                        frame_data.get('is_single', False)
+                        frame_data.get('is_single', False),
+                        frame_data.get('monitor_id', 'unknown')
                     )
                     self.frame_queue.task_done()
             except asyncio.TimeoutError:
@@ -441,26 +473,28 @@ class DesktopCaptureClient:
             try:
                 start_time = time.time()
                 
-                # Capture screenshot
-                screenshot_data = self.capture_screenshot()
-                if screenshot_data:
-                    # Add frame to queue for async processing using thread-safe method
-                    frame_data = {
-                        'image_data': screenshot_data['image_data'],
-                        'width': screenshot_data['width'],
-                        'height': screenshot_data['height'],
-                        'original_width': screenshot_data['original_width'],
-                        'original_height': screenshot_data['original_height'],
-                        'is_single': False
-                    }
-                    # Use asyncio.run_coroutine_threadsafe to put item in async queue from thread
-                    if self.loop and self.frame_queue:
-                        future = asyncio.run_coroutine_threadsafe(
-                            self.frame_queue.put(frame_data), 
-                            self.loop
-                        )
-                        # Don't wait for the future to complete to avoid blocking
-                    self.frame_count += 1
+                # Capture screenshots (can be multiple for multi-monitor)
+                screenshot_data_list = self.capture_screenshot()
+                for screenshot_data in screenshot_data_list:
+                    if screenshot_data:
+                        # Add frame to queue for async processing using thread-safe method
+                        frame_data = {
+                            'image_data': screenshot_data['image_data'],
+                            'width': screenshot_data['width'],
+                            'height': screenshot_data['height'],
+                            'original_width': screenshot_data['original_width'],
+                            'original_height': screenshot_data['original_height'],
+                            'monitor_id': screenshot_data.get('monitor_id', 'unknown'),
+                            'is_single': False
+                        }
+                        # Use asyncio.run_coroutine_threadsafe to put item in async queue from thread
+                        if self.loop and self.frame_queue:
+                            future = asyncio.run_coroutine_threadsafe(
+                                self.frame_queue.put(frame_data), 
+                                self.loop
+                            )
+                            # Don't wait for the future to complete to avoid blocking
+                        self.frame_count += 1
 
                 # Calculate sleep time to maintain FPS
                 elapsed = time.time() - start_time
@@ -475,11 +509,72 @@ class DesktopCaptureClient:
 
         logger.info("Capture loop ended")
 
-    def capture_screenshot(self) -> Optional[dict]:
-        """Capture a single screenshot and return as base64 encoded string with dimensions."""
+    def capture_screenshot(self) -> List[dict]:
+        """Capture screenshots from all monitors and return as list of base64 encoded strings with dimensions."""
+        screenshot_data_list = []
+        
         try:
-            # Capture the screen
-            screenshot = ImageGrab.grab()
+            capture_mode = self.capture_config.get('capture_mode', 'all_monitors')
+            
+            if capture_mode == 'specific_monitor':
+                # Capture specific monitor only
+                target_monitor = self.capture_config.get('target_monitor', 0)
+                monitor_id = f'monitor_{target_monitor}'
+                
+                if monitor_id in self.monitor_info:
+                    monitor_info = self.monitor_info[monitor_id]
+                    screenshot_data = self.capture_monitor_by_info(monitor_info, monitor_id)
+                    if screenshot_data:
+                        screenshot_data_list.append(screenshot_data)
+                else:
+                    logger.warning(f"Target monitor {target_monitor} not found, falling back to primary")
+                    # Fallback to primary monitor
+                    screenshot = ImageGrab.grab()
+                    screenshot_data = self._process_screenshot(screenshot, f'monitor_{target_monitor}')
+                    if screenshot_data:
+                        screenshot_data_list.append(screenshot_data)
+                        
+            elif capture_mode == 'all_monitors' and len(self.monitor_info) > 1:
+                # Capture each monitor separately
+                for monitor_id, monitor_info in self.monitor_info.items():
+                    screenshot_data = self.capture_monitor_by_info(monitor_info, monitor_id)
+                    if screenshot_data:
+                        screenshot_data_list.append(screenshot_data)
+            else:
+                # Capture entire screen as single image (fallback or single monitor)
+                screenshot = ImageGrab.grab()
+                screenshot_data = self._process_screenshot(screenshot, 'combined_monitors')
+                if screenshot_data:
+                    screenshot_data_list.append(screenshot_data)
+                    
+        except Exception as e:
+            logger.error(f"Screenshot capture error: {e}")
+            
+        return screenshot_data_list
+
+    def capture_monitor_by_info(self, monitor_info: Dict[str, Any], monitor_id: str) -> Optional[Dict[str, Any]]:
+        """Capture screenshot from specific monitor using monitor info."""
+        try:
+            # Define the bounding box for this monitor
+            bbox = (
+                monitor_info['x'],
+                monitor_info['y'],
+                monitor_info['x'] + monitor_info['width'],
+                monitor_info['y'] + monitor_info['height']
+            )
+            
+            # Capture the specific monitor area
+            screenshot = ImageGrab.grab(bbox=bbox)
+            
+            return self._process_screenshot(screenshot, monitor_id)
+            
+        except Exception as e:
+            logger.error(f"Error capturing monitor {monitor_id}: {e}")
+            return None
+
+    def _process_screenshot(self, screenshot: Image.Image, monitor_id: str) -> Optional[Dict[str, Any]]:
+        """Process a screenshot image and return formatted data."""
+        try:
             original_width, original_height = screenshot.size
             
             # Apply scaling if needed
@@ -510,29 +605,32 @@ class DesktopCaptureClient:
                 'width': final_width,
                 'height': final_height,
                 'original_width': original_width,
-                'original_height': original_height
+                'original_height': original_height,
+                'monitor_id': monitor_id
             }
 
         except Exception as e:
-            logger.error(f"Screenshot capture error: {e}")
+            logger.error(f"Screenshot processing error for {monitor_id}: {e}")
             return None
 
     async def capture_single_screenshot(self):
         """Capture and send a single screenshot."""
         logger.info("Capturing single screenshot")
-        screenshot_data = self.capture_screenshot()
-        if screenshot_data:
-            frame_data = {
-                'image_data': screenshot_data['image_data'],
-                'width': screenshot_data['width'],
-                'height': screenshot_data['height'],
-                'original_width': screenshot_data['original_width'],
-                'original_height': screenshot_data['original_height'],
-                'is_single': True
-            }
-            await self.frame_queue.put(frame_data)
+        screenshot_data_list = self.capture_screenshot()
+        for screenshot_data in screenshot_data_list:
+            if screenshot_data:
+                frame_data = {
+                    'image_data': screenshot_data['image_data'],
+                    'width': screenshot_data['width'],
+                    'height': screenshot_data['height'],
+                    'original_width': screenshot_data['original_width'],
+                    'original_height': screenshot_data['original_height'],
+                    'monitor_id': screenshot_data.get('monitor_id', 'unknown'),
+                    'is_single': True
+                }
+                await self.frame_queue.put(frame_data)
 
-    async def send_frame(self, image_data: str, width: int, height: int, original_width: int, original_height: int, is_single: bool = False):
+    async def send_frame(self, image_data: str, width: int, height: int, original_width: int, original_height: int, is_single: bool = False, monitor_id: str = 'unknown'):
         """Send a frame to the server."""
         message = {
             'type': 'frame_data',
@@ -542,8 +640,10 @@ class DesktopCaptureClient:
             'isSingle': is_single,
             'width': width,
             'height': height,
+            'monitorId': monitor_id,
             'metadata': {
                 'clientId': self.client_id,
+                'clientType': 'desktop',
                 'config': self.capture_config,
                 'dataSize': len(image_data),
                 'dimensions': {
@@ -551,7 +651,8 @@ class DesktopCaptureClient:
                     'height': height,
                     'original_width': original_width,
                     'original_height': original_height
-                }
+                },
+                'monitor_info': self.monitor_info.get(monitor_id, {})
             }
         }
 
@@ -564,6 +665,26 @@ async def main():
                        help='WebSocket server URL')
     parser.add_argument('--client-id', 
                        help='Optional client ID (will generate if not provided)')
+    parser.add_argument('--monitor-index', 
+                       type=int,
+                       default=0,
+                       help='Monitor index to capture (0 for primary, 1 for secondary, etc.)')
+    parser.add_argument('--desktop-id', 
+                       help='Desktop instance ID this client belongs to')
+    parser.add_argument('--screen-id', 
+                       help='Screen ID within the desktop instance')
+    parser.add_argument('--fps', 
+                       type=int,
+                       default=30,
+                       help='Capture frame rate (frames per second)')
+    parser.add_argument('--quality', 
+                       type=int,
+                       default=80,
+                       help='JPEG quality (1-100)')
+    parser.add_argument('--scale', 
+                       type=float,
+                       default=1.0,
+                       help='Scale factor for captured images')
     parser.add_argument('--log-level', 
                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], 
                        default='INFO',
@@ -576,6 +697,23 @@ async def main():
 
     # Create and run client
     client = DesktopCaptureClient(args.server_url, args.client_id)
+    
+    # Configure capture settings from command line arguments
+    if args.fps:
+        client.capture_config['fps'] = args.fps
+    if args.quality:
+        client.capture_config['quality'] = args.quality
+    if args.scale:
+        client.capture_config['scale'] = args.scale
+    
+    # Set specific monitor capture mode if monitor index is specified
+    if args.monitor_index is not None:
+        client.capture_config['capture_mode'] = 'specific_monitor'
+        client.capture_config['target_monitor'] = args.monitor_index
+    
+    # Store desktop and screen IDs for identification
+    client.desktop_id = args.desktop_id
+    client.screen_id = args.screen_id
     
     # Signal handler for graceful shutdown
     def signal_handler(signum, frame):

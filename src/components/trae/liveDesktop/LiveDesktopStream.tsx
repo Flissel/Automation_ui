@@ -81,7 +81,7 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
     setIsConnecting(true);
 
     try {
-      const wsUrl = `wss://dgzreelowtzquljhxskq.functions.supabase.co/live-desktop-stream?client_type=web&config_id=${config.id}`;
+      const wsUrl = `ws://localhost:8084?client_type=web&config_id=${config.id}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -172,12 +172,15 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        toast({
-          title: "Connection Error",
-          description: "Failed to connect to live desktop stream",
-          variant: "destructive",
-        });
+        console.warn('WebSocket connection failed - live desktop service may not be available');
+        // Only show toast if user explicitly tried to connect
+        if (isConnecting) {
+          toast({
+            title: "Connection Error",
+            description: "Live desktop service is not available",
+            variant: "destructive",
+          });
+        }
         setIsConnecting(false);
       };
 

@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
-import { User, Session } from '@supabase/supabase-js';
 import { useToast } from "@/hooks/use-toast";
+import { authService } from "@/services/authService";
+import { apiService, VirtualDesktop, WorkflowTemplate, WorkflowExecution } from "@/services/apiService";
 import { 
   Monitor, 
   Workflow, 
@@ -14,13 +14,22 @@ import {
   Server,
   Users,
   BarChart3,
-  Grid
+  Grid,
+  Layers,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  RefreshCw
 } from "lucide-react";
 
 const Dashboard = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState(authService.getCurrentUser());
   const [isLoading, setIsLoading] = useState(true);
+  const [desktops, setDesktops] = useState<VirtualDesktop[]>([]);
+  const [workflows, setWorkflows] = useState<WorkflowTemplate[]>([]);
+  const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
+  const [healthStatus, setHealthStatus] = useState<any>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const initialized = useRef(false);
@@ -29,42 +38,105 @@ const Dashboard = () => {
     if (initialized.current) return;
     initialized.current = true;
 
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setIsLoading(false);
-        
-        if (!session?.user) {
-          navigate("/auth");
-        }
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    // Listen for auth changes
+    const unsubscribe = authService.onAuthStateChange((user) => {
+      setUser(user);
       setIsLoading(false);
       
-      if (!session?.user) {
+      if (!user) {
         navigate("/auth");
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Check current user
+    const currentUser = authService.getCurrentUser();
+    setUser(currentUser);
+    setIsLoading(false);
+    
+    if (!currentUser) {
+      navigate("/auth");
+    }
+
+    return unsubscribe;
   }, [navigate]);
 
-  const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
+  useEffect(() => {
+    if (user) {
+      loadDashboardData();
+    }
+  }, [user]);
+
+  const loadDashboardData = async () => {
+    try {
+      // Load all data in parallel with graceful error handling
+      const [desktopsData, workflowsData, executionsData, healthData] = await Promise.allSettled([
+        apiService.getDesktops(),
+        apiService.getWorkflowTemplates(),
+        apiService.getWorkflowHistory(),
+        apiService.getHealthStatus()
+      ]);
+
+      // Handle desktops
+      if (desktopsData.status === 'fulfilled' && desktopsData.value.success) {
+        setDesktops(desktopsData.value.data || []);
+      } else {
+        console.warn('Failed to load desktops:', desktopsData.status === 'fulfilled' ? desktopsData.value.error : desktopsData.reason);
+        setDesktops([]);
+      }
+
+      // Handle workflows
+      if (workflowsData.status === 'fulfilled' && workflowsData.value.success) {
+        setWorkflows(workflowsData.value.data || []);
+      } else {
+        console.warn('Failed to load workflows:', workflowsData.status === 'fulfilled' ? workflowsData.value.error : workflowsData.reason);
+        setWorkflows([]);
+      }
+
+      // Handle executions with graceful fallback
+      if (executionsData.status === 'fulfilled' && executionsData.value.success) {
+        setExecutions(executionsData.value.data || []);
+      } else {
+        console.warn('Failed to load executions:', executionsData.status === 'fulfilled' ? executionsData.value.error : executionsData.reason);
+        // Set empty array instead of showing error to user for better UX
+        setExecutions([]);
+      }
+
+      // Handle health status
+      if (healthData.status === 'fulfilled' && healthData.value.success) {
+        setHealthStatus(healthData.value.data);
+      } else {
+        console.warn('Failed to load health status:', healthData.status === 'fulfilled' ? healthData.value.error : healthData.reason);
+        // Set default health status
+        setHealthStatus({
+          status: 'unknown',
+          services: [],
+          timestamp: new Date().toISOString()
+        });
+      }
+
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
       toast({
-        title: "Error signing out",
-        description: error.message,
+        title: "Dashboard partially loaded",
+        description: "Some dashboard data could not be loaded. Please try refreshing.",
         variant: "destructive",
       });
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadDashboardData();
+    setRefreshing(false);
+    toast({
+      title: "Dashboard refreshed",
+      description: "All data has been updated",
+    });
+  };
+
+  const handleSignOut = async () => {
+    await authService.signOut();
+    navigate("/auth");
   };
 
   if (isLoading) {
@@ -88,6 +160,13 @@ const Dashboard = () => {
       icon: <Monitor className="w-8 h-8" />,
       action: () => navigate("/live-desktop"),
       color: "bg-blue-500"
+    },
+    {
+      title: "Virtual Desktops",
+      description: "Manage virtual desktop environments for automation",
+      icon: <Layers className="w-8 h-8" />,
+      action: () => navigate("/virtual-desktops"),
+      color: "bg-indigo-500"
     },
     {
       title: "Multi-Desktop Streams",
@@ -119,11 +198,39 @@ const Dashboard = () => {
     }
   ];
 
+  // Calculate real-time stats from backend data
+  const activeDesktops = desktops.filter(d => d.status === 'active').length;
+  const runningWorkflows = executions.filter(e => e.status === 'running').length;
+  const totalWorkflows = executions.length;
+  const successRate = totalWorkflows > 0 
+    ? Math.round((executions.filter(e => e.status === 'completed').length / totalWorkflows) * 100)
+    : 0;
+
   const stats = [
-    { label: "Active Connections", value: "3", icon: <Server className="w-5 h-5" /> },
-    { label: "Running Workflows", value: "7", icon: <Workflow className="w-5 h-5" /> },
-    { label: "Connected Users", value: "12", icon: <Users className="w-5 h-5" /> },
-    { label: "System Uptime", value: "99.9%", icon: <BarChart3 className="w-5 h-5" /> },
+    { 
+      label: "Active Desktops", 
+      value: activeDesktops.toString(), 
+      icon: <Monitor className="w-5 h-5" />,
+      status: activeDesktops > 0 ? 'success' : 'warning'
+    },
+    { 
+      label: "Running Workflows", 
+      value: runningWorkflows.toString(), 
+      icon: <Workflow className="w-5 h-5" />,
+      status: 'info'
+    },
+    { 
+      label: "Available Templates", 
+      value: workflows.length.toString(), 
+      icon: <Layers className="w-5 h-5" />,
+      status: 'info'
+    },
+    { 
+      label: "Success Rate", 
+      value: `${successRate}%`, 
+      icon: <BarChart3 className="w-5 h-5" />,
+      status: successRate >= 80 ? 'success' : successRate >= 60 ? 'warning' : 'error'
+    },
   ];
 
   return (
@@ -140,8 +247,17 @@ const Dashboard = () => {
           </div>
           
           <div className="flex items-center space-x-4">
+            <Button 
+              onClick={handleRefresh} 
+              variant="outline" 
+              size="sm"
+              disabled={refreshing}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
             <div className="text-right">
-              <p className="text-sm font-medium">{user.email}</p>
+              <p className="text-sm font-medium">{user?.email || 'User'}</p>
               <p className="text-xs text-muted-foreground">Administrator</p>
             </div>
             <Button onClick={handleSignOut} variant="outline" size="sm">
@@ -164,15 +280,21 @@ const Dashboard = () => {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {stats.map((stat, index) => (
-            <Card key={index}>
+            <Card key={index} className="relative">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-2xl font-bold">{stat.value}</p>
                     <p className="text-sm text-muted-foreground">{stat.label}</p>
                   </div>
-                  <div className="text-muted-foreground">
-                    {stat.icon}
+                  <div className="flex items-center space-x-2">
+                    <div className="text-muted-foreground">
+                      {stat.icon}
+                    </div>
+                    {stat.status === 'success' && <CheckCircle className="w-4 h-4 text-green-500" />}
+                    {stat.status === 'warning' && <AlertCircle className="w-4 h-4 text-yellow-500" />}
+                    {stat.status === 'error' && <AlertCircle className="w-4 h-4 text-red-500" />}
+                    {stat.status === 'info' && <Clock className="w-4 h-4 text-blue-500" />}
                   </div>
                 </div>
               </CardContent>
@@ -206,29 +328,74 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
-                <Monitor className="w-5 h-5 text-blue-500" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Desktop connection established</p>
-                  <p className="text-xs text-muted-foreground">Connected to DESKTOP-001 • 2 minutes ago</p>
+              {/* Show recent workflow executions */}
+              {executions.slice(0, 5).map((execution, index) => {
+                const getStatusIcon = (status: string) => {
+                  switch (status) {
+                    case 'completed':
+                      return <CheckCircle className="w-5 h-5 text-green-500" />;
+                    case 'running':
+                      return <Clock className="w-5 h-5 text-blue-500" />;
+                    case 'failed':
+                      return <AlertCircle className="w-5 h-5 text-red-500" />;
+                    default:
+                      return <Workflow className="w-5 h-5 text-gray-500" />;
+                  }
+                };
+
+                const getTimeAgo = (timestamp: string) => {
+                  const now = new Date();
+                  const time = new Date(timestamp);
+                  const diffMs = now.getTime() - time.getTime();
+                  const diffMins = Math.floor(diffMs / 60000);
+                  
+                  if (diffMins < 1) return 'Just now';
+                  if (diffMins < 60) return `${diffMins} minutes ago`;
+                  const diffHours = Math.floor(diffMins / 60);
+                  if (diffHours < 24) return `${diffHours} hours ago`;
+                  const diffDays = Math.floor(diffHours / 24);
+                  return `${diffDays} days ago`;
+                };
+
+                const template = workflows.find(w => w.id === execution.templateId);
+
+                return (
+                  <div key={execution.id} className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
+                    {getStatusIcon(execution.status)}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        Workflow "{template?.name || 'Unknown'}" {execution.status}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {execution.status === 'running' && execution.progress && `Progress: ${execution.progress}% • `}
+                        {getTimeAgo(execution.startTime)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Show active desktops */}
+              {desktops.filter(d => d.status === 'active').slice(0, 3).map((desktop, index) => (
+                <div key={desktop.id} className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
+                  <Monitor className="w-5 h-5 text-blue-500" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Desktop "{desktop.name}" connected</p>
+                    <p className="text-xs text-muted-foreground">
+                      Status: {desktop.status} • {desktop.lastActivity ? `Last activity: ${new Date(desktop.lastActivity).toLocaleTimeString()}` : 'Active now'}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              
-              <div className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
-                <Workflow className="w-5 h-5 text-green-500" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Workflow "Data Backup" completed</p>
-                  <p className="text-xs text-muted-foreground">Processed 1,247 files • 15 minutes ago</p>
+              ))}
+
+              {/* Show message if no activity */}
+              {executions.length === 0 && desktops.length === 0 && (
+                <div className="text-center py-8">
+                  <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-sm text-muted-foreground">No recent activity</p>
+                  <p className="text-xs text-muted-foreground">Start a workflow or connect a desktop to see activity here</p>
                 </div>
-              </div>
-              
-              <div className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
-                <Users className="w-5 h-5 text-orange-500" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">New user session started</p>
-                  <p className="text-xs text-muted-foreground">user@company.com logged in • 1 hour ago</p>
-                </div>
-              </div>
+              )}
             </div>
           </CardContent>
         </Card>
