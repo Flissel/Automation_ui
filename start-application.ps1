@@ -1,244 +1,143 @@
-# TRAE Unity AI Platform - Complete Application Startup Script
-# This script starts all components of the desktop streaming application
+# TRAE Unity AI Platform - Startup Script mit Auto Dual Monitor Support
+# Teil des autonomen Programmer Projekts
 
 param(
     [switch]$ShowLogs = $false,
     [switch]$SkipDesktopClient = $false,
-    [string]$WebSocketPort = "8084",
-    [string]$FrontendPort = "8081"
+    [int]$WebSocketPort = 8084,
+    [int]$FrontendPort = 5174,
+    [switch]$AutoStartMonitors = $true
 )
 
-Write-Host "🚀 Starting TRAE Unity AI Platform..." -ForegroundColor Green
-Write-Host "WebSocket Server Port: $WebSocketPort" -ForegroundColor Yellow
+Write-Host "🚀 Starte TRAE Unity AI Platform mit Auto Dual Monitor Support" -ForegroundColor Green
+Write-Host "WebSocket Port: $WebSocketPort" -ForegroundColor Yellow
 Write-Host "Frontend Port: $FrontendPort" -ForegroundColor Yellow
+Write-Host "Auto Start Monitors: $AutoStartMonitors" -ForegroundColor Yellow
 
-# Get the root directory of the project
-$RootPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $RootPath
-
-# Function to check if a port is available
-function Test-Port {
-    param([string]$Port)
-    try {
-        $portInt = [int]$Port
-        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $portInt)
-        $listener.Start()
-        $listener.Stop()
-        return $true
-    } catch {
-        return $false
-    }
-}
-
-# Function to wait for service to be ready
-function Wait-ForService {
-    param([string]$Url, [string]$ServiceName, [int]$TimeoutSeconds = 30)
-    
-    Write-Host "⏳ Waiting for $ServiceName to be ready..." -ForegroundColor Yellow
-    $timeout = (Get-Date).AddSeconds($TimeoutSeconds)
-    
-    while ((Get-Date) -lt $timeout) {
-        try {
-            $response = Invoke-WebRequest -Uri $Url -Method GET -TimeoutSec 5 -ErrorAction SilentlyContinue
-            if ($response.StatusCode -eq 200) {
-                Write-Host "✅ $ServiceName is ready!" -ForegroundColor Green
-                return $true
-            }
-        } catch {
-            # Service not ready yet, continue waiting
-        }
-        Start-Sleep -Seconds 2
-    }
-    
-    Write-Host "⚠️  $ServiceName did not become ready within $TimeoutSeconds seconds" -ForegroundColor Red
-    return $false
-}
-
-# Check prerequisites
-Write-Host "🔍 Checking prerequisites..." -ForegroundColor Cyan
-
-# Check Node.js
+# Erkenne Monitor-Setup
+Write-Host "🖥️  Erkenne Monitor-Konfiguration..." -ForegroundColor Cyan
 try {
-    $nodeVersion = node --version
-    Write-Host "✅ Node.js found: $nodeVersion" -ForegroundColor Green
+    Add-Type -AssemblyName System.Windows.Forms
+    $screens = [System.Windows.Forms.Screen]::AllScreens
+    $monitorCount = $screens.Count
+    
+    Write-Host "Erkannte $monitorCount Monitor(e):" -ForegroundColor Green
+    for ($i = 0; $i -lt $screens.Count; $i++) {
+        $screen = $screens[$i]
+        $isPrimary = if ($screen.Primary) { " (Primary)" } else { "" }
+        Write-Host "  Monitor $($i + 1): $($screen.Bounds.Width)x$($screen.Bounds.Height)$isPrimary" -ForegroundColor Cyan
+    }
 } catch {
-    Write-Host "❌ Node.js not found. Please install Node.js first." -ForegroundColor Red
-    exit 1
+    Write-Host "⚠️  Fehler bei Monitor-Erkennung, verwende Fallback: 1 Monitor" -ForegroundColor Yellow
+    $monitorCount = 1
 }
 
-# Check npm
+# Prüfe Voraussetzungen
+Write-Host "🔍 Prüfe Systemvoraussetzungen..." -ForegroundColor Cyan
+
 try {
-    $npmVersion = npm --version
-    Write-Host "✅ npm found: $npmVersion" -ForegroundColor Green
+    $nodeVersion = & node --version 2>$null
+    Write-Host "✅ Node.js gefunden: $nodeVersion" -ForegroundColor Green
 } catch {
-    Write-Host "❌ npm not found. Please install npm first." -ForegroundColor Red
+    Write-Host "❌ Node.js nicht gefunden" -ForegroundColor Red
     exit 1
 }
 
-# Check Python (only if not skipping desktop client)
-if (-not $SkipDesktopClient) {
-    try {
-        $pythonVersion = python --version
-        Write-Host "✅ Python found: $pythonVersion" -ForegroundColor Green
-    } catch {
-        Write-Host "❌ Python not found. Please install Python first." -ForegroundColor Red
-        Write-Host "   Or use -SkipDesktopClient to start without desktop capture." -ForegroundColor Yellow
-        exit 1
-    }
-}
-
-# Check if ports are available
-if (-not (Test-Port -Port $WebSocketPort)) {
-    Write-Host "❌ Port $WebSocketPort is already in use. Please stop the service using this port or choose a different port." -ForegroundColor Red
+try {
+    $npmVersion = & npm --version 2>$null
+    Write-Host "✅ npm gefunden: $npmVersion" -ForegroundColor Green
+} catch {
+    Write-Host "❌ npm nicht gefunden" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "✅ All prerequisites met!" -ForegroundColor Green
-Write-Host ""
-
-# Install frontend dependencies if needed
-if (-not (Test-Path "node_modules")) {
-    Write-Host "📦 Installing frontend dependencies..." -ForegroundColor Cyan
-    npm install
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ Failed to install frontend dependencies" -ForegroundColor Red
-        exit 1
-    }
-    Write-Host "✅ Frontend dependencies installed!" -ForegroundColor Green
+try {
+    $pythonVersion = & python --version 2>$null
+    Write-Host "✅ Python gefunden: $pythonVersion" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Python nicht gefunden" -ForegroundColor Red
+    exit 1
 }
 
-# Install Python dependencies if needed (only if not skipping desktop client)
-if (-not $SkipDesktopClient) {
-    $desktopClientPath = Join-Path $RootPath "desktop-client"
-    if (Test-Path $desktopClientPath) {
-        Write-Host "📦 Installing Python dependencies for desktop client..." -ForegroundColor Cyan
-        Set-Location $desktopClientPath
-        
-        # Check if requirements.txt exists
-        if (Test-Path "requirements.txt") {
-            pip install -r requirements.txt
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "❌ Failed to install Python dependencies" -ForegroundColor Red
-                Set-Location $RootPath
-                exit 1
-            }
-        } else {
-            # Install common dependencies
-            pip install websockets pillow pynput pyautogui
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "❌ Failed to install Python dependencies" -ForegroundColor Red
-                Set-Location $RootPath
-                exit 1
-            }
-        }
-        
-        Set-Location $RootPath
-        Write-Host "✅ Python dependencies installed!" -ForegroundColor Green
-    }
+# Installiere Dependencies
+Write-Host "📦 Installiere Dependencies..." -ForegroundColor Cyan
+
+Write-Host "  Frontend Dependencies..." -ForegroundColor Yellow
+& npm install --silent
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Frontend Dependencies Installation fehlgeschlagen" -ForegroundColor Red
+    exit 1
 }
 
-Write-Host ""
-Write-Host "🚀 Starting services..." -ForegroundColor Green
+Write-Host "  Python Dependencies..." -ForegroundColor Yellow
+& python -m pip install -r desktop-client/requirements.txt --quiet
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Python Dependencies Installation fehlgeschlagen" -ForegroundColor Red
+    exit 1
+}
 
-# Array to store background jobs
+Write-Host "✅ Alle Dependencies installiert" -ForegroundColor Green
+
+# Starte Services
 $jobs = @()
 
-# 1. Start WebSocket Server
-Write-Host "🌐 Starting WebSocket Server on port $WebSocketPort..." -ForegroundColor Cyan
-$wsServerPath = Join-Path $RootPath "local-websocket-server.js"
+# WebSocket Server
+Write-Host "🌐 Starte WebSocket Server..." -ForegroundColor Cyan
+$wsJob = Start-Job -ScriptBlock {
+    Set-Location $using:PWD
+    & node local-websocket-server.js
+} -Name "WebSocket-Server"
+$jobs += $wsJob
 
-if (Test-Path $wsServerPath) {
-    $wsJob = Start-Job -ScriptBlock {
-        param($serverPath, $port)
-        $env:WS_PORT = $port
-        node $serverPath
-    } -ArgumentList $wsServerPath, $WebSocketPort -Name "WebSocket-Server"
-    
-    $jobs += $wsJob
-    Start-Sleep -Seconds 3
-    
-    # Verify WebSocket server is running
-    $wsRunning = $false
-    for ($i = 0; $i -lt 10; $i++) {
-        $jobOutput = Receive-Job -Job $wsJob -Keep
-        if ($jobOutput -match "WebSocket server listening on port $WebSocketPort") {
-            $wsRunning = $true
-            break
-        }
-        Start-Sleep -Seconds 1
-    }
-    
-    if ($wsRunning) {
-        Write-Host "✅ WebSocket Server started successfully!" -ForegroundColor Green
-    } else {
-        Write-Host "⚠️  WebSocket Server may not have started properly. Check logs." -ForegroundColor Yellow
-    }
-} else {
-    Write-Host "❌ WebSocket server file not found at: $wsServerPath" -ForegroundColor Red
-    exit 1
-}
+Start-Sleep -Seconds 3
 
-# 2. Start Desktop Spawner (only if not skipping desktop client)
-if (-not $SkipDesktopClient) {
-    Write-Host "🖥️  Starting Desktop Spawner Service..." -ForegroundColor Cyan
-    $spawnerPath = Join-Path $RootPath "desktop-client\desktop_spawner.py"
-    
-    if (Test-Path $spawnerPath) {
-        $spawnerJob = Start-Job -ScriptBlock {
-            param($spawnerPath, $wsPort)
-            $serverUrl = "ws://localhost:$wsPort"
-            python $spawnerPath --server-url $serverUrl
-        } -ArgumentList $spawnerPath, $WebSocketPort -Name "Desktop-Spawner"
-        
-        $jobs += $spawnerJob
-        Start-Sleep -Seconds 3
-        Write-Host "✅ Desktop Spawner Service started!" -ForegroundColor Green
-    } else {
-        Write-Host "⚠️  Desktop spawner not found at: $spawnerPath" -ForegroundColor Yellow
-        Write-Host "   Desktop capture functionality will not be available." -ForegroundColor Yellow
-    }
-}
-
-# 3. Start Frontend Development Server
-Write-Host "🎨 Starting Frontend Development Server..." -ForegroundColor Cyan
+# Frontend Server
+Write-Host "🎨 Starte Frontend Development Server..." -ForegroundColor Cyan
 $frontendJob = Start-Job -ScriptBlock {
-    param($port)
-    $env:PORT = $port
-    npm run dev
-} -ArgumentList $FrontendPort -Name "Frontend-Server"
-
+    Set-Location $using:PWD
+    & npm run dev
+} -Name "Frontend-Server"
 $jobs += $frontendJob
+
 Start-Sleep -Seconds 5
 
-# Wait for frontend to be ready
-$frontendReady = Wait-ForService -Url "http://localhost:$FrontendPort" -ServiceName "Frontend Server" -TimeoutSeconds 30
-
-if ($frontendReady) {
-    Write-Host "✅ Frontend Development Server started successfully!" -ForegroundColor Green
-} else {
-    Write-Host "⚠️  Frontend server may not have started properly. Check logs." -ForegroundColor Yellow
+# Auto Dual Monitor System (wenn aktiviert)
+if ($AutoStartMonitors -and -not $SkipDesktopClient) {
+    Write-Host "🖥️  Starte Auto Dual Monitor System..." -ForegroundColor Cyan
+    $autoMonitorJob = Start-Job -ScriptBlock {
+        param($serverUrl)
+        Set-Location $using:PWD
+        & python auto-start-dual-monitors.py --server-url $serverUrl
+    } -ArgumentList "ws://localhost:$WebSocketPort" -Name "Auto-Monitor-System"
+    $jobs += $autoMonitorJob
+    
+    Start-Sleep -Seconds 5
+    Write-Host "✅ Auto Dual Monitor System gestartet" -ForegroundColor Green
 }
 
-Write-Host ""
-Write-Host "🎉 TRAE Unity AI Platform is ready!" -ForegroundColor Green
-Write-Host ""
-Write-Host "📊 Service Status:" -ForegroundColor Yellow
-Write-Host "  • WebSocket Server: ws://localhost:$WebSocketPort" -ForegroundColor Cyan
-Write-Host "  • Frontend Application: http://localhost:$FrontendPort" -ForegroundColor Cyan
-Write-Host "  • Multi-Desktop Streams: http://localhost:$FrontendPort/multi-desktop" -ForegroundColor Cyan
+# Warte auf Services
+Write-Host "⏳ Warte auf Service-Initialisierung..." -ForegroundColor Yellow
+Start-Sleep -Seconds 10
 
-if (-not $SkipDesktopClient) {
-    Write-Host "  • Desktop Spawner: Connected to WebSocket server" -ForegroundColor Cyan
+# Zeige Status
+Write-Host ""
+Write-Host "🎉 TRAE Unity AI Platform erfolgreich gestartet!" -ForegroundColor Green
+Write-Host ""
+Write-Host "📊 System-Status:" -ForegroundColor Yellow
+Write-Host "  ✅ WebSocket Server: ws://localhost:$WebSocketPort" -ForegroundColor Cyan
+Write-Host "  ✅ Frontend Server: http://localhost:$FrontendPort" -ForegroundColor Cyan
+if ($AutoStartMonitors -and -not $SkipDesktopClient) {
+    Write-Host "  ✅ Auto Monitor System: $monitorCount Monitor(e) erkannt" -ForegroundColor Cyan
 }
-
 Write-Host ""
-Write-Host "🔗 Quick Links:" -ForegroundColor Yellow
-Write-Host "  • Main Application: http://localhost:$FrontendPort" -ForegroundColor Cyan
-Write-Host "  • Desktop Streaming: http://localhost:$FrontendPort/multi-desktop" -ForegroundColor Cyan
+Write-Host "🌐 Hauptanwendung: http://localhost:$FrontendPort/" -ForegroundColor Green
+Write-Host "📺 Desktop Streams: Automatisch verfügbar im Web-Interface" -ForegroundColor Green
+Write-Host ""
+Write-Host "💡 Erwarte $monitorCount Monitor-Stream(s) im Web-Interface" -ForegroundColor Yellow
+Write-Host ""
 
 if ($ShowLogs) {
-    Write-Host ""
-    Write-Host "📋 Showing logs (Press Ctrl+C to stop all services)..." -ForegroundColor Yellow
+    Write-Host "📋 Zeige Logs (Drücken Sie Ctrl+C zum Beenden)..." -ForegroundColor Yellow
     try {
         while ($true) {
             foreach ($job in $jobs) {
@@ -248,20 +147,24 @@ if ($ShowLogs) {
                     Write-Host "[$timestamp][$($job.Name)] $output" -ForegroundColor Gray
                 }
             }
-            Start-Sleep -Seconds 1
+            Start-Sleep -Seconds 2
         }
     } finally {
         Write-Host ""
-        Write-Host "🛑 Stopping all services..." -ForegroundColor Red
+        Write-Host "🛑 Beende alle Services..." -ForegroundColor Red
         $jobs | Stop-Job -PassThru | Remove-Job
-        Write-Host "✅ All services stopped!" -ForegroundColor Green
+        Write-Host "✅ Alle Services beendet!" -ForegroundColor Green
     }
 } else {
+    Write-Host "ℹ️  Services laufen im Hintergrund." -ForegroundColor Blue
+    Write-Host "📋 Logs anzeigen: Get-Job | Receive-Job" -ForegroundColor Cyan
+    Write-Host "🛑 Services beenden: Get-Job | Stop-Job; Get-Job | Remove-Job" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "ℹ️  Services are running in background." -ForegroundColor Blue
-    Write-Host "📋 View logs with: Get-Job | Receive-Job" -ForegroundColor Cyan
-    Write-Host "🛑 Stop all services with: Get-Job | Stop-Job; Get-Job | Remove-Job" -ForegroundColor Cyan
+    Write-Host "🔧 Zum Beenden: Drücken Sie eine beliebige Taste..." -ForegroundColor Yellow
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    
     Write-Host ""
-    Write-Host "💡 Tip: Use -ShowLogs parameter to see real-time logs" -ForegroundColor Yellow
-    Write-Host "💡 Tip: Use -SkipDesktopClient to start without desktop capture" -ForegroundColor Yellow
+    Write-Host "🛑 Beende alle Services..." -ForegroundColor Red
+    $jobs | Stop-Job -PassThru | Remove-Job
+    Write-Host "✅ Alle Services beendet!" -ForegroundColor Green
 }

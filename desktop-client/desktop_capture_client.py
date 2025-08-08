@@ -25,24 +25,29 @@ import signal
 import sys
 import tkinter as tk
 from typing import Optional, Dict, Any, List
+from permission_handler import PermissionHandler
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class DesktopCaptureClient:
-    def __init__(self, server_url: str, client_id: Optional[str] = None):
+    def __init__(self, server_url: str, client_id: Optional[str] = None, monitor_index: Optional[int] = None):
         """
         Initialize the desktop capture client.
         
         Args:
             server_url: WebSocket server URL to connect to
             client_id: Optional client identifier (auto-generated if not provided)
+            monitor_index: Optional monitor index to target (0 for primary, 1 for secondary)
         """
         self.server_url = server_url
         self.client_id = client_id or str(uuid.uuid4())
         self.websocket: Optional[websockets.WebSocketServerProtocol] = None
         self.is_capturing = False
+        
+        # Monitor targeting configuration
+        self.monitor_index = monitor_index
         
         # Desktop instance identification
         self.desktop_id: Optional[str] = None
@@ -68,11 +73,15 @@ class DesktopCaptureClient:
         
         # Initialize monitor detection
         self._detect_monitors()
+        
+        # Initialize permission handler
+        self.permission_handler = PermissionHandler()
+        self.permission_handler.set_permission_callback(self.send_permission_response)
 
     def _detect_monitors(self):
         """
         Detect available monitors using tkinter.
-        Enhanced to support multiple monitor detection.
+        Enhanced to support multiple monitor detection with correct physical mapping.
         """
         try:
             # Create a temporary tkinter root to get screen info
@@ -108,33 +117,73 @@ class DesktopCaptureClient:
             except Exception as e:
                 logger.warning(f"Virtual desktop capture test failed: {e}")
             
-            # Simple heuristic: if virtual width is much larger than screen width, 
-            # we likely have multiple monitors
+            # Enhanced monitor detection with proper physical mapping
             if virtual_width > screen_width * 1.5:
-                # Assume dual monitor setup side by side
-                self.monitor_info = {
-                    'monitor_0': {
-                        'index': 0,
-                        'name': 'Primary Monitor',
-                        'x': 0,
-                        'y': 0,
-                        'width': screen_width,
-                        'height': screen_height,
-                        'is_primary': True
-                    },
-                    'monitor_1': {
-                        'index': 1,
-                        'name': 'Secondary Monitor',
-                        'x': screen_width,
-                        'y': 0,
-                        'width': virtual_width - screen_width,
-                        'height': screen_height,
-                        'is_primary': False
+                # Dual monitor setup detected
+                # In Windows, the primary monitor is typically at (0,0)
+                # Secondary monitor position depends on display settings
+                
+                # Check if we have a specific monitor index override from command line
+                monitor_index = getattr(self, 'monitor_index', None)
+                
+                if monitor_index == 0:
+                    # This client should handle monitor 0 (Primary - left monitor)
+                    self.monitor_info = {
+                        'monitor_0': {
+                            'index': 0,
+                            'name': 'Primary Monitor',
+                            'x': 0,
+                            'y': 0,
+                            'width': screen_width,
+                            'height': screen_height,
+                            'is_primary': True
+                        }
                     }
-                }
-                logger.info("Detected dual monitor setup:")
-                logger.info(f"  Primary: {screen_width}x{screen_height} at (0, 0)")
-                logger.info(f"  Secondary: {virtual_width - screen_width}x{screen_height} at ({screen_width}, 0)")
+                    logger.info("Configured for Primary Monitor (monitor_0):")
+                    logger.info(f"  Primary: {screen_width}x{screen_height} at (0, 0)")
+                    
+                elif monitor_index == 1:
+                    # This client should handle monitor 1 (Secondary - right monitor)
+                    secondary_width = virtual_width - screen_width
+                    self.monitor_info = {
+                        'monitor_1': {
+                            'index': 1,
+                            'name': 'Secondary Monitor',
+                            'x': screen_width,
+                            'y': 0,
+                            'width': secondary_width,
+                            'height': screen_height,
+                            'is_primary': False
+                        }
+                    }
+                    logger.info("Configured for Secondary Monitor (monitor_1):")
+                    logger.info(f"  Secondary: {secondary_width}x{screen_height} at ({screen_width}, 0)")
+                    
+                else:
+                    # Default: detect both monitors (for backward compatibility)
+                    self.monitor_info = {
+                        'monitor_0': {
+                            'index': 0,
+                            'name': 'Primary Monitor',
+                            'x': 0,
+                            'y': 0,
+                            'width': screen_width,
+                            'height': screen_height,
+                            'is_primary': True
+                        },
+                        'monitor_1': {
+                            'index': 1,
+                            'name': 'Secondary Monitor',
+                            'x': screen_width,
+                            'y': 0,
+                            'width': virtual_width - screen_width,
+                            'height': screen_height,
+                            'is_primary': False
+                        }
+                    }
+                    logger.info("Detected dual monitor setup (both monitors):")
+                    logger.info(f"  Primary: {screen_width}x{screen_height} at (0, 0)")
+                    logger.info(f"  Secondary: {virtual_width - screen_width}x{screen_height} at ({screen_width}, 0)")
             else:
                 # Single monitor
                 self.monitor_info = {
@@ -376,6 +425,15 @@ class DesktopCaptureClient:
             # This might indicate a server-side routing issue
             logger.debug(f"Received frame_data message (unexpected for desktop client)")
             # Silently ignore to prevent spam, but log at debug level for troubleshooting
+            
+        elif message_type == 'request_permission':
+            await self.handle_permission_request(data)
+            
+        elif message_type == 'check_permission':
+            await self.handle_permission_check(data)
+            
+        elif message_type == 'revoke_permission':
+            await self.handle_permission_revocation(data)
             
         else:
             logger.warning(f"Unknown message type: {message_type}")
@@ -658,6 +716,101 @@ class DesktopCaptureClient:
 
         await self.send_message(message)
 
+    async def handle_permission_request(self, data: Dict[str, Any]):
+        """Handle incoming permission request from web client."""
+        try:
+            web_client_id = data.get('web_client_id')
+            permission_type = data.get('permission_type')
+            request_id = data.get('request_id')
+            
+            logger.info(f"Received permission request from {web_client_id} for {permission_type}")
+            
+            # Use permission handler to process the request
+            if self.permission_handler:
+                self.permission_handler.handle_permission_request(
+                    web_client_id, permission_type, request_id
+                )
+            else:
+                logger.error("Permission handler not initialized")
+                # Send denial response
+                await self.send_permission_response(request_id, False, "Permission handler not available")
+                
+        except Exception as e:
+            logger.error(f"Error handling permission request: {e}")
+            if 'request_id' in data:
+                await self.send_permission_response(data['request_id'], False, f"Error: {str(e)}")
+
+    async def handle_permission_check(self, data: Dict[str, Any]):
+        """Handle permission status check request."""
+        try:
+            web_client_id = data.get('web_client_id')
+            permission_type = data.get('permission_type')
+            
+            logger.info(f"Checking permission for {web_client_id} - {permission_type}")
+            
+            # Check permission status
+            if self.permission_handler:
+                has_permission = self.permission_handler.check_permission(web_client_id, permission_type)
+                
+                # Send permission status response
+                await self.send_message({
+                    'type': 'permission_status',
+                    'web_client_id': web_client_id,
+                    'permission_type': permission_type,
+                    'has_permission': has_permission,
+                    'desktop_client_id': self.client_id,
+                    'timestamp': time.time()
+                })
+            else:
+                logger.error("Permission handler not initialized")
+                
+        except Exception as e:
+            logger.error(f"Error checking permission: {e}")
+
+    async def handle_permission_revocation(self, data: Dict[str, Any]):
+        """Handle permission revocation request."""
+        try:
+            web_client_id = data.get('web_client_id')
+            permission_type = data.get('permission_type')
+            
+            logger.info(f"Revoking permission for {web_client_id} - {permission_type}")
+            
+            # Revoke permission
+            if self.permission_handler:
+                self.permission_handler.revoke_permission(web_client_id, permission_type)
+                
+                # Send revocation confirmation
+                await self.send_message({
+                    'type': 'permission_revoked',
+                    'web_client_id': web_client_id,
+                    'permission_type': permission_type,
+                    'desktop_client_id': self.client_id,
+                    'timestamp': time.time()
+                })
+            else:
+                logger.error("Permission handler not initialized")
+                
+        except Exception as e:
+            logger.error(f"Error revoking permission: {e}")
+
+    async def send_permission_response(self, request_id: str, granted: bool, reason: str = ""):
+        """Send permission response back to server."""
+        try:
+            response = {
+                'type': 'permission_response',
+                'request_id': request_id,
+                'granted': granted,
+                'reason': reason,
+                'desktop_client_id': self.client_id,
+                'timestamp': time.time()
+            }
+            
+            await self.send_message(response)
+            logger.info(f"Sent permission response: {granted} for request {request_id}")
+            
+        except Exception as e:
+            logger.error(f"Error sending permission response: {e}")
+
 async def main():
     parser = argparse.ArgumentParser(description='Desktop Capture Client for TRAE Unity AI Platform')
     parser.add_argument('--server-url', 
@@ -696,7 +849,7 @@ async def main():
     logging.getLogger().setLevel(getattr(logging, args.log_level))
 
     # Create and run client
-    client = DesktopCaptureClient(args.server_url, args.client_id)
+    client = DesktopCaptureClient(args.server_url, args.client_id, args.monitor_index)
     
     # Configure capture settings from command line arguments
     if args.fps:

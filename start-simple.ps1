@@ -1,68 +1,78 @@
-# Simple TRAE Unity AI Platform Startup Script
+# TRAE Unity AI Platform - Simple Startup Script
 param(
-    [switch]$SkipDesktopClient = $false,
-    [string]$WebSocketPort = "8084",
-    [string]$FrontendPort = "8081"
+    [switch]$ShowLogs = $false,
+    [int]$WebSocketPort = 8084,
+    [int]$FrontendPort = 5174
 )
 
-Write-Host "🚀 Starting TRAE Unity AI Platform..." -ForegroundColor Green
+Write-Host "Starting TRAE Unity AI Platform..." -ForegroundColor Green
 
-# Get the root directory
-$RootPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $RootPath
+# Check prerequisites
+Write-Host "Checking Node.js..." -ForegroundColor Cyan
+$nodeCheck = Get-Command node -ErrorAction SilentlyContinue
+if (-not $nodeCheck) {
+    Write-Host "Node.js not found!" -ForegroundColor Red
+    exit 1
+}
+Write-Host "Node.js found" -ForegroundColor Green
 
-# Check Node.js
-try {
-    $nodeVersion = node --version
-    Write-Host "✅ Node.js found: $nodeVersion" -ForegroundColor Green
-} catch {
-    Write-Host "❌ Node.js not found. Please install Node.js first." -ForegroundColor Red
+Write-Host "Checking Python..." -ForegroundColor Cyan
+$pythonCheck = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pythonCheck) {
+    Write-Host "Python not found!" -ForegroundColor Red
+    exit 1
+}
+Write-Host "Python found" -ForegroundColor Green
+
+# Install dependencies
+Write-Host "Installing dependencies..." -ForegroundColor Cyan
+npm install
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Failed to install npm dependencies" -ForegroundColor Red
     exit 1
 }
 
-# Install dependencies if needed
-if (-not (Test-Path "node_modules")) {
-    Write-Host "📦 Installing dependencies..." -ForegroundColor Cyan
-    npm install
-}
-
-Write-Host "🚀 Starting services..." -ForegroundColor Green
-
-# Start WebSocket Server
-Write-Host "🌐 Starting WebSocket Server..." -ForegroundColor Cyan
-$wsServerPath = "local-websocket-server.js"
-if (Test-Path $wsServerPath) {
-    Start-Process -FilePath "node" -ArgumentList $wsServerPath -WindowStyle Hidden
-    Start-Sleep -Seconds 3
-    Write-Host "✅ WebSocket Server started!" -ForegroundColor Green
-} else {
-    Write-Host "❌ WebSocket server not found!" -ForegroundColor Red
+python -m pip install -r desktop-client/requirements.txt
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Failed to install Python dependencies" -ForegroundColor Red
     exit 1
 }
 
-# Start Desktop Spawner (if not skipped)
-if (-not $SkipDesktopClient) {
-    $spawnerPath = "desktop-client\desktop_spawner.py"
-    if (Test-Path $spawnerPath) {
-        Write-Host "🖥️  Starting Desktop Spawner..." -ForegroundColor Cyan
-        Start-Process -FilePath "python" -ArgumentList $spawnerPath -WindowStyle Hidden
-        Start-Sleep -Seconds 2
-        Write-Host "✅ Desktop Spawner started!" -ForegroundColor Green
-    } else {
-        Write-Host "⚠️  Desktop spawner not found, skipping..." -ForegroundColor Yellow
-    }
+# Start services
+Write-Host "Starting WebSocket server..." -ForegroundColor Cyan
+$wsJob = Start-Job -ScriptBlock {
+    Set-Location $using:PWD
+    node local-websocket-server.js
 }
 
-# Start Frontend
-Write-Host "🎨 Starting Frontend..." -ForegroundColor Cyan
-Start-Process -FilePath "npm" -ArgumentList "run", "dev" -WindowStyle Hidden
+Start-Sleep -Seconds 3
+
+Write-Host "Starting frontend server..." -ForegroundColor Cyan
+$frontendJob = Start-Job -ScriptBlock {
+    Set-Location $using:PWD
+    npm run dev
+}
+
+Start-Sleep -Seconds 5
+
+Write-Host "Starting auto monitor system..." -ForegroundColor Cyan
+$monitorJob = Start-Job -ScriptBlock {
+    Set-Location $using:PWD
+    python auto-start-dual-monitors.py --server-url "ws://localhost:8084"
+}
+
 Start-Sleep -Seconds 5
 
 Write-Host ""
-Write-Host "🎉 TRAE Unity AI Platform is ready!" -ForegroundColor Green
-Write-Host "📊 Access points:" -ForegroundColor Yellow
-Write-Host "  • Frontend: http://localhost:$FrontendPort" -ForegroundColor Cyan
-Write-Host "  • Multi-Desktop: http://localhost:$FrontendPort/multi-desktop" -ForegroundColor Cyan
-Write-Host "  • WebSocket: ws://localhost:$WebSocketPort" -ForegroundColor Cyan
+Write-Host "TRAE Unity AI Platform started successfully!" -ForegroundColor Green
+Write-Host "Frontend: http://localhost:$FrontendPort" -ForegroundColor Cyan
+Write-Host "WebSocket: ws://localhost:$WebSocketPort" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "💡 To stop services, close the terminal or use Task Manager" -ForegroundColor Yellow
+Write-Host "Press any key to stop all services..." -ForegroundColor Yellow
+
+$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+
+Write-Host "Stopping services..." -ForegroundColor Red
+Get-Job | Stop-Job
+Get-Job | Remove-Job
+Write-Host "All services stopped!" -ForegroundColor Green

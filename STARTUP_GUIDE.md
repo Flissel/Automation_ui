@@ -1,67 +1,92 @@
 # TRAE Unity AI Platform - Startup Guide
 
-This guide explains how to start the complete TRAE Unity AI Platform application, including the frontend, WebSocket server, and desktop capture services.
+This guide explains how to start the complete TRAE Unity AI Platform application with multi-monitor desktop streaming capabilities.
 
-## 🚀 Quick Start
+## 🚀 Current Working Setup (Recommended)
 
-### Windows Users
+### **Multi-Monitor Desktop Streaming** ✅ TESTED & WORKING
 
-#### Option 1: Simple Batch Files (Easiest)
-```bash
-# Start all services
+The current setup uses individual services for optimal performance:
+
+```powershell
+# 1. Start WebSocket Server (Port 8085)
+$env:WS_PORT=8085; node local-websocket-server.js
+
+# 2. Start Primary Monitor Client (Monitor 0)
+python desktop-client\multi_monitor_capture_client.py --server-url ws://localhost:8085 --client-id primary --capture-mode primary_only --disable-inactive-detection
+
+# 3. Start Secondary Monitor Client (Monitor 1) 
+python desktop-client\multi_monitor_capture_client.py --server-url ws://localhost:8085 --client-id secondary --capture-mode secondary_only --disable-inactive-detection
+
+# 4. Start Frontend Development Server
+npm run dev
+```
+
+**Access Points:**
+- **Main Application**: http://localhost:5174
+- **Multi-Desktop Streaming**: http://localhost:5174/multi-desktop ⭐ **RECOMMENDED**
+- **WebSocket Server**: ws://localhost:8085
+
+## 🛠️ Alternative Startup Methods
+
+### Option 1: PowerShell Script (Advanced Users)
+```powershell
+# Full featured startup with options
+.\start-application.ps1 -ShowLogs -WebSocketPort 8085
+
+# Simple startup without desktop capture
+.\start-application.ps1 -SkipDesktopClient
+```
+
+### Option 2: Batch File (Quick Start)
+```batch
+# Simple all-in-one startup
 .\start-all.bat
+```
 
-# Stop all services
+**Note:** The batch file uses older configuration and may need port adjustments.
+
+### Option 3: Individual Service Management (Expert Users)
+```powershell
+# Manual service startup for maximum control
+# Terminal 1: WebSocket Server
+$env:WS_PORT=8085; node local-websocket-server.js
+
+# Terminal 2: Primary Monitor Client  
+python desktop-client\multi_monitor_capture_client.py --server-url ws://localhost:8085 --client-id primary --capture-mode primary_only --disable-inactive-detection
+
+# Terminal 3: Secondary Monitor Client
+python desktop-client\multi_monitor_capture_client.py --server-url ws://localhost:8085 --client-id secondary --capture-mode secondary_only --disable-inactive-detection
+
+# Terminal 4: Frontend
+npm run dev
+```
+
+## 🛠️ **Multi-Monitor Window Management**
+
+### Move Frontend to Secondary Monitor
+```powershell
+# Automatically move browser window to secondary monitor
+.\move-frontend-to-secondary.ps1
+```
+
+**Features:**
+- Automatic browser window detection
+- Secondary monitor positioning (1920x1080 offset)
+- Window maximization on target monitor
+- Resolves black screen issues on secondary displays
+
+## 🛑 **Stopping Services**
+
+```batch
+# Stop all services cleanly
 .\stop-all.bat
 ```
 
-#### Option 2: Interactive Batch File (Recommended)
-```bash
-# Double-click or run from command prompt
-start-application.bat
-```
-
-This will present you with a menu:
-1. **Start with logs** - Shows real-time logs from all services (recommended for development)
-2. **Start in background** - Runs services in background (recommended for production)
-3. **Start without desktop capture** - Frontend + WebSocket only (if you don't need desktop streaming)
-
-#### Option 3: PowerShell Script (Advanced)
-```powershell
-# Basic startup
-.\start-application.ps1
-
-# With real-time logs
-.\start-application.ps1 -ShowLogs
-
-# Without desktop capture
-.\start-application.ps1 -SkipDesktopClient
-
-# Custom ports
-.\start-application.ps1 -WebSocketPort 8085 -FrontendPort 3000
-```
-
-### Linux/macOS Users
-
-```bash
-# Make script executable (first time only)
-chmod +x start-application.sh
-
-# Basic startup
-./start-application.sh
-
-# With real-time logs
-./start-application.sh --show-logs
-
-# Without desktop capture
-./start-application.sh --skip-desktop-client
-
-# Custom ports
-./start-application.sh --websocket-port 8085 --frontend-port 3000
-
-# Show help
-./start-application.sh --help
-```
+This will terminate:
+- All Node.js processes (WebSocket server, frontend)
+- All Python processes (desktop capture clients)
+- All npm processes
 
 ## 📋 Prerequisites
 

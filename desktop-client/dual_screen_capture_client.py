@@ -7,7 +7,7 @@ Requirements:
 - pip install websockets pillow pynput pyautogui screeninfo opencv-python numpy
 
 Usage:
-python dual_screen_capture_client.py --server-url ws://localhost:8084
+python dual_screen_capture_client.py --server-url ws://localhost:8085
 """
 
 import asyncio
@@ -25,6 +25,7 @@ import io
 import cv2
 import numpy as np
 from screeninfo import get_monitors
+from permission_handler import PermissionHandler
 
 # Configure logging
 logging.basicConfig(
@@ -37,6 +38,7 @@ class DualScreenCaptureClient:
     """
     Erweiterte Desktop-Capture-Client für gleichzeitige Dual-Screen-Erfassung.
     Folgt den TRAE Unity AI Platform Namenskonventionen und Coding-Standards.
+    Implementiert robuste Fehlerbehandlung und automatische Wiederverbindung.
     """
     
     def __init__(self, server_url: str, client_id: Optional[str] = None):
@@ -51,13 +53,30 @@ class DualScreenCaptureClient:
         self.client_id = client_id or f"dual_screen_client_{str(uuid.uuid4())[:8]}"
         self.websocket: Optional[websockets.WebSocketServerProtocol] = None
         
-        # Capture-Konfiguration
+        # Initialize permission handler
+        self.permission_handler = PermissionHandler()
+        self.permission_handler.set_permission_callback(self.send_permission_response)
+        
+        # Robustheit und Wiederverbindung
+        self.is_connected = False
+        self.reconnect_attempts = 0
+        self.max_reconnect_attempts = 10
+        self.reconnect_delay = 5.0  # Sekunden
+        self.last_successful_send = time.time()
+        self.connection_timeout = 30.0  # Sekunden
+        self.ping_interval = 10.0  # Sekunden
+        self.last_ping = time.time()
+        
+        # Capture-Konfiguration mit adaptiver Qualität
         self.is_capturing = False
         self.capture_config = {
-            'fps': 10,
-            'quality': 80,
+            'fps': 8,  # Reduziert für bessere Stabilität
+            'quality': 75,  # Reduziert für bessere Performance
             'scale': 1.0,
-            'format': 'jpeg'
+            'format': 'jpeg',
+            'adaptive_quality': True,  # Passt Qualität bei Problemen an
+            'min_quality': 50,
+            'max_quality': 90
         }
         
         # Monitor-Informationen
@@ -69,7 +88,19 @@ class DualScreenCaptureClient:
         # Threading für asynchrone Verarbeitung
         self.capture_thread = None
         self.processing_thread = None
-        self.frame_queue = asyncio.Queue()
+        self.frame_queue = asyncio.Queue(maxsize=5)  # Begrenzte Queue-Größe
+        
+        # Performance-Monitoring
+        self.frame_stats = {
+            'frames_sent': 0,
+            'frames_failed': 0,
+            'avg_frame_size': 0,
+            'last_frame_time': 0,
+            'consecutive_failures': 0
+        }
+        
+        # Zusätzliche Stats für Kompatibilität
+        self.stats = self.frame_stats
         
         # Client-Fähigkeiten
         self.capabilities = {
@@ -79,7 +110,10 @@ class DualScreenCaptureClient:
             'multiple_monitors': True,
             'max_resolution': [3840, 1080],  # Dual 1920x1080 screens
             'supported_formats': ['jpeg', 'png'],
-            'max_fps': 60
+            'max_fps': 60,
+            'auto_reconnect': True,
+            'adaptive_quality': True,
+            'error_recovery': True
         }
         
         # Initialisiere Monitor-Erkennung
@@ -171,18 +205,66 @@ class DualScreenCaptureClient:
 
     async def connect(self):
         """
-        Stellt Verbindung zum WebSocket-Server her.
+        Stellt robuste Verbindung zum WebSocket-Server her mit automatischer Wiederverbindung.
+        """
+        while self.reconnect_attempts < self.max_reconnect_attempts:
+            try:
+                logger.info(f"Verbindungsversuch {self.reconnect_attempts + 1}/{self.max_reconnect_attempts} zu: {self.server_url}")
+                
+                # Verbindung mit Timeout herstellen
+                self.websocket = await asyncio.wait_for(
+                    websockets.connect(
+                        self.server_url,
+                        ping_interval=self.ping_interval,
+                        ping_timeout=10,
+                        close_timeout=10
+                    ),
+                    timeout=self.connection_timeout
+                )
+                
+                logger.info("WebSocket-Verbindung hergestellt")
+                
+                # Handshake durchführen
+                if await self._perform_handshake():
+                    self.is_connected = True
+                    self.reconnect_attempts = 0
+                    self.last_successful_send = time.time()
+                    logger.info("✅ Verbindung erfolgreich hergestellt und bestätigt")
+                    return True
+                else:
+                    logger.error("❌ Handshake fehlgeschlagen")
+                    await self._close_connection()
+                    
+            except asyncio.TimeoutError:
+                logger.error(f"⏱️ Verbindungs-Timeout nach {self.connection_timeout}s")
+            except websockets.exceptions.ConnectionClosed:
+                logger.error("🔌 Verbindung vom Server geschlossen")
+            except Exception as e:
+                logger.error(f"💥 Verbindungsfehler: {e}")
+            
+            # Wiederverbindungslogik
+            self.reconnect_attempts += 1
+            if self.reconnect_attempts < self.max_reconnect_attempts:
+                wait_time = min(self.reconnect_delay * self.reconnect_attempts, 30)
+                logger.info(f"⏳ Warte {wait_time}s vor nächstem Verbindungsversuch...")
+                await asyncio.sleep(wait_time)
+            
+        logger.error(f"❌ Maximale Anzahl Wiederverbindungsversuche ({self.max_reconnect_attempts}) erreicht")
+        return False
+
+    async def _perform_handshake(self) -> bool:
+        """
+        Führt den Handshake mit dem Server durch.
+        
+        Returns:
+            True wenn erfolgreich, False bei Fehler
         """
         try:
-            logger.info(f"Verbinde zu WebSocket-Server: {self.server_url}")
-            self.websocket = await websockets.connect(self.server_url)
-            logger.info("WebSocket-Verbindung hergestellt")
-            
             # Sende Handshake mit erweiterten Dual-Screen-Fähigkeiten
             handshake_message = {
                 'type': 'handshake',
                 'clientInfo': {
-                    'clientType': 'desktop_capture',
+                    'clientType': 'dual_screen_desktop',
                     'clientId': self.client_id,
                     'desktopId': f'dual_desktop_{self.client_id}',
                     'screenId': 'dual_screen',
@@ -192,47 +274,188 @@ class DualScreenCaptureClient:
                         'width': self.total_width,
                         'height': self.total_height
                     },
-                    'split_position': self.screen_split_position
+                    'split_position': self.screen_split_position,
+                    'reconnect_attempt': self.reconnect_attempts
                 },
+                'capabilities': self.capabilities,
                 'timestamp': time.time()
             }
             
             await self.websocket.send(json.dumps(handshake_message))
-            logger.info("Handshake gesendet")
+            logger.info("📤 Handshake gesendet")
             
-            # Warte auf Handshake-Bestätigung
-            response = await self.websocket.recv()
-            response_data = json.loads(response)
+            # Warte auf Server-Antworten mit Timeout
+            for attempt in range(3):
+                try:
+                    response = await asyncio.wait_for(self.websocket.recv(), timeout=10.0)
+                    response_data = json.loads(response)
+                    response_type = response_data.get('type')
+                    
+                    logger.info(f"📥 Server-Antwort {attempt + 1}: {response_type}")
+                    
+                    if response_type == 'handshake_ack':
+                        logger.info("✅ Handshake bestätigt")
+                        return True
+                    elif response_type == 'connection_established':
+                        logger.info("✅ Verbindung hergestellt bestätigt")
+                        return True
+                    elif response_type == 'ping':
+                        logger.debug("🏓 Ping vom Server empfangen")
+                        continue
+                    else:
+                        logger.warning(f"⚠️ Unerwartete Server-Nachricht: {response_type}")
+                        
+                except asyncio.TimeoutError:
+                    logger.warning(f"⏱️ Timeout beim Warten auf Handshake-Antwort (Versuch {attempt + 1})")
+                    continue
+                except json.JSONDecodeError as e:
+                    logger.error(f"📄 JSON-Dekodierungsfehler: {e}")
+                    continue
+                except Exception as e:
+                    logger.error(f"💥 Fehler beim Empfangen der Handshake-Antwort: {e}")
+                    break
             
-            if response_data.get('type') == 'handshake_ack':
-                logger.info("Handshake bestätigt")
-                return True
-            else:
-                logger.error(f"Unerwartete Handshake-Antwort: {response_data}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Verbindungsfehler: {e}")
+            logger.error("❌ Keine gültige Handshake-Bestätigung erhalten")
             return False
+            
+        except Exception as e:
+            logger.error(f"💥 Handshake-Fehler: {e}")
+            return False
+
+    async def _close_connection(self):
+        """
+        Schließt die WebSocket-Verbindung sauber.
+        """
+        try:
+            if self.websocket:
+                await self.websocket.close()
+                logger.info("🔌 WebSocket-Verbindung geschlossen")
+        except Exception as e:
+            logger.error(f"💥 Fehler beim Schließen der Verbindung: {e}")
+        finally:
+            self.websocket = None
+            self.is_connected = False
+
+    async def ensure_connection(self) -> bool:
+        """
+        Stellt sicher, dass eine aktive Verbindung besteht.
+        
+        Returns:
+            True wenn Verbindung aktiv, False bei Fehler
+        """
+        if not self.is_connected or not self.websocket:
+            logger.info("🔄 Verbindung nicht aktiv, versuche Wiederverbindung...")
+            return await self.connect()
+        
+        # Prüfe ob Verbindung noch aktiv ist
+        try:
+            # Prüfe verschiedene Möglichkeiten für den Verbindungsstatus
+            is_closed = False
+            if hasattr(self.websocket, 'closed'):
+                is_closed = self.websocket.closed
+            elif hasattr(self.websocket, 'close_code'):
+                is_closed = self.websocket.close_code is not None
+            elif hasattr(self.websocket, 'state'):
+                is_closed = str(self.websocket.state) == 'CLOSED'
+            
+            if is_closed:
+                logger.warning("🔌 Verbindung wurde geschlossen, versuche Wiederverbindung...")
+                self.is_connected = False
+                return await self.connect()
+        except Exception as e:
+            logger.error(f"💥 Fehler bei Verbindungsprüfung: {e}")
+            self.is_connected = False
+            return await self.connect()
+        
+        return True
 
     def capture_dual_screen(self) -> Optional[Image.Image]:
         """
-        Erfasst beide Bildschirme als ein zusammenhängendes Bild.
+        Erfasst beide Bildschirme als ein zusammenhängendes Bild mit robuster Fehlerbehandlung.
         
         Returns:
             PIL Image mit beiden Bildschirmen oder None bei Fehler
         """
-        try:
-            # Erfasse den gesamten Desktop-Bereich
-            bbox = (0, 0, self.total_width, self.total_height)
-            screenshot = ImageGrab.grab(bbox=bbox)
+        capture_attempts = 0
+        max_capture_attempts = 3
+        
+        while capture_attempts < max_capture_attempts:
+            try:
+                # Erfasse den gesamten Desktop-Bereich mit all_screens=True für Multi-Monitor-Support
+                bbox = (0, 0, self.total_width, self.total_height)
+                screenshot = ImageGrab.grab(bbox=bbox, all_screens=True)
+                
+                # Validiere das erfasste Bild
+                if screenshot and screenshot.size[0] > 0 and screenshot.size[1] > 0:
+                    # Prüfe ob das Bild nicht komplett schwarz ist (Indikator für Capture-Probleme)
+                    if self._validate_screenshot(screenshot):
+                        logger.debug(f"✅ Dual-Screen erfasst: {screenshot.size}")
+                        self.stats['frames_sent'] += 1
+                        return screenshot
+                    else:
+                        logger.warning(f"⚠️ Screenshot-Validierung fehlgeschlagen (Versuch {capture_attempts + 1})")
+                else:
+                    logger.warning(f"⚠️ Ungültiges Screenshot erhalten (Versuch {capture_attempts + 1})")
+                
+            except PermissionError:
+                logger.error("🔒 Berechtigung verweigert - Desktop-Capture nicht möglich")
+                self.stats['frames_failed'] += 1
+                return None
+            except OSError as e:
+                logger.error(f"💾 Betriebssystem-Fehler bei Capture: {e}")
+                capture_attempts += 1
+                if capture_attempts < max_capture_attempts:
+                    time.sleep(0.1)  # Kurze Pause vor erneutem Versuch
+            except Exception as e:
+                logger.error(f"💥 Unerwarteter Fehler bei Dual-Screen-Capture: {e}")
+                capture_attempts += 1
+                if capture_attempts < max_capture_attempts:
+                    time.sleep(0.1)
             
-            logger.debug(f"Dual-Screen erfasst: {screenshot.size}")
-            return screenshot
+            capture_attempts += 1
+        
+        logger.error(f"❌ Dual-Screen-Capture nach {max_capture_attempts} Versuchen fehlgeschlagen")
+        self.stats['frames_failed'] += 1
+        return None
+
+    def _validate_screenshot(self, screenshot: Image.Image) -> bool:
+        """
+        Validiert ein Screenshot auf Plausibilität.
+        
+        Args:
+            screenshot: Das zu validierende Screenshot
+            
+        Returns:
+            True wenn Screenshot gültig, False bei Problemen
+        """
+        try:
+            # Prüfe Mindestgröße
+            if screenshot.width < 100 or screenshot.height < 100:
+                return False
+            
+            # Prüfe ob Bild nicht komplett schwarz ist (Sample-basiert für Performance)
+            # Nehme nur eine kleine Stichprobe zur Validierung
+            sample_width = min(100, screenshot.width)
+            sample_height = min(100, screenshot.height)
+            sample = screenshot.crop((0, 0, sample_width, sample_height))
+            
+            # Konvertiere zu Graustufen für einfachere Analyse
+            grayscale = sample.convert('L')
+            pixels = list(grayscale.getdata())
+            
+            # Prüfe ob mindestens 5% der Pixel nicht schwarz sind
+            non_black_pixels = sum(1 for pixel in pixels if pixel > 10)
+            non_black_ratio = non_black_pixels / len(pixels)
+            
+            if non_black_ratio < 0.05:
+                logger.warning(f"⚠️ Screenshot scheint größtenteils schwarz zu sein ({non_black_ratio:.1%} nicht-schwarz)")
+                return False
+            
+            return True
             
         except Exception as e:
-            logger.error(f"Fehler bei Dual-Screen-Capture: {e}")
-            return None
+            logger.error(f"💥 Fehler bei Screenshot-Validierung: {e}")
+            return False
 
     def split_dual_screen(self, combined_image: Image.Image) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
         """
@@ -290,111 +513,426 @@ class DualScreenCaptureClient:
 
     async def send_frame_data(self, screen1_data: str, screen2_data: str):
         """
-        Sendet die Frame-Daten beider Bildschirme asynchron an den Server.
+        Sendet die Frame-Daten beider Bildschirme robust an den Server mit Fehlerbehandlung.
         
         Args:
             screen1_data: Base64-kodierte Daten für Bildschirm 1
             screen2_data: Base64-kodierte Daten für Bildschirm 2
         """
+        # Prüfe Verbindungsstatus vor dem Senden
+        if not await self.ensure_connection():
+            logger.error("❌ Keine aktive Verbindung für Frame-Übertragung")
+            self.stats['frames_failed'] += 1
+            return
+        
         try:
-            if not self.websocket:
-                logger.warning("Keine WebSocket-Verbindung verfügbar")
-                return
-            
             timestamp = time.time()
+            send_tasks = []
             
-            # Sende Bildschirm 1 Daten
+            # Erstelle Send-Tasks für beide Bildschirme
             if screen1_data:
-                frame_message_1 = {
-                    'type': 'frame_data',
-                    'frameData': screen1_data,
-                    'metadata': {
-                        'clientId': self.client_id,
-                        'screenId': 'screen1',
-                        'timestamp': timestamp,
-                        'format': self.capture_config['format'],
-                        'quality': self.capture_config['quality']
-                    },
-                    'monitorId': 'monitor_0',
-                    'width': self.screen_split_position,
-                    'height': self.total_height,
-                    'routingInfo': {
-                        'isDualScreen': True,
-                        'screenIndex': 0,
-                        'totalScreens': 2
-                    }
-                }
-                
-                await self.websocket.send(json.dumps(frame_message_1))
-                logger.debug("Frame-Daten für Bildschirm 1 gesendet")
+                send_tasks.append(self._send_single_frame(screen1_data, 'screen1', timestamp))
             
-            # Sende Bildschirm 2 Daten (asynchron)
             if screen2_data:
-                frame_message_2 = {
-                    'type': 'frame_data',
-                    'frameData': screen2_data,
-                    'metadata': {
-                        'clientId': self.client_id,
-                        'screenId': 'screen2',
-                        'timestamp': timestamp,
-                        'format': self.capture_config['format'],
-                        'quality': self.capture_config['quality']
-                    },
-                    'monitorId': 'monitor_1',
-                    'width': self.total_width - self.screen_split_position,
-                    'height': self.total_height,
-                    'routingInfo': {
-                        'isDualScreen': True,
-                        'screenIndex': 1,
-                        'totalScreens': 2
-                    }
-                }
-                
-                await self.websocket.send(json.dumps(frame_message_2))
-                logger.debug("Frame-Daten für Bildschirm 2 gesendet")
+                send_tasks.append(self._send_single_frame(screen2_data, 'screen2', timestamp))
+            
+            # Sende beide Frames parallel mit Timeout
+            if send_tasks:
+                try:
+                    await asyncio.wait_for(
+                        asyncio.gather(*send_tasks, return_exceptions=True),
+                        timeout=5.0  # 5 Sekunden Timeout für Frame-Übertragung
+                    )
+                    
+                    # Aktualisiere Statistiken
+                    self.last_successful_send = time.time()
+                    self.stats['frames_sent'] += len(send_tasks)
+                    
+                    # Adaptive Qualitätsanpassung basierend auf Performance
+                    self._adjust_quality_based_on_performance()
+                    
+                except asyncio.TimeoutError:
+                    logger.error("⏱️ Timeout beim Senden der Frame-Daten")
+                    self.stats['frames_failed'] += len(send_tasks)
+                    await self._handle_send_failure()
+                except Exception as e:
+                    logger.error(f"💥 Fehler beim parallelen Senden: {e}")
+                    self.stats['frames_failed'] += len(send_tasks)
+                    await self._handle_send_failure()
                 
         except Exception as e:
-            logger.error(f"Fehler beim Senden der Frame-Daten: {e}")
+            logger.error(f"💥 Kritischer Fehler beim Senden der Frame-Daten: {e}")
+            self.stats['frames_failed'] += 1
+            await self._handle_send_failure()
+
+    async def _send_single_frame(self, frame_data: str, screen_id: str, timestamp: float):
+        """
+        Sendet einen einzelnen Frame an den Server.
+        
+        Args:
+            frame_data: Base64-kodierte Frame-Daten
+            screen_id: Bildschirm-ID ('screen1' oder 'screen2')
+            timestamp: Zeitstempel des Frames
+        """
+        try:
+            screen_index = 0 if screen_id == 'screen1' else 1
+            monitor_id = f'monitor_{screen_index}'
+            
+            # Berechne Frame-Größe für Statistiken
+            frame_size = len(frame_data)
+            self.stats['avg_frame_size'] = (
+                (self.stats['avg_frame_size'] * self.stats['frames_sent'] + frame_size) / 
+                (self.stats['frames_sent'] + 1)
+            ) if self.stats['frames_sent'] > 0 else frame_size
+            
+            frame_message = {
+                'type': 'frame_data',
+                'frameData': frame_data,
+                'metadata': {
+                    'clientId': self.client_id,
+                    'screenId': screen_id,
+                    'timestamp': timestamp,
+                    'format': self.capture_config['format'],
+                    'quality': self.capture_config['quality'],
+                    'frameSize': frame_size,
+                    'adaptiveQuality': True
+                },
+                'monitorId': monitor_id,
+                'width': self.screen_split_position if screen_id == 'screen1' else (self.total_width - self.screen_split_position),
+                'height': self.total_height,
+                'routingInfo': {
+                    'isDualScreen': True,
+                    'screenIndex': screen_index,
+                    'totalScreens': 2,
+                    'connectionQuality': self._get_connection_quality()
+                }
+            }
+            
+            await self.websocket.send(json.dumps(frame_message))
+            logger.debug(f"✅ Frame für {screen_id} gesendet ({frame_size} Bytes)")
+            
+        except websockets.exceptions.ConnectionClosed:
+            logger.error(f"🔌 Verbindung geschlossen beim Senden von {screen_id}")
+            self.is_connected = False
+            raise
+        except Exception as e:
+            logger.error(f"💥 Fehler beim Senden von {screen_id}: {e}")
+            raise
+
+    def _adjust_quality_based_on_performance(self):
+        """
+        Passt die Capture-Qualität basierend auf der Performance an.
+        """
+        try:
+            current_time = time.time()
+            time_since_last_send = current_time - self.last_successful_send
+            
+            # Wenn zu lange kein erfolgreicher Send, reduziere Qualität
+            if time_since_last_send > 10:  # 10 Sekunden ohne erfolgreichen Send
+                if self.capture_config['quality'] > self.capture_config['min_quality']:
+                    self.capture_config['quality'] = max(
+                        self.capture_config['quality'] - 10,
+                        self.capture_config['min_quality']
+                    )
+                    logger.info(f"🔽 Qualität reduziert auf {self.capture_config['quality']} (Performance-Anpassung)")
+            
+            # Wenn Performance gut, erhöhe Qualität langsam
+            elif time_since_last_send < 1 and self.stats['frames_failed'] == 0:
+                if self.capture_config['quality'] < self.capture_config['max_quality']:
+                    self.capture_config['quality'] = min(
+                        self.capture_config['quality'] + 5,
+                        self.capture_config['max_quality']
+                    )
+                    logger.info(f"🔼 Qualität erhöht auf {self.capture_config['quality']} (Performance-Anpassung)")
+                    
+        except Exception as e:
+            logger.error(f"💥 Fehler bei Qualitätsanpassung: {e}")
+
+    def _get_connection_quality(self) -> str:
+        """
+        Bewertet die aktuelle Verbindungsqualität.
+        
+        Returns:
+            'excellent', 'good', 'fair', oder 'poor'
+        """
+        try:
+            current_time = time.time()
+            time_since_last_send = current_time - self.last_successful_send
+            
+            if time_since_last_send < 1:
+                return 'excellent'
+            elif time_since_last_send < 3:
+                return 'good'
+            elif time_since_last_send < 10:
+                return 'fair'
+            else:
+                return 'poor'
+                
+        except Exception:
+            return 'unknown'
+
+    async def _handle_send_failure(self):
+        """
+        Behandelt Fehler beim Senden von Frame-Daten.
+        """
+        try:
+            # Reduziere Qualität bei wiederholten Fehlern
+            if self.stats['frames_failed'] > 5:
+                if self.capture_config['quality'] > self.capture_config['min_quality']:
+                    self.capture_config['quality'] = max(
+                        self.capture_config['quality'] - 15,
+                        self.capture_config['min_quality']
+                    )
+                    logger.info(f"🔽 Qualität nach Fehlern reduziert auf {self.capture_config['quality']}")
+            
+            # Bei kritischen Fehlern, versuche Wiederverbindung
+            if self.stats['frames_failed'] > 10:
+                logger.warning("🔄 Zu viele Fehler - versuche Wiederverbindung...")
+                self.is_connected = False
+                await self.connect()
+                
+        except Exception as e:
+            logger.error(f"💥 Fehler bei Fehlerbehandlung: {e}")
 
     async def capture_loop(self):
         """
-        Hauptschleife für kontinuierliche Dual-Screen-Erfassung.
+        Robuste Hauptschleife für kontinuierliche Dual-Screen-Erfassung mit adaptiver Performance.
         """
-        logger.info("Starte Dual-Screen-Capture-Schleife")
+        logger.info("🎬 Starte robuste Dual-Screen-Capture-Schleife")
         
-        frame_interval = 1.0 / self.capture_config['fps']
+        consecutive_errors = 0
+        max_consecutive_errors = 5
+        last_stats_log = time.time()
+        stats_interval = 30  # Statistiken alle 30 Sekunden loggen
         
         while self.is_capturing:
+            loop_start_time = time.time()
+            frame_interval = 1.0 / self.capture_config['fps']
+            
             try:
-                start_time = time.time()
+                # Prüfe Verbindungsstatus vor jedem Frame
+                if not await self.ensure_connection():
+                    logger.warning("🔌 Keine Verbindung - pausiere Capture...")
+                    await asyncio.sleep(2)
+                    continue
                 
                 # Erfasse beide Bildschirme gleichzeitig
                 combined_image = self.capture_dual_screen()
                 if not combined_image:
-                    await asyncio.sleep(0.1)
+                    consecutive_errors += 1
+                    if consecutive_errors > max_consecutive_errors:
+                        logger.error(f"❌ {consecutive_errors} aufeinanderfolgende Capture-Fehler - pausiere...")
+                        await asyncio.sleep(5)
+                        consecutive_errors = 0
+                    else:
+                        await asyncio.sleep(0.1)
                     continue
                 
                 # Teile das Bild in zwei separate Bildschirme
                 screen1_image, screen2_image = self.split_dual_screen(combined_image)
                 
                 if screen1_image and screen2_image:
-                    # Verarbeite beide Bilder parallel
-                    screen1_data = self.process_image(screen1_image, 'screen1')
-                    screen2_data = self.process_image(screen2_image, 'screen2')
-                    
-                    # Sende Frame-Daten asynchron
-                    await self.send_frame_data(screen1_data, screen2_data)
+                    # Verarbeite beide Bilder parallel mit Timeout
+                    try:
+                        processing_tasks = [
+                            asyncio.create_task(self._process_image_async(screen1_image, 'screen1')),
+                            asyncio.create_task(self._process_image_async(screen2_image, 'screen2'))
+                        ]
+                        
+                        screen1_data, screen2_data = await asyncio.wait_for(
+                            asyncio.gather(*processing_tasks),
+                            timeout=2.0  # 2 Sekunden Timeout für Bildverarbeitung
+                        )
+                        
+                        # Sende Frame-Daten nur wenn beide erfolgreich verarbeitet wurden
+                        if screen1_data and screen2_data:
+                            await self.send_frame_data(screen1_data, screen2_data)
+                            consecutive_errors = 0  # Reset bei erfolgreichem Frame
+                        else:
+                            logger.warning("⚠️ Bildverarbeitung fehlgeschlagen - überspringe Frame")
+                            consecutive_errors += 1
+                            
+                    except asyncio.TimeoutError:
+                        logger.error("⏱️ Timeout bei Bildverarbeitung")
+                        consecutive_errors += 1
+                    except Exception as e:
+                        logger.error(f"💥 Fehler bei paralleler Bildverarbeitung: {e}")
+                        consecutive_errors += 1
+                else:
+                    logger.warning("⚠️ Bildschirm-Teilung fehlgeschlagen")
+                    consecutive_errors += 1
                 
-                # Frame-Rate-Kontrolle
-                elapsed_time = time.time() - start_time
-                sleep_time = max(0, frame_interval - elapsed_time)
+                # Adaptive Frame-Rate basierend auf Performance
+                elapsed_time = time.time() - loop_start_time
                 
-                if sleep_time > 0:
-                    await asyncio.sleep(sleep_time)
+                # Wenn Verarbeitung zu lange dauert, reduziere FPS temporär
+                if elapsed_time > frame_interval * 2:
+                    adjusted_interval = elapsed_time * 1.5
+                    logger.debug(f"🐌 Langsame Verarbeitung ({elapsed_time:.2f}s) - angepasstes Intervall: {adjusted_interval:.2f}s")
+                else:
+                    adjusted_interval = frame_interval
+                
+                sleep_time = max(0.01, adjusted_interval - elapsed_time)  # Mindestens 10ms Pause
+                await asyncio.sleep(sleep_time)
+                
+                # Periodische Statistiken
+                if time.time() - last_stats_log > stats_interval:
+                    self._log_performance_stats()
+                    last_stats_log = time.time()
                     
+            except asyncio.CancelledError:
+                logger.info("🛑 Capture-Schleife wurde abgebrochen")
+                break
             except Exception as e:
-                logger.error(f"Fehler in Capture-Schleife: {e}")
-                await asyncio.sleep(1)  # Kurze Pause bei Fehlern
+                consecutive_errors += 1
+                logger.error(f"💥 Unerwarteter Fehler in Capture-Schleife: {e}")
+                
+                # Bei zu vielen aufeinanderfolgenden Fehlern, längere Pause
+                if consecutive_errors > max_consecutive_errors:
+                    error_pause = min(consecutive_errors * 2, 30)  # Max 30 Sekunden Pause
+                    logger.error(f"🚨 Zu viele Fehler ({consecutive_errors}) - pausiere {error_pause}s...")
+                    await asyncio.sleep(error_pause)
+                    
+                    # Versuche Wiederverbindung bei kritischen Fehlern
+                    if consecutive_errors > max_consecutive_errors * 2:
+                        logger.warning("🔄 Kritische Fehleranzahl erreicht - versuche Wiederverbindung...")
+                        self.is_connected = False
+                        await self.connect()
+                        consecutive_errors = 0
+                else:
+                    await asyncio.sleep(1)  # Kurze Pause bei einzelnen Fehlern
+        
+        logger.info("🏁 Dual-Screen-Capture-Schleife beendet")
+
+    async def _process_image_async(self, image: Image.Image, screen_id: str) -> Optional[str]:
+        """
+        Asynchrone Wrapper für Bildverarbeitung.
+        
+        Args:
+            image: Das zu verarbeitende PIL-Image
+            screen_id: Kennung des Bildschirms
+            
+        Returns:
+            Base64-kodiertes Bild oder None bei Fehler
+        """
+        try:
+            # Führe CPU-intensive Bildverarbeitung in Thread-Pool aus
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, self.process_image, image, screen_id)
+        except Exception as e:
+            logger.error(f"💥 Fehler bei asynchroner Bildverarbeitung für {screen_id}: {e}")
+            return None
+
+    def _log_performance_stats(self):
+        """
+        Loggt Performance-Statistiken für Monitoring.
+        """
+        try:
+            current_time = time.time()
+            uptime = current_time - self.last_successful_send if self.last_successful_send else 0
+            
+            logger.info(f"📊 Performance-Statistiken:")
+            logger.info(f"   📤 Frames gesendet: {self.stats['frames_sent']}")
+            logger.info(f"   ❌ Frames fehlgeschlagen: {self.stats['frames_failed']}")
+            logger.info(f"   📏 Durchschnittliche Frame-Größe: {self.stats['avg_frame_size']:.0f} Bytes")
+            logger.info(f"   🎯 Aktuelle Qualität: {self.capture_config['quality']}%")
+            logger.info(f"   🎬 Aktuelle FPS: {self.capture_config['fps']}")
+            logger.info(f"   🔗 Verbindungsqualität: {self._get_connection_quality()}")
+            logger.info(f"   ⏱️ Zeit seit letztem erfolgreichen Send: {uptime:.1f}s")
+            
+            # Reset Statistiken für nächsten Intervall
+            if self.stats['frames_sent'] > 1000:  # Reset bei hohen Zahlen
+                self.stats['frames_sent'] = 0
+                self.stats['frames_failed'] = 0
+                
+        except Exception as e:
+            logger.error(f"💥 Fehler beim Loggen der Statistiken: {e}")
+
+    async def handle_permission_request(self, data):
+        """Handle incoming permission request from web client."""
+        try:
+            request_id = data.get('requestId')
+            requester_id = data.get('requesterId')
+            permission_type = data.get('permissionType', 'desktop_access')
+            
+            logger.info(f"Permission request received: {permission_type} from {requester_id}")
+            
+            # Use permission handler to show dialog and get user response
+            await self.permission_handler.handle_permission_request(
+                request_id, requester_id, permission_type
+            )
+            
+        except Exception as e:
+            logger.error(f"Error handling permission request: {e}")
+
+    async def handle_permission_check(self, data):
+        """Handle permission status check."""
+        try:
+            requester_id = data.get('requesterId')
+            permission_type = data.get('permissionType', 'desktop_access')
+            
+            # Check permission status
+            is_granted = self.permission_handler.check_permission(requester_id, permission_type)
+            
+            # Send response
+            response = {
+                'type': 'permission_status',
+                'requesterId': requester_id,
+                'permissionType': permission_type,
+                'granted': is_granted,
+                'clientId': self.client_id,
+                'timestamp': time.time()
+            }
+            
+            await self.websocket.send(json.dumps(response))
+            logger.info(f"Permission status sent: {permission_type} = {is_granted}")
+            
+        except Exception as e:
+            logger.error(f"Error checking permission: {e}")
+
+    async def handle_permission_revocation(self, data):
+        """Handle permission revocation."""
+        try:
+            requester_id = data.get('requesterId')
+            permission_type = data.get('permissionType', 'desktop_access')
+            
+            # Revoke permission
+            self.permission_handler.revoke_permission(requester_id, permission_type)
+            
+            # Send confirmation
+            response = {
+                'type': 'permission_revoked',
+                'requesterId': requester_id,
+                'permissionType': permission_type,
+                'clientId': self.client_id,
+                'timestamp': time.time()
+            }
+            
+            await self.websocket.send(json.dumps(response))
+            logger.info(f"Permission revoked: {permission_type} for {requester_id}")
+            
+        except Exception as e:
+            logger.error(f"Error revoking permission: {e}")
+
+    async def send_permission_response(self, request_id, requester_id, permission_type, granted):
+        """Send permission response back to server."""
+        try:
+            response = {
+                'type': 'permission_response',
+                'requestId': request_id,
+                'requesterId': requester_id,
+                'permissionType': permission_type,
+                'granted': granted,
+                'clientId': self.client_id,
+                'timestamp': time.time()
+            }
+            
+            if self.websocket:
+                await self.websocket.send(json.dumps(response))
+                logger.info(f"Permission response sent: {permission_type} = {granted}")
+            
+        except Exception as e:
+            logger.error(f"Error sending permission response: {e}")
 
     async def handle_messages(self):
         """
@@ -408,7 +946,7 @@ class DualScreenCaptureClient:
                     
                     logger.info(f"Nachricht empfangen: {message_type}")
                     
-                    if message_type == 'start_capture':
+                    if message_type == 'start_capture' or message_type == 'start_dual_screen_capture':
                         # Aktualisiere Capture-Konfiguration
                         config = data.get('config', {})
                         self.capture_config.update(config)
@@ -417,11 +955,11 @@ class DualScreenCaptureClient:
                             self.is_capturing = True
                             # Starte Capture-Schleife
                             asyncio.create_task(self.capture_loop())
-                            logger.info("Dual-Screen-Capture gestartet")
+                            logger.info(f"Dual-Screen-Capture gestartet (Nachricht: {message_type})")
                         
-                    elif message_type == 'stop_capture':
+                    elif message_type == 'stop_capture' or message_type == 'stop_dual_screen_capture':
                         self.is_capturing = False
-                        logger.info("Dual-Screen-Capture gestoppt")
+                        logger.info(f"Dual-Screen-Capture gestoppt (Nachricht: {message_type})")
                         
                     elif message_type == 'ping':
                         # Antworte auf Ping
@@ -436,6 +974,18 @@ class DualScreenCaptureClient:
                         new_config = data.get('config', {})
                         self.capture_config.update(new_config)
                         logger.info(f"Konfiguration aktualisiert: {new_config}")
+                        
+                    elif message_type == 'request_permission':
+                        # Handle permission request
+                        await self.handle_permission_request(data)
+                        
+                    elif message_type == 'check_permission':
+                        # Handle permission status check
+                        await self.handle_permission_check(data)
+                        
+                    elif message_type == 'revoke_permission':
+                        # Handle permission revocation
+                        await self.handle_permission_revocation(data)
                         
                 except json.JSONDecodeError as e:
                     logger.error(f"Fehler beim Parsen der Nachricht: {e}")

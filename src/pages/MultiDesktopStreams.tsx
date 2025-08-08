@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Monitor, Grid, Play, Square, Settings, RefreshCw, Maximize2, Plus } from 'lucide-react';
+import { Monitor, Grid, Play, Square, Settings, RefreshCw, Maximize2, Plus } from 'lucide-react';
 import { MultiDesktopStreamGrid } from '@/components/trae/liveDesktop/MultiDesktopStreamGrid';
-import { DualScreenViewer } from '@/components/trae/liveDesktop/DualScreenViewer';
 
 interface DesktopClient {
   id: string;
@@ -38,10 +37,8 @@ const MultiDesktopStreams: React.FC = () => {
   const [desktopScreens, setDesktopScreens] = useState<DesktopScreen[]>([]);
   const [latestScreenshots, setLatestScreenshots] = useState<{[clientId: string]: string}>({});
 
-  // Dual-Screen-Funktionalität
-  const [viewMode, setViewMode] = useState<'grid' | 'dual-screen'>('grid');
-  const [isDualScreenActive, setIsDualScreenActive] = useState(false);
-  const [dualScreenClient, setDualScreenClient] = useState<string | null>(null);
+  // Grid view only - simplified
+  const [viewMode, setViewMode] = useState<'grid'>('grid');
 
   const wsRef = useRef<WebSocket | null>(null);
   // WEBSOCKET CONNECTION
@@ -53,11 +50,11 @@ const MultiDesktopStreams: React.FC = () => {
       return;
     }
 
-    console.log('Attempting to connect to WebSocket server at ws://localhost:8085');
+    console.log('Attempting to connect to WebSocket server at ws://localhost:8084');
     setIsLoading(true);
     
     try {
-      const ws = new WebSocket('ws://localhost:8085');
+      const ws = new WebSocket('ws://localhost:8084');
       wsRef.current = ws;
       console.log('WebSocket instance created, waiting for connection...');
       
@@ -100,31 +97,43 @@ const MultiDesktopStreams: React.FC = () => {
             setAvailableClients(message.clients);
             setDesktopClients(message.clients || []);
             
-            // Don't create initial screens here - let frame_data handler create proper monitor screens
-            // This prevents duplicate screen creation
+            // ============================================================================
+            // AUTOMATISCHES STREAMING ALLER VERFÜGBAREN DESKTOPS
+            // ============================================================================
             
-            // Auto-select all connected clients for streaming
+            // Auto-select ALL connected clients for streaming (nicht nur 4)
             const connectedClients = (message.clients || []).filter((client: any) => client.connected);
+            console.log(`🖥️ Automatisches Streaming für ${connectedClients.length} verfügbare Desktop-Clients wird gestartet...`);
+            
             if (connectedClients.length > 0) {
-              const clientIds = connectedClients.slice(0, 4).map((client: any) => client.id);
+              // Alle verfügbaren Clients auswählen (nicht auf 4 begrenzen)
+              const clientIds = connectedClients.map((client: any) => client.id);
               setSelectedClients(clientIds);
               
-              // Auto-start streaming for selected clients
+              // Auto-start streaming für ALLE verfügbaren Clients mit Multi-Monitor-Support
               setTimeout(() => {
-                clientIds.forEach(clientId => {
-                  ['monitor_0', 'monitor_1'].forEach(monitorId => {
+                clientIds.forEach((clientId, index) => {
+                  console.log(`🚀 Starte automatisches Streaming für Client ${index + 1}/${clientIds.length}: ${clientId}`);
+                  
+                  // Start streaming für alle Monitore dieses Clients
+                  ['monitor_0', 'monitor_1', 'monitor_2', 'monitor_3'].forEach(monitorId => {
                     wsRef.current?.send(JSON.stringify({
                       type: 'start_desktop_stream',
                       desktopClientId: clientId,
                       monitorId: monitorId,
-                      timestamp: new Date().toISOString()
+                      timestamp: new Date().toISOString(),
+                      autoStart: true // Flag für automatischen Start
                     }));
                   });
                 });
+                
+                console.log(`✅ Automatisches Streaming für alle ${clientIds.length} Desktop-Clients initialisiert`);
               }, 1000);
+            } else {
+              console.log('⚠️ Keine verbundenen Desktop-Clients für automatisches Streaming gefunden');
             }
             
-            // Request screenshots from all connected clients
+            // Request screenshots von allen verbundenen Clients
             (message.clients || []).forEach((client: any) => {
               if (client.connected) {
                 requestScreenshot(client.id);
@@ -133,7 +142,35 @@ const MultiDesktopStreams: React.FC = () => {
             break;
             
           case 'desktop_connected':
-            console.log('Desktop client connected:', message.desktopClientId);
+            console.log('🔗 Neuer Desktop-Client verbunden:', message.desktopClientId);
+            
+            // Automatisch den neuen Client zur Auswahl hinzufügen
+            setSelectedClients(prev => {
+              if (!prev.includes(message.desktopClientId)) {
+                const newSelection = [...prev, message.desktopClientId];
+                
+                // Automatisches Streaming für den neuen Client starten
+                setTimeout(() => {
+                  console.log(`🚀 Starte automatisches Streaming für neuen Client: ${message.desktopClientId}`);
+                  
+                  ['monitor_0', 'monitor_1', 'monitor_2', 'monitor_3'].forEach(monitorId => {
+                    wsRef.current?.send(JSON.stringify({
+                      type: 'start_desktop_stream',
+                      desktopClientId: message.desktopClientId,
+                      monitorId: monitorId,
+                      timestamp: new Date().toISOString(),
+                      autoStart: true
+                    }));
+                  });
+                  
+                  console.log(`✅ Automatisches Streaming für neuen Client ${message.desktopClientId} gestartet`);
+                }, 500);
+                
+                return newSelection;
+              }
+              return prev;
+            });
+            
             // Refresh client list
             ws.send(JSON.stringify({
               type: 'get_desktop_clients',
@@ -301,28 +338,36 @@ const MultiDesktopStreams: React.FC = () => {
 
   const toggleClientSelection = (clientId: string) => {
     setSelectedClients(prev => {
-      const newSelection = prev.includes(clientId) 
+      const isCurrentlySelected = prev.includes(clientId);
+      const newSelection = isCurrentlySelected 
         ? prev.filter(id => id !== clientId)
-        : prev.length < 4 ? [...prev, clientId] : prev;
+        : [...prev, clientId]; // Keine Begrenzung auf 4 Clients
       
-      // Auto-start streaming for newly selected clients with multi-monitor support
-      if (!prev.includes(clientId) && newSelection.includes(clientId) && wsRef.current) {
+      // Auto-start streaming für neu ausgewählte Clients mit Multi-Monitor-Support
+      if (!isCurrentlySelected && newSelection.includes(clientId) && wsRef.current) {
         setTimeout(() => {
-          // Start streaming for all monitors of this client
-          ['monitor_0', 'monitor_1'].forEach(monitorId => {
+          console.log(`🚀 Starte Streaming für ausgewählten Client: ${clientId}`);
+          
+          // Start streaming für alle Monitore dieses Clients (bis zu 4 Monitore)
+          ['monitor_0', 'monitor_1', 'monitor_2', 'monitor_3'].forEach(monitorId => {
             wsRef.current?.send(JSON.stringify({
               type: 'start_desktop_stream',
               desktopClientId: clientId,
               monitorId: monitorId,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              autoStart: true
             }));
           });
+          
+          console.log(`✅ Streaming für Client ${clientId} gestartet`);
         }, 500);
       }
       
-      // Stop streaming when client is deselected
-      if (prev.includes(clientId) && !newSelection.includes(clientId) && wsRef.current) {
-        ['monitor_0', 'monitor_1'].forEach(monitorId => {
+      // Stop streaming wenn Client abgewählt wird
+      if (isCurrentlySelected && !newSelection.includes(clientId) && wsRef.current) {
+        console.log(`🛑 Stoppe Streaming für abgewählten Client: ${clientId}`);
+        
+        ['monitor_0', 'monitor_1', 'monitor_2', 'monitor_3'].forEach(monitorId => {
           wsRef.current?.send(JSON.stringify({
             type: 'stop_desktop_stream',
             desktopClientId: clientId,
@@ -330,6 +375,8 @@ const MultiDesktopStreams: React.FC = () => {
             timestamp: new Date().toISOString()
           }));
         });
+        
+        console.log(`✅ Streaming für Client ${clientId} gestoppt`);
       }
       
       return newSelection;
@@ -337,35 +384,48 @@ const MultiDesktopStreams: React.FC = () => {
   };
 
   const selectAllClients = () => {
+    // Alle verfügbaren verbundenen Clients auswählen (keine Begrenzung auf 4)
     const connectableClients = availableClients
       .filter(client => client.connected)
-      .slice(0, 4)
       .map(client => client.id);
+    
+    console.log(`🖥️ Alle verfügbaren Desktop-Clients auswählen: ${connectableClients.length} Clients`);
     setSelectedClients(connectableClients);
     
-    // Auto-start streaming for all selected clients with multi-monitor support
-    if (wsRef.current) {
+    // Auto-start streaming für ALLE ausgewählten Clients mit Multi-Monitor-Support
+    if (wsRef.current && connectableClients.length > 0) {
       setTimeout(() => {
-        connectableClients.forEach(clientId => {
-          // Start streaming for all monitors of each client
-          ['monitor_0', 'monitor_1'].forEach(monitorId => {
+        connectableClients.forEach((clientId, index) => {
+          console.log(`🚀 Starte Streaming für Client ${index + 1}/${connectableClients.length}: ${clientId}`);
+          
+          // Start streaming für alle Monitore jedes Clients (bis zu 4 Monitore)
+          ['monitor_0', 'monitor_1', 'monitor_2', 'monitor_3'].forEach(monitorId => {
             wsRef.current?.send(JSON.stringify({
               type: 'start_desktop_stream',
               desktopClientId: clientId,
               monitorId: monitorId,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              autoStart: true
             }));
           });
         });
+        
+        console.log(`✅ Streaming für alle ${connectableClients.length} Desktop-Clients gestartet`);
       }, 500);
+    } else {
+      console.log('⚠️ Keine verbundenen Desktop-Clients zum Streamen verfügbar');
     }
   };
 
   const clearSelection = () => {
-    // Stop streaming for all currently selected clients
+    // Stop streaming für alle aktuell ausgewählten Clients
     if (wsRef.current && selectedClients.length > 0) {
-      selectedClients.forEach(clientId => {
-        ['monitor_0', 'monitor_1'].forEach(monitorId => {
+      console.log(`🛑 Stoppe Streaming für alle ${selectedClients.length} ausgewählten Clients`);
+      
+      selectedClients.forEach((clientId, index) => {
+        console.log(`🛑 Stoppe Streaming für Client ${index + 1}/${selectedClients.length}: ${clientId}`);
+        
+        ['monitor_0', 'monitor_1', 'monitor_2', 'monitor_3'].forEach(monitorId => {
           wsRef.current?.send(JSON.stringify({
             type: 'stop_desktop_stream',
             desktopClientId: clientId,
@@ -374,6 +434,8 @@ const MultiDesktopStreams: React.FC = () => {
           }));
         });
       });
+      
+      console.log('✅ Streaming für alle Clients gestoppt');
     }
     
     setSelectedClients([]);
@@ -668,11 +730,13 @@ const MultiDesktopStreams: React.FC = () => {
     return (
       <MultiDesktopStreamGrid 
         selectedClients={selectedClientsWithMonitors}
-        serverUrl="ws://localhost:8085"
+        serverUrl="ws://localhost:8084"
         maxStreams={8} // Support up to 8 streams (4 clients × 2 monitors each)
         gridLayout="auto"
         enableFullscreen={true}
         enableControls={true}
+        latestScreenshots={latestScreenshots}
+        websocketInstance={wsRef.current}
         onClientDisconnected={(clientId) => {
           console.log(`Client disconnected: ${clientId}`);
           setSelectedClients(prev => prev.filter(id => id !== clientId));
@@ -696,164 +760,42 @@ const MultiDesktopStreams: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button variant="outline" onClick={() => navigate('/dashboard')}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">
-                Multi-Desktop Screens
-              </h1>
-              <p className="text-muted-foreground">
-                Manage and view multiple desktop screens
-              </p>
-            </div>
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">
+              Multi-Desktop Screens
+            </h1>
+            <p className="text-muted-foreground">
+              Manage and view multiple desktop screens
+            </p>
           </div>
           
-          {/* View Mode Selector */}
+          {/* Grid View Only */}
           <div className="flex items-center space-x-2">
             <div className="flex bg-muted rounded-lg p-1">
               <Button
-                variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                variant="default"
                 size="sm"
-                onClick={() => setViewMode('grid')}
                 className="flex items-center space-x-2"
               >
                 <Grid className="w-4 h-4" />
                 <span>Grid View</span>
               </Button>
-              <Button
-                variant={viewMode === 'dual-screen' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('dual-screen')}
-                className="flex items-center space-x-2"
-                disabled={!isConnected || availableClients.length === 0}
-              >
-                <Monitor className="w-4 h-4" />
-                <span>Dual Screen</span>
-              </Button>
             </div>
           </div>
         </div>
 
-        {/* Conditional Rendering based on View Mode */}
-        {viewMode === 'grid' ? (
-          <>
-            {/* Desktop Screens Grid */}
-            {renderDesktopScreensGrid()}
+        {/* Grid View Content */}
+        {/* Desktop Screens Grid */}
+        {renderDesktopScreensGrid()}
 
-            {/* Connection Status */}
-            {renderConnectionStatus()}
+        {/* Connection Status */}
+        {renderConnectionStatus()}
 
-            {/* Client Selector */}
-            {renderClientSelector()}
+        {/* Client Selector */}
+        {renderClientSelector()}
 
-            {/* Stream Grid */}
-            {renderStreamGrid()}
-          </>
-        ) : (
-          <>
-            {/* Dual Screen Mode */}
-            {/* Connection Status */}
-            {renderConnectionStatus()}
-
-            {/* Dual Screen Client Selector */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Monitor className="w-6 h-6" />
-                  <span>Dual Screen Capture</span>
-                </CardTitle>
-                <CardDescription>
-                  Select a desktop client for dual-screen capture and display
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {availableClients.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Monitor className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>No desktop clients available</p>
-                    <p className="text-sm">Start desktop clients to see them here</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {availableClients.map((client) => (
-                        <Card 
-                          key={client.id}
-                          className={`cursor-pointer transition-all ${
-                            dualScreenClient === client.id 
-                              ? 'ring-2 ring-primary bg-primary/5' 
-                              : 'hover:bg-muted/50'
-                          } ${!client.connected ? 'opacity-50' : ''}`}
-                          onClick={() => {
-                            if (client.connected) {
-                              setDualScreenClient(dualScreenClient === client.id ? null : client.id);
-                              setIsDualScreenActive(dualScreenClient !== client.id);
-                            }
-                          }}
-                        >
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-medium text-sm">{client.id}</span>
-                              <div className="flex items-center space-x-2">
-                                {dualScreenClient === client.id && (
-                                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                                )}
-                                <div className={`w-2 h-2 rounded-full ${
-                                  client.connected ? 'bg-green-500' : 'bg-red-500'
-                                }`} />
-                              </div>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {client.connected ? 'Connected' : 'Disconnected'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(client.timestamp).toLocaleTimeString()}
-                            </p>
-                            {dualScreenClient === client.id && (
-                              <div className="mt-2 text-xs text-blue-600 font-medium">
-                                ✓ Selected for Dual Screen
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                    
-                    {dualScreenClient && (
-                      <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                        <div className="flex items-center space-x-2 text-blue-700 dark:text-blue-300">
-                          <Monitor className="w-4 h-4" />
-                          <span className="font-medium">Dual Screen Mode Active</span>
-                        </div>
-                        <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                          Client "{dualScreenClient}" is configured for dual-screen capture. 
-                          Both screens will be captured and displayed separately below.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Dual Screen Viewer */}
-            {dualScreenClient && isDualScreenActive && (
-              <DualScreenViewer 
-                clientId={dualScreenClient}
-                serverUrl="ws://localhost:8085"
-                onConnectionChange={(connected) => {
-                  console.log(`Dual screen connection status: ${connected}`);
-                }}
-                onError={(error) => {
-                  console.error('Dual screen error:', error);
-                }}
-              />
-            )}
-          </>
-        )}
+        {/* Stream Grid */}
+        {renderStreamGrid()}
       </div>
     </div>
   );

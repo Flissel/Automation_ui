@@ -25,6 +25,7 @@ import signal
 import sys
 from typing import Optional, Dict, Any, List
 from screeninfo import get_monitors
+from permission_handler import PermissionHandler
 
 # Configure logging with clear formatting for debugging
 logging.basicConfig(
@@ -59,7 +60,13 @@ class MultiMonitorDesktopCaptureClient:
             'scale': 1.0,
             'format': 'jpeg',
             'capture_mode': 'all_monitors',  # 'all_monitors', 'primary_only', 'secondary_only'
-            'combine_monitors': False  # Whether to combine all monitors into single image
+            'combine_monitors': False,  # Whether to combine all monitors into single image
+            # Enhanced inactive monitor detection settings
+            'disable_inactive_detection': True,  # TEMPORARILY DISABLED - Set to True to disable black screen detection
+            'dark_pixel_threshold': 30,  # RGB sum threshold for dark pixels
+            'inactive_threshold': 99.5,  # Percentage threshold for inactive detection (increased from 98%)
+            'force_capture_all': True,  # TEMPORARILY ENABLED - Force capture even if monitor appears inactive
+            'debug_monitor_activity': True  # Enable detailed logging for monitor activity
         }
         
         # Monitor detection and management
@@ -71,51 +78,95 @@ class MultiMonitorDesktopCaptureClient:
         self.frame_queue = None  # Will be initialized as asyncio.Queue
         self.loop = None
         
+        # Initialize permission handler for secure access control
+        self.permission_handler = PermissionHandler()
+        self.permission_handler.set_permission_callback(self.send_permission_response_sync)
+        
         # Initialize monitor detection
         self._detect_monitors()
 
     def _detect_monitors(self):
         """
         Detect all connected monitors and store their information.
+        Enhanced with unique identification and better monitor distinction.
         Follows TRAE Unity AI Platform standards for clear debugging.
         """
         try:
             self.monitors = get_monitors()
             self.monitor_info = {}
             
-            logger.info(f"Detected {len(self.monitors)} monitor(s):")
+            logger.info(f"🖥️ Detected {len(self.monitors)} monitor(s):")
             
-            for i, monitor in enumerate(self.monitors):
+            # Sort monitors by position to ensure consistent ordering
+            sorted_monitors = sorted(self.monitors, key=lambda m: (m.x, m.y))
+            
+            for i, monitor in enumerate(sorted_monitors):
                 monitor_id = f"monitor_{i}"
+                
+                # Enhanced monitor identification
+                monitor_name = getattr(monitor, 'name', f'\\.\DISPLAY{i+1}')
+                is_primary = getattr(monitor, 'is_primary', False) or (monitor.x == 0 and monitor.y == 0)
+                
+                # Create unique monitor signature for better identification
+                monitor_signature = f"{monitor.width}x{monitor.height}@{monitor.x},{monitor.y}"
+                
                 self.monitor_info[monitor_id] = {
                     'index': i,
-                    'name': getattr(monitor, 'name', f'Monitor {i}'),
+                    'name': monitor_name,
                     'x': monitor.x,
                     'y': monitor.y,
                     'width': monitor.width,
                     'height': monitor.height,
-                    'is_primary': monitor.is_primary if hasattr(monitor, 'is_primary') else (i == 0)
+                    'is_primary': is_primary,
+                    'signature': monitor_signature,
+                    'position_type': self._get_monitor_position_type(monitor.x, monitor.y, i),
+                    'device_name': monitor_name
                 }
                 
-                logger.info(f"  {monitor_id}: {monitor.width}x{monitor.height} at ({monitor.x}, {monitor.y}) "
-                           f"{'[PRIMARY]' if self.monitor_info[monitor_id]['is_primary'] else ''}")
+                # Enhanced logging with position information
+                position_info = self.monitor_info[monitor_id]['position_type']
+                logger.info(f"  🖥️ {monitor_id}: {monitor.width}x{monitor.height} at ({monitor.x}, {monitor.y})")
+                logger.info(f"     📍 Position: {position_info}")
+                logger.info(f"     🏷️ Device: {monitor_name}")
+                logger.info(f"     🎯 Primary: {'✅ YES' if is_primary else '❌ NO'}")
+                logger.info(f"     🔑 Signature: {monitor_signature}")
                 
         except Exception as e:
-            logger.error(f"Error detecting monitors: {e}")
+            logger.error(f"❌ Error detecting monitors: {e}")
             # Fallback to single monitor
             self.monitors = []
             self.monitor_info = {
                 'monitor_0': {
                     'index': 0,
-                    'name': 'Primary Monitor',
+                    'name': 'Primary Monitor (Fallback)',
                     'x': 0,
                     'y': 0,
                     'width': 1920,
                     'height': 1080,
-                    'is_primary': True
+                    'is_primary': True,
+                    'signature': '1920x1080@0,0',
+                    'position_type': 'Primary (Left)',
+                    'device_name': '\\.\DISPLAY1'
                 }
             }
-            logger.warning("Using fallback single monitor configuration")
+            logger.warning("⚠️ Using fallback single monitor configuration")
+
+    def _get_monitor_position_type(self, x: int, y: int, index: int) -> str:
+        """
+        Determine the position type of a monitor for better identification.
+        """
+        if x == 0 and y == 0:
+            return "Primary (Left)"
+        elif x > 0 and y == 0:
+            return "Secondary (Right)"
+        elif x < 0 and y == 0:
+            return "Secondary (Left)"
+        elif y > 0:
+            return f"Secondary (Below, Index {index})"
+        elif y < 0:
+            return f"Secondary (Above, Index {index})"
+        else:
+            return f"Secondary (Custom Position, Index {index})"
 
     async def connect(self):
         """
@@ -215,6 +266,8 @@ class MultiMonitorDesktopCaptureClient:
         capabilities = {
             'type': 'handshake',
             'timestamp': time.time(),
+            'client_type': 'multi_monitor_capture',
+            'client_id': self.client_id,
             'clientInfo': {
                 'clientType': 'multi_monitor_desktop_capture',
                 'clientId': self.client_id,
@@ -236,6 +289,23 @@ class MultiMonitorDesktopCaptureClient:
                 'supported_formats': ['jpeg', 'png'],
                 'compression_levels': [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
                 'capture_modes': ['all_monitors', 'primary_only', 'secondary_only', 'combined']
+            },
+            'capabilities': {
+                'multi_monitor': True,
+                'monitor_count': len(self.monitor_info),
+                'monitors': {
+                    monitor_id: {
+                        'name': info['name'],
+                        'device_name': info['device_name'],
+                        'resolution': f"{info['width']}x{info['height']}",
+                        'position': f"({info['x']}, {info['y']})",
+                        'position_type': info['position_type'],
+                        'is_primary': info['is_primary'],
+                        'signature': info['signature'],
+                        'index': info['index']
+                    }
+                    for monitor_id, info in self.monitor_info.items()
+                }
             }
         }
         
@@ -349,6 +419,15 @@ class MultiMonitorDesktopCaptureClient:
                 'type': 'pong',
                 'timestamp': time.time()
             })
+            
+        elif message_type == 'request_permission':
+            await self.handle_permission_request(data)
+            
+        elif message_type == 'check_permission':
+            await self.handle_permission_check(data)
+            
+        elif message_type == 'revoke_permission':
+            await self.handle_permission_revocation(data)
             
         else:
             logger.warning(f"Unknown message type: {message_type}")
@@ -625,18 +704,27 @@ class MultiMonitorDesktopCaptureClient:
         try:
             # Check if inactive detection is disabled via config
             if self.capture_config.get('disable_inactive_detection', False):
-                logger.debug("Inactive monitor detection is disabled via config")
+                if self.capture_config.get('debug_monitor_activity', False):
+                    logger.info("🔧 Inactive monitor detection is disabled via config")
+                return False
+            
+            # Check if force capture is enabled
+            if self.capture_config.get('force_capture_all', False):
+                if self.capture_config.get('debug_monitor_activity', False):
+                    logger.info("🔧 Force capture enabled - treating all monitors as active")
                 return False
             
             # Sample pixels to check for black content
             pixels = list(screenshot.getdata())
             
-            # Check every 100th pixel for performance
-            sample_pixels = pixels[::100]
+            # Use different sampling strategies for better detection
+            sample_size = min(1000, len(pixels) // 10)  # Sample at least 1000 pixels or 10% of image
+            step = max(1, len(pixels) // sample_size)
+            sample_pixels = pixels[::step]
             
             # Configurable thresholds
             dark_threshold = self.capture_config.get('dark_pixel_threshold', 30)  # RGB sum threshold
-            inactive_percentage = self.capture_config.get('inactive_threshold', 98)  # Percentage threshold (was 95, now 98)
+            inactive_percentage = self.capture_config.get('inactive_threshold', 99.5)  # Percentage threshold
             
             # Count pixels that are very dark (sum of RGB < threshold)
             black_pixels = sum(1 for pixel in sample_pixels if sum(pixel[:3]) < dark_threshold)
@@ -645,31 +733,49 @@ class MultiMonitorDesktopCaptureClient:
             # Calculate black percentage
             black_percentage = (black_pixels / total_sampled) * 100
             
-            # Log detailed information for debugging
-            logger.debug(f"Monitor activity check: {black_percentage:.1f}% dark pixels (threshold: {inactive_percentage}%)")
+            # Enhanced debug logging
+            if self.capture_config.get('debug_monitor_activity', False):
+                # Sample some pixel values for debugging
+                sample_rgb_values = [f"RGB{pixel[:3]}" for pixel in sample_pixels[:5]]
+                logger.info(f"🔍 Monitor Activity Analysis:")
+                logger.info(f"   📊 Sampled {total_sampled} pixels (step: {step})")
+                logger.info(f"   🎨 Sample RGB values: {', '.join(sample_rgb_values)}")
+                logger.info(f"   ⚫ Dark pixels: {black_pixels}/{total_sampled} ({black_percentage:.1f}%)")
+                logger.info(f"   🎯 Threshold: {inactive_percentage}% (dark_threshold: {dark_threshold})")
             
             # Consider monitor inactive if more than threshold% of sampled pixels are black
             is_inactive = black_percentage > inactive_percentage
             
             if is_inactive:
-                logger.info(f"Monitor detected as inactive: {black_percentage:.1f}% dark pixels (threshold: {inactive_percentage}%)")
+                logger.warning(f"🚫 Monitor detected as inactive: {black_percentage:.1f}% dark pixels (threshold: {inactive_percentage}%)")
+            else:
+                if self.capture_config.get('debug_monitor_activity', False):
+                    logger.info(f"✅ Monitor detected as active: {black_percentage:.1f}% dark pixels")
             
             return is_inactive
             
         except Exception as e:
-            logger.error(f"Error checking monitor activity: {e}")
+            logger.error(f"❌ Error checking monitor activity: {e}")
             return False
 
     def _create_placeholder_image(self, monitor_info: Dict[str, Any], monitor_id: str) -> Image.Image:
         """
         Create a placeholder image for inactive monitors.
+        Enhanced with monitor information display and debug logging.
         """
         try:
             width = monitor_info['width']
             height = monitor_info['height']
+            monitor_name = monitor_info.get('name', 'Unknown Monitor')
             
-            # Create a dark gray background
-            placeholder = Image.new('RGB', (width, height), (40, 40, 40))
+            # Enhanced debug logging
+            if self.capture_config.get('debug_monitor_activity', False):
+                logger.info(f"🖼️ Creating placeholder image for {monitor_name}")
+                logger.info(f"   📐 Resolution: {width}x{height}")
+                logger.info(f"   💡 Reason: Monitor appears inactive (black screen)")
+            
+            # Create a dark gray background with subtle pattern
+            placeholder = Image.new('RGB', (width, height), (45, 45, 50))
             
             # Add text overlay with monitor information
             from PIL import ImageDraw, ImageFont
@@ -681,25 +787,29 @@ class MultiMonitorDesktopCaptureClient:
             except:
                 font = None
             
-            # Monitor info text
+            # Monitor info text with enhanced formatting
             text_lines = [
-                f"Monitor: {monitor_id}",
-                f"Resolution: {width}x{height}",
-                f"Position: ({monitor_info['x']}, {monitor_info['y']})",
-                f"Status: Inactive/Black Screen",
+                f"🚫 Monitor: {monitor_id}",
+                f"📐 Resolution: {width}x{height}",
+                f"📍 Position: ({monitor_info['x']}, {monitor_info['y']})",
+                f"⚠️ Status: Inactive/Black Screen",
                 "",
-                "This monitor appears to be:",
-                "• Turned off",
-                "• Displaying a black screen",
-                "• Not receiving video signal",
+                "💡 This monitor appears to be:",
+                "   • Turned off",
+                "   • Displaying a black screen",
+                "   • Not receiving video signal",
                 "",
-                "TRAE Unity AI Platform",
-                "Multi-Monitor Capture Client"
+                "🔧 Debug Info:",
+                f"   • Monitor ID: {monitor_id}",
+                f"   • Monitor Name: {monitor_name}",
+                "",
+                "🤖 TRAE Unity AI Platform",
+                "📺 Multi-Monitor Capture Client"
             ]
             
             # Calculate text position (centered)
-            y_offset = height // 4
-            line_height = 30
+            y_offset = height // 6
+            line_height = max(25, height // 30)
             
             for i, line in enumerate(text_lines):
                 if line:  # Skip empty lines for spacing
@@ -707,19 +817,33 @@ class MultiMonitorDesktopCaptureClient:
                     x_pos = (width - text_width) // 2
                     y_pos = y_offset + (i * line_height)
                     
-                    # Draw text with white color
-                    draw.text((x_pos, y_pos), line, fill=(255, 255, 255), font=font)
+                    # Use different colors for different types of text
+                    if line.startswith('🚫') or line.startswith('⚠️'):
+                        text_color = (255, 180, 100)  # Warning orange
+                    elif line.startswith('💡') or line.startswith('🔧'):
+                        text_color = (100, 200, 255)  # Info blue
+                    elif line.startswith('🤖') or line.startswith('📺'):
+                        text_color = (150, 255, 150)  # Success green
+                    else:
+                        text_color = (255, 255, 255)  # Default white
+                    
+                    # Draw text
+                    draw.text((x_pos, y_pos), line, fill=text_color, font=font)
                 else:
                     # Add extra spacing for empty lines
                     y_offset += line_height // 2
             
-            logger.info(f"Created placeholder image for inactive monitor {monitor_id}")
+            # Add a subtle border
+            border_color = (80, 80, 85)
+            draw.rectangle([0, 0, width-1, height-1], outline=border_color, width=2)
+            
+            logger.info(f"✅ Created placeholder image for inactive monitor {monitor_id} ({monitor_name})")
             return placeholder
             
         except Exception as e:
-            logger.error(f"Error creating placeholder image: {e}")
-            # Return a simple black image as fallback
-            return Image.new('RGB', (monitor_info['width'], monitor_info['height']), (0, 0, 0))
+            logger.error(f"❌ Error creating placeholder image: {e}")
+            # Return a simple dark image as fallback
+            return Image.new('RGB', (monitor_info['width'], monitor_info['height']), (30, 30, 35))
 
     def _process_screenshot(self, screenshot: Image.Image, monitor_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -819,6 +943,109 @@ class MultiMonitorDesktopCaptureClient:
         }
 
         await self.send_message(message)
+
+    async def handle_permission_request(self, data: Dict[str, Any]):
+        """Handle incoming permission request from web client."""
+        try:
+            web_client_id = data.get('web_client_id')
+            permission_type = data.get('permission_type')
+            request_id = data.get('request_id')
+            
+            logger.info(f"Received permission request from {web_client_id} for {permission_type}")
+            
+            # Use permission handler to process the request
+            if self.permission_handler:
+                self.permission_handler.handle_permission_request(
+                    web_client_id, permission_type, request_id
+                )
+            else:
+                logger.error("Permission handler not initialized")
+                # Send denial response
+                await self.send_permission_response(request_id, False, "Permission handler not available")
+                
+        except Exception as e:
+            logger.error(f"Error handling permission request: {e}")
+            if 'request_id' in data:
+                await self.send_permission_response(data['request_id'], False, f"Error: {str(e)}")
+
+    async def handle_permission_check(self, data: Dict[str, Any]):
+        """Handle permission status check request."""
+        try:
+            web_client_id = data.get('web_client_id')
+            permission_type = data.get('permission_type')
+            
+            logger.info(f"Checking permission for {web_client_id} - {permission_type}")
+            
+            # Check permission status
+            if self.permission_handler:
+                has_permission = self.permission_handler.check_permission(web_client_id, permission_type)
+                
+                # Send permission status response
+                await self.send_message({
+                    'type': 'permission_status',
+                    'web_client_id': web_client_id,
+                    'permission_type': permission_type,
+                    'has_permission': has_permission,
+                    'desktop_client_id': self.client_id,
+                    'timestamp': time.time()
+                })
+            else:
+                logger.error("Permission handler not initialized")
+                
+        except Exception as e:
+            logger.error(f"Error checking permission: {e}")
+
+    async def handle_permission_revocation(self, data: Dict[str, Any]):
+        """Handle permission revocation request."""
+        try:
+            web_client_id = data.get('web_client_id')
+            permission_type = data.get('permission_type')
+            
+            logger.info(f"Revoking permission for {web_client_id} - {permission_type}")
+            
+            # Revoke permission
+            if self.permission_handler:
+                self.permission_handler.revoke_permission(web_client_id, permission_type)
+                
+                # Send revocation confirmation
+                await self.send_message({
+                    'type': 'permission_revoked',
+                    'web_client_id': web_client_id,
+                    'permission_type': permission_type,
+                    'desktop_client_id': self.client_id,
+                    'timestamp': time.time()
+                })
+            else:
+                logger.error("Permission handler not initialized")
+                
+        except Exception as e:
+            logger.error(f"Error revoking permission: {e}")
+
+    async def send_permission_response(self, request_id: str, granted: bool, reason: str = ""):
+        """Send permission response back to server."""
+        try:
+            response = {
+                'type': 'permission_response',
+                'request_id': request_id,
+                'granted': granted,
+                'reason': reason,
+                'desktop_client_id': self.client_id,
+                'timestamp': time.time()
+            }
+            
+            await self.send_message(response)
+            logger.info(f"Sent permission response: {granted} for request {request_id}")
+            
+        except Exception as e:
+            logger.error(f"Error sending permission response: {e}")
+
+    def send_permission_response_sync(self, request_id: str, granted: bool, reason: str = ""):
+        """Synchronous wrapper for permission response callback."""
+        if self.loop:
+            asyncio.run_coroutine_threadsafe(
+                self.send_permission_response(request_id, granted, reason),
+                self.loop
+            )
 
 async def main():
     """

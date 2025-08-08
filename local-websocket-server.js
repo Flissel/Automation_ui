@@ -1,4 +1,5 @@
 import WebSocket, { WebSocketServer } from 'ws';
+import StreamHealthMonitor from './stream-health-monitor.js';
 
 // Get port from environment variable or use default
 const PORT = process.env.WS_PORT || 8084;
@@ -12,6 +13,88 @@ const wss = new WebSocketServer({
 
 console.log(`WebSocket server starting on port ${PORT}...`);
 console.log(`Server accepting connections from all network interfaces (0.0.0.0:${PORT})`);
+
+// Initialize Stream Health Monitor
+const healthMonitor = new StreamHealthMonitor({
+  healthCheckInterval: 30000,      // Check every 30 seconds
+  frameTimeoutThreshold: 60000,    // 1 minute without frames = unhealthy
+  connectionTimeoutThreshold: 120000, // 2 minutes without pong = unhealthy
+  maxRestartAttempts: 3,           // Maximum restart attempts per stream
+  restartCooldownPeriod: 300000,   // 5 minutes cooldown between restarts
+  minFrameRate: 1,                 // Minimum 1 FPS
+  maxLatency: 5000,                // Maximum 5 seconds latency
+  enableDetailedLogging: true,     // Enable detailed logging
+  logHealthMetrics: false          // Disable frequent metrics logging
+});
+
+// Start health monitoring
+healthMonitor.start();
+
+// Handle health monitor events
+healthMonitor.on('stream_restart_requested', (event) => {
+  console.log(`🔄 Health monitor requesting restart for ${event.clientId} (${event.clientType})`);
+  
+  // Handle restart based on client type
+  if (event.clientType === 'dual_screen') {
+    const client = dualScreenClients.get(event.clientId);
+    if (client && client.readyState === WebSocket.OPEN) {
+      // Stop current stream
+      const stopMessage = {
+        type: 'stop_desktop_stream',
+        timestamp: new Date().toISOString(),
+        reason: 'health_check_restart'
+      };
+      client.send(JSON.stringify(stopMessage));
+      
+      // Wait a moment then restart
+      setTimeout(() => {
+        const startMessage = {
+          type: 'start_desktop_stream',
+          fps: 5,
+          quality: 80,
+          scale: 1.0,
+          format: 'jpeg',
+          timestamp: new Date().toISOString(),
+          reason: 'health_check_restart'
+        };
+        client.send(JSON.stringify(startMessage));
+        console.log(`✅ Restarted stream for ${event.clientId}`);
+      }, 2000);
+    }
+  } else if (event.clientType === 'desktop' || event.clientType === 'multi_monitor_desktop') {
+    const client = desktopClients.get(event.clientId);
+    if (client && client.readyState === WebSocket.OPEN) {
+      // Stop current stream
+      const stopMessage = {
+        type: 'stop_desktop_stream',
+        timestamp: new Date().toISOString(),
+        reason: 'health_check_restart'
+      };
+      client.send(JSON.stringify(stopMessage));
+      
+      // Wait a moment then restart
+      setTimeout(() => {
+        const startMessage = {
+          type: 'start_desktop_stream',
+          fps: 5,
+          quality: 80,
+          scale: 1.0,
+          format: 'jpeg',
+          timestamp: new Date().toISOString(),
+          reason: 'health_check_restart'
+        };
+        client.send(JSON.stringify(startMessage));
+        console.log(`✅ Restarted stream for ${event.clientId}`);
+      }, 2000);
+    }
+  }
+});
+
+healthMonitor.on('health_check_complete', (status) => {
+  if (status.unhealthyStreams > 0) {
+    console.log(`⚠️ Health check: ${status.unhealthyStreams}/${status.totalStreams} streams unhealthy`);
+  }
+});
 
 // Keep track of heartbeat intervals for each connection
 const heartbeatIntervals = new Map();
@@ -98,6 +181,9 @@ wss.on('connection', function connection(ws, req) {
             ws.screenId = message.clientInfo?.screenId;
             console.log(`Registered desktop client: ${clientId} (desktop: ${ws.desktopId}, screen: ${ws.screenId})`);
             
+            // Register with health monitor
+            healthMonitor.registerStream(clientId, 'desktop', ws);
+            
             // Notify all web clients that a desktop client connected
             webClients.forEach((webWs, webId) => {
               if (webWs.readyState === WebSocket.OPEN) {
@@ -125,6 +211,9 @@ wss.on('connection', function connection(ws, req) {
             ws.monitorCount = message.clientInfo?.monitor_count || 1;
             console.log(`Registered multi-monitor desktop client: ${clientId} (${ws.monitorCount} monitors)`, ws.monitorInfo);
             
+            // Register with health monitor
+            healthMonitor.registerStream(clientId, 'multi_monitor_desktop', ws);
+            
             // Notify all web clients that a multi-monitor desktop client connected
             webClients.forEach((webWs, webId) => {
               if (webWs.readyState === WebSocket.OPEN) {
@@ -150,6 +239,9 @@ wss.on('connection', function connection(ws, req) {
             ws.clientType = 'dual_screen';
             ws.capabilities = message.capabilities || {};
             console.log(`Registered dual-screen client: ${clientId}`, ws.capabilities);
+            
+            // Register with health monitor
+            healthMonitor.registerStream(clientId, 'dual_screen', ws);
             
             // Notify all web clients that a dual-screen client connected
             webClients.forEach((webWs, webId) => {
@@ -213,7 +305,7 @@ wss.on('connection', function connection(ws, req) {
           const targetDesktopId = message.desktopClientId;
           
           if (targetDesktopId) {
-            // Start specific desktop client
+            // Check if it's a regular desktop client
             const targetDesktop = desktopClients.get(targetDesktopId);
             if (targetDesktop && targetDesktop.readyState === WebSocket.OPEN) {
               const startMessage = {
@@ -230,7 +322,26 @@ wss.on('connection', function connection(ws, req) {
               streamingStates.set(targetDesktopId, true);
               console.log(`Sent start_capture to specific desktop client: ${targetDesktopId}`);
             } else {
-              console.log(`Desktop client ${targetDesktopId} not found or not connected`);
+              // Check if it's a dual-screen client
+              const targetDualScreen = dualScreenClients.get(targetDesktopId);
+              if (targetDualScreen && targetDualScreen.readyState === WebSocket.OPEN) {
+                const startMessage = {
+                  type: 'start_dual_screen_capture',
+                  config: message.config || {
+                    fps: 15,
+                    quality: 85,
+                    scale: 1.0,
+                    format: 'jpeg',
+                    dualScreen: true
+                  },
+                  timestamp: new Date().toISOString()
+                };
+                targetDualScreen.send(JSON.stringify(startMessage));
+                dualScreenStates.set(targetDesktopId, true);
+                console.log(`Sent start_dual_screen_capture to dual-screen client: ${targetDesktopId}`);
+              } else {
+                console.log(`Client ${targetDesktopId} not found or not connected`);
+              }
             }
           } else {
             // Forward to all desktop clients (legacy behavior)
@@ -259,7 +370,7 @@ wss.on('connection', function connection(ws, req) {
           const stopTargetDesktopId = message.desktopClientId;
           
           if (stopTargetDesktopId) {
-            // Stop specific desktop client
+            // Check if it's a regular desktop client
             const targetDesktop = desktopClients.get(stopTargetDesktopId);
             if (targetDesktop && targetDesktop.readyState === WebSocket.OPEN) {
               const stopMessage = {
@@ -270,7 +381,19 @@ wss.on('connection', function connection(ws, req) {
               streamingStates.set(stopTargetDesktopId, false);
               console.log(`Sent stop_capture to specific desktop client: ${stopTargetDesktopId}`);
             } else {
-              console.log(`Desktop client ${stopTargetDesktopId} not found or not connected`);
+              // Check if it's a dual-screen client
+              const targetDualScreen = dualScreenClients.get(stopTargetDesktopId);
+              if (targetDualScreen && targetDualScreen.readyState === WebSocket.OPEN) {
+                const stopMessage = {
+                  type: 'stop_dual_screen_capture',
+                  timestamp: new Date().toISOString()
+                };
+                targetDualScreen.send(JSON.stringify(stopMessage));
+                dualScreenStates.set(stopTargetDesktopId, false);
+                console.log(`Sent stop_dual_screen_capture to dual-screen client: ${stopTargetDesktopId}`);
+              } else {
+                console.log(`Client ${stopTargetDesktopId} not found or not connected`);
+              }
             }
           } else {
             // Forward to all desktop clients (legacy behavior)
@@ -288,7 +411,138 @@ wss.on('connection', function connection(ws, req) {
           }
           break;
 
+        // ============================================================================
+        // ENHANCED PERMISSION AND CONTROL MESSAGES
+        // ============================================================================
+
+        case 'request_permission':
+          console.log('🔐 Permission request from web client:', {
+            clientId: message.clientId,
+            permissionType: message.permissionType,
+            requestId: message.requestId
+          });
+          
+          // Forward permission request to target client
+          const targetClientForPermission = desktopClients.get(message.clientId) || dualScreenClients.get(message.clientId);
+          if (targetClientForPermission && targetClientForPermission.readyState === WebSocket.OPEN) {
+            const permissionRequest = {
+              type: 'permission_request',
+              permissionType: message.permissionType,
+              requestId: message.requestId,
+              timestamp: new Date().toISOString(),
+              webClientId: ws.clientId
+            };
+            targetClientForPermission.send(JSON.stringify(permissionRequest));
+            console.log(`📤 Forwarded permission request to client: ${message.clientId}`);
+          } else {
+            // Send permission denied response
+            const deniedResponse = {
+              type: 'permission_response',
+              clientId: message.clientId,
+              permissionType: message.permissionType,
+              requestId: message.requestId,
+              granted: false,
+              reason: 'Client not connected',
+              timestamp: new Date().toISOString()
+            };
+            ws.send(JSON.stringify(deniedResponse));
+          }
+          break;
+
+        case 'check_permission':
+          console.log('🔍 Permission check from web client:', {
+            clientId: message.clientId,
+            permissionType: message.permissionType
+          });
+          
+          // Check current permission status
+          const targetClientForCheck = desktopClients.get(message.clientId) || dualScreenClients.get(message.clientId);
+          if (targetClientForCheck && targetClientForCheck.readyState === WebSocket.OPEN) {
+            const permissionCheck = {
+              type: 'permission_check',
+              permissionType: message.permissionType,
+              timestamp: new Date().toISOString(),
+              webClientId: ws.clientId
+            };
+            targetClientForCheck.send(JSON.stringify(permissionCheck));
+          } else {
+            // Send permission status response
+            const statusResponse = {
+              type: 'permission_status',
+              clientId: message.clientId,
+              permissionType: message.permissionType,
+              granted: false,
+              reason: 'Client not connected',
+              timestamp: new Date().toISOString()
+            };
+            ws.send(JSON.stringify(statusResponse));
+          }
+          break;
+
+        case 'revoke_permission':
+          console.log('🚫 Permission revocation from web client:', {
+            clientId: message.clientId,
+            permissionType: message.permissionType
+          });
+          
+          // Forward permission revocation to target client
+          const targetClientForRevoke = desktopClients.get(message.clientId) || dualScreenClients.get(message.clientId);
+          if (targetClientForRevoke && targetClientForRevoke.readyState === WebSocket.OPEN) {
+            const permissionRevoke = {
+              type: 'permission_revoke',
+              permissionType: message.permissionType,
+              timestamp: new Date().toISOString(),
+              webClientId: ws.clientId
+            };
+            targetClientForRevoke.send(JSON.stringify(permissionRevoke));
+            console.log(`📤 Forwarded permission revocation to client: ${message.clientId}`);
+          }
+          break;
+
+        case 'get_client_list':
+          console.log('📋 Client list request from web client');
+          
+          // Prepare client list with enhanced information
+          const clientList = {
+            type: 'client_list_response',
+            clients: [],
+            timestamp: new Date().toISOString()
+          };
+
+          // Add desktop clients
+          desktopClients.forEach((clientWs, clientId) => {
+            clientList.clients.push({
+              id: clientId,
+              type: 'desktop',
+              connected: clientWs.readyState === WebSocket.OPEN,
+              streaming: streamingStates.get(clientId) || false,
+              capabilities: clientWs.capabilities || {},
+              lastSeen: new Date().toISOString()
+            });
+          });
+
+          // Add dual-screen clients
+          dualScreenClients.forEach((clientWs, clientId) => {
+            clientList.clients.push({
+              id: clientId,
+              type: 'dual_screen',
+              connected: clientWs.readyState === WebSocket.OPEN,
+              streaming: dualScreenStates.get(clientId) || false,
+              capabilities: clientWs.capabilities || {},
+              lastSeen: new Date().toISOString()
+            });
+          });
+
+          ws.send(JSON.stringify(clientList));
+          console.log(`📤 Sent client list with ${clientList.clients.length} clients`);
+          break;
+
         case 'frame_data':
+          // Update health monitor with frame activity
+          if (ws.clientId) {
+            healthMonitor.updateStreamActivity(ws.clientId, message);
+          }
+          
           // Reduce frame data logging to prevent terminal spam
           if (Math.random() < 0.01) { // Only log 1% of frames
             console.log('Received frame data from desktop client:', {
@@ -330,6 +584,11 @@ wss.on('connection', function connection(ws, req) {
           break;
 
         case 'dual_screen_frame':
+          // Update health monitor with frame activity
+          if (ws.clientId) {
+            healthMonitor.updateStreamActivity(ws.clientId, { frameData: message.image_data });
+          }
+          
           // Handle dual-screen frame data
           if (Math.random() < 0.01) { // Only log 1% of frames
             console.log('Received dual-screen frame data:', {
@@ -442,20 +701,33 @@ wss.on('connection', function connection(ws, req) {
 
         case 'get_desktop_clients':
           console.log('Received request for desktop clients list');
-          // Send list of available desktop clients
+          // Send list of available desktop clients (including dual-screen clients)
           const desktopClientsList = Array.from(desktopClients.keys()).map(clientId => ({
             id: clientId,
+            type: 'desktop',
             connected: desktopClients.get(clientId).readyState === WebSocket.OPEN,
             timestamp: new Date().toISOString()
           }));
           
+          // Add dual-screen clients to the list
+          const dualScreenClientsList = Array.from(dualScreenClients.keys()).map(clientId => ({
+            id: clientId,
+            type: 'dual_screen',
+            connected: dualScreenClients.get(clientId).readyState === WebSocket.OPEN,
+            capabilities: dualScreenClients.get(clientId).capabilities || {},
+            timestamp: new Date().toISOString()
+          }));
+          
+          // Combine both lists
+          const allClients = [...desktopClientsList, ...dualScreenClientsList];
+          
           const clientsListMessage = {
             type: 'desktop_clients_list',
-            clients: desktopClientsList,
+            clients: allClients,
             timestamp: new Date().toISOString()
           };
           ws.send(JSON.stringify(clientsListMessage));
-          console.log(`Sent desktop clients list: ${desktopClientsList.length} clients`);
+          console.log(`Sent desktop clients list: ${allClients.length} clients (${desktopClientsList.length} desktop, ${dualScreenClientsList.length} dual-screen)`);
           break;
 
         case 'request_screenshot':
@@ -500,6 +772,12 @@ wss.on('connection', function connection(ws, req) {
 
         case 'ping':
           console.log('Received ping from client, sending pong');
+          
+          // Update health monitor with ping activity
+          if (ws.clientId) {
+            healthMonitor.updatePingActivity(ws.clientId, 'ping');
+          }
+          
           // Respond to ping with pong
           const pongMessage = {
             type: 'pong',
@@ -510,6 +788,11 @@ wss.on('connection', function connection(ws, req) {
 
         case 'pong':
           console.log('Received pong from client');
+          
+          // Update health monitor with pong activity
+          if (ws.clientId) {
+            healthMonitor.updatePingActivity(ws.clientId, 'pong');
+          }
           break;
 
         case 'desktop_stream_status':
@@ -528,6 +811,94 @@ wss.on('connection', function connection(ws, req) {
                 console.log(`Forwarded desktop stream status to web client: ${webId}`);
               } catch (error) {
                 console.error(`Error forwarding desktop stream status to web client ${webId}:`, error);
+              }
+            }
+          });
+          break;
+
+        // ============================================================================
+        // PERMISSION RESPONSE HANDLERS FROM DESKTOP CLIENTS
+        // ============================================================================
+
+        case 'permission_response':
+          console.log('🔐 Permission response from desktop client:', {
+            clientId: ws.clientId,
+            permissionType: message.permissionType,
+            granted: message.granted,
+            requestId: message.requestId
+          });
+          
+          // Forward permission response to all web clients
+          webClients.forEach((webWs, webId) => {
+            if (webWs.readyState === WebSocket.OPEN) {
+              try {
+                const permissionResponse = {
+                  type: 'permission_response',
+                  clientId: ws.clientId,
+                  permissionType: message.permissionType,
+                  requestId: message.requestId,
+                  granted: message.granted,
+                  reason: message.reason,
+                  timestamp: new Date().toISOString()
+                };
+                webWs.send(JSON.stringify(permissionResponse));
+                console.log(`📤 Forwarded permission response to web client: ${webId}`);
+              } catch (error) {
+                console.error(`Error forwarding permission response to web client ${webId}:`, error);
+              }
+            }
+          });
+          break;
+
+        case 'permission_status':
+          console.log('🔍 Permission status from desktop client:', {
+            clientId: ws.clientId,
+            permissionType: message.permissionType,
+            granted: message.granted
+          });
+          
+          // Forward permission status to all web clients
+          webClients.forEach((webWs, webId) => {
+            if (webWs.readyState === WebSocket.OPEN) {
+              try {
+                const permissionStatus = {
+                  type: 'permission_status',
+                  clientId: ws.clientId,
+                  permissionType: message.permissionType,
+                  granted: message.granted,
+                  reason: message.reason,
+                  timestamp: new Date().toISOString()
+                };
+                webWs.send(JSON.stringify(permissionStatus));
+                console.log(`📤 Forwarded permission status to web client: ${webId}`);
+              } catch (error) {
+                console.error(`Error forwarding permission status to web client ${webId}:`, error);
+              }
+            }
+          });
+          break;
+
+        case 'permission_revoked':
+          console.log('🚫 Permission revoked by desktop client:', {
+            clientId: ws.clientId,
+            permissionType: message.permissionType
+          });
+          
+          // Forward permission revocation to all web clients
+          webClients.forEach((webWs, webId) => {
+            if (webWs.readyState === WebSocket.OPEN) {
+              try {
+                const permissionRevoked = {
+                  type: 'permission_revoked',
+                  clientId: ws.clientId,
+                  permissionType: message.permissionType,
+                  reason: message.reason,
+                  timestamp: new Date().toISOString()
+                };
+                webWs.send(JSON.stringify(permissionRevoked));
+                console.log(`📤 Forwarded permission revocation to web client: ${webId}`);
+              } catch (error) {
+                console.error(`Error forwarding permission revocation to web client ${webId}:`, error);
               }
             }
           });
@@ -673,6 +1044,12 @@ wss.on('connection', function connection(ws, req) {
   // Handle connection close
   ws.on('close', function close(code, reason) {
     console.log('WebSocket connection closed at:', new Date().toISOString(), 'Code:', code, 'Reason:', reason.toString());
+    
+    // Unregister from health monitor if client was registered
+     if (ws.clientId && (ws.clientType === 'desktop' || ws.clientType === 'multi_monitor_desktop' || ws.clientType === 'dual_screen_desktop')) {
+       healthMonitor.unregisterClient(ws.clientId);
+       console.log(`Client ${ws.clientId} unregistered from health monitor`);
+     }
     
     // Clean up client tracking
     if (ws.clientId) {
