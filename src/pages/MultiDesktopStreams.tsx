@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Monitor, Grid, Play, Square, Settings, RefreshCw, Maximize2, Plus } from 'lucide-react';
 import { MultiDesktopStreamGrid } from '@/components/trae/liveDesktop/MultiDesktopStreamGrid';
+import { DualCanvasOCRDesigner } from '@/components/trae/liveDesktop/DualCanvasOCRDesigner';
 
 interface DesktopClient {
   id: string;
@@ -36,6 +37,14 @@ const MultiDesktopStreams: React.FC = () => {
   const [desktopClients, setDesktopClients] = useState<any[]>([]);
   const [desktopScreens, setDesktopScreens] = useState<DesktopScreen[]>([]);
   const [latestScreenshots, setLatestScreenshots] = useState<{[clientId: string]: string}>({});
+  
+  // State for OCR configuration
+  const [ocrConfig, setOcrConfig] = useState({
+    regions: [],
+    isActive: false,
+    extractionInterval: 5000,
+    confidenceThreshold: 0.8
+  });
 
   // Grid view only - simplified
   const [viewMode, setViewMode] = useState<'grid'>('grid');
@@ -751,6 +760,31 @@ const MultiDesktopStreams: React.FC = () => {
     );
   };
 
+  const renderDualCanvasOCRDesigner = () => {
+    // Get primary and secondary monitor streams from selected clients
+    const primaryStreamUrl = selectedClients.length > 0 
+      ? latestScreenshots[`${selectedClients[0]}_monitor_0`] || latestScreenshots[selectedClients[0]]
+      : null;
+    
+    const secondaryStreamUrl = selectedClients.length > 0 
+      ? latestScreenshots[`${selectedClients[0]}_monitor_1`] || 
+        (selectedClients.length > 1 ? latestScreenshots[`${selectedClients[1]}_monitor_0`] || latestScreenshots[selectedClients[1]] : null)
+      : null;
+
+    return (
+      <DualCanvasOCRDesigner
+        ocrConfig={ocrConfig}
+        setOcrConfig={setOcrConfig}
+        primaryStreamUrl={primaryStreamUrl}
+        secondaryStreamUrl={secondaryStreamUrl}
+        isConnected={isConnected}
+        selectedClients={selectedClients}
+        onConnect={connectWebSocket}
+        onDisconnect={disconnectWebSocket}
+      />
+    );
+  };
+
   // ============================================================================
   // MAIN RENDER
   // ============================================================================
@@ -796,6 +830,9 @@ const MultiDesktopStreams: React.FC = () => {
 
         {/* Stream Grid */}
         {renderStreamGrid()}
+
+        {/* Dual Canvas OCR Designer */}
+        {renderDualCanvasOCRDesigner()}
       </div>
     </div>
   );

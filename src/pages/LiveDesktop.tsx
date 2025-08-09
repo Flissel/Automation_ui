@@ -6,6 +6,7 @@ import { ArrowLeft, Monitor, Grid, Maximize2, Settings, Workflow, Database, Play
 import { LiveDesktopInterface } from '@/components/trae/LiveDesktopInterface';
 import { WorkflowResult } from '@/components/trae/WorkflowResult';
 import { FixedSizeOCRDesigner } from '@/components/trae/liveDesktop/FixedSizeOCRDesigner';
+import { DualCanvasOCRDesigner } from '@/components/trae/liveDesktop/DualCanvasOCRDesigner';
 import { LiveDesktopConfig } from '@/types/liveDesktop';
 
 // ============================================================================
@@ -213,7 +214,7 @@ const demoScenarios: DemoScenario[] = [{
 const LiveDesktop: React.FC = () => {
   const navigate = useNavigate();
   const [selectedScenario, setSelectedScenario] = useState<string>('monitoring');
-  const [viewMode, setViewMode] = useState<'interface' | 'results' | 'combined' | 'ocr-designer'>('ocr-designer');
+  const [viewMode, setViewMode] = useState<'interface' | 'results' | 'combined' | 'ocr-designer' | 'dual-canvas'>('dual-canvas');
   const [interfaceStatus, setInterfaceStatus] = useState<any>({});
   const [resultData, setResultData] = useState<any[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -246,6 +247,13 @@ const LiveDesktop: React.FC = () => {
     <Card className="mb-6">
       <CardContent className="pt-6">
         <div className="flex space-x-2">
+          <Button
+            variant={viewMode === 'dual-canvas' ? 'default' : 'outline'}
+            onClick={() => setViewMode('dual-canvas')}
+          >
+            <Maximize2 className="w-4 h-4 mr-2" />
+            Dual Canvas
+          </Button>
           <Button
             variant={viewMode === 'ocr-designer' ? 'default' : 'outline'}
             onClick={() => setViewMode('ocr-designer')}
@@ -380,12 +388,24 @@ const LiveDesktop: React.FC = () => {
     />
   );
 
+  const renderDualCanvasView = () => (
+    <DualCanvasOCRDesigner
+      config={ocrConfig || undefined}
+      onConfigChange={setOcrConfig}
+      className="w-full"
+      primaryMonitorStream="ws://localhost:8084/primary"
+      secondaryMonitorStream="ws://localhost:8084/secondary"
+    />
+  );
+
   // ============================================================================
   // MAIN CONTENT RENDERING
   // ============================================================================
 
   const renderMainContent = () => {
     switch (viewMode) {
+      case 'dual-canvas':
+        return renderDualCanvasView();
       case 'ocr-designer':
         return renderOCRDesignerView();
       case 'interface':
@@ -395,7 +415,7 @@ const LiveDesktop: React.FC = () => {
       case 'combined':
         return renderCombinedView();
       default:
-        return renderOCRDesignerView();
+        return renderDualCanvasView();
     }
   };
 
@@ -437,6 +457,7 @@ const LiveDesktop: React.FC = () => {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>
+              {viewMode === 'dual-canvas' && 'Dual Canvas OCR Zone Designer'}
               {viewMode === 'ocr-designer' && 'OCR Zone Designer'}
               {viewMode === 'interface' && 'Live Desktop Interface'}
               {viewMode === 'results' && 'Workflow Results'}

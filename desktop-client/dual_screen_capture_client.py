@@ -25,14 +25,42 @@ import io
 import cv2
 import numpy as np
 from screeninfo import get_monitors
-from permission_handler import PermissionHandler
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+class PermissionHandler:
+    """
+    Minimal permission handler stub for standalone operation.
+    Automatically grants all permissions for simplified operation.
+    """
+    def __init__(self):
+        self.permissions = {}
+        self.callback = None
+        
+    def set_permission_callback(self, callback):
+        """Set callback for permission responses."""
+        self.callback = callback
+        
+    async def handle_permission_request(self, request_id, requester_id, permission_type):
+        """Handle permission request - automatically grant for standalone operation."""
+        logger.info(f"Auto-granting permission: {permission_type} for {requester_id}")
+        self.permissions[f"{requester_id}_{permission_type}"] = True
+        if self.callback:
+            await self.callback(request_id, requester_id, permission_type, True)
+            
+    def check_permission(self, requester_id, permission_type):
+        """Check if permission is granted."""
+        return self.permissions.get(f"{requester_id}_{permission_type}", True)  # Default to granted
+        
+    def revoke_permission(self, requester_id, permission_type):
+        """Revoke permission."""
+        key = f"{requester_id}_{permission_type}"
+        if key in self.permissions:
+            del self.permissions[key]
 
 class DualScreenCaptureClient:
     """
