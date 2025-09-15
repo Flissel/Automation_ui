@@ -7,6 +7,8 @@
  */
 
 import { permissionService } from './permissionService';
+// Import centralized WebSocket config utilities for consistent URLs and handshakes
+import { WEBSOCKET_CONFIG, createHandshakeMessage } from '@/config/websocketConfig';
 
 // ============================================================================
 // INTERFACES & TYPES
@@ -60,7 +62,7 @@ class DesktopControlService {
   /**
    * Initialisiert WebSocket-Verbindung
    */
-  async initializeWebSocket(url: string = 'ws://localhost:8084'): Promise<boolean> {
+  async initializeWebSocket(url: string = WEBSOCKET_CONFIG.BASE_URL): Promise<boolean> {
     try {
       console.log('🔌 Initialisiere Desktop Control WebSocket-Verbindung...');
       
@@ -99,15 +101,13 @@ class DesktopControlService {
    */
   private sendHandshake(): void {
     if (this.websocket?.readyState === WebSocket.OPEN) {
-      const handshake = {
-        type: 'handshake',
-        clientInfo: {
-          clientType: 'desktop_control_web',
-          clientId: `desktop_control_${Date.now()}`,
-          capabilities: ['desktop_control', 'stream_management', 'permission_handling'],
-          timestamp: new Date().toISOString()
-        }
-      };
+      // Build standardized handshake via centralized utility
+      const handshake = createHandshakeMessage(
+        WEBSOCKET_CONFIG.CLIENT_TYPES.WEB,
+        `desktop_control_${Date.now()}`,
+        ['desktop_control', 'stream_management', 'permission_handling'],
+        { timestamp: new Date().toISOString() }
+      );
       
       this.websocket.send(JSON.stringify(handshake));
       console.log('📤 Desktop Control Handshake gesendet');

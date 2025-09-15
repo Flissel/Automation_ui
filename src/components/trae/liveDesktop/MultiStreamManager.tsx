@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { LiveDesktopConfig, LiveDesktopStatus } from '@/types/liveDesktop';
+import { WEBSOCKET_CONFIG, createHandshakeMessage } from '@/config/websocketConfig';
 
 /**
  * Enhanced Multi-Stream Manager for TRAE Unity AI Platform
@@ -75,7 +76,7 @@ interface MultiStreamManagerProps {
 // ============================================================================
 
 export const MultiStreamManager: React.FC<MultiStreamManagerProps> = ({
-  serverUrl = 'ws://localhost:8084',
+  serverUrl = WEBSOCKET_CONFIG.BASE_URL,
   selectedClients = [],
   maxStreams = 4,
   streamConfig = {},
@@ -162,16 +163,12 @@ export const MultiStreamManager: React.FC<MultiStreamManagerProps> = ({
         stream.retryCount = 0;
 
         // Send handshake for this specific stream
-        const handshake = {
-          type: 'handshake',
-          clientInfo: {
-            clientType: 'web_display_stream',
-            streamId: stream.streamId,
-            clientId: stream.clientId,
-            monitorId: stream.monitorId,
-            capabilities: ['frame_display', 'stream_control']
-          }
-        };
+        const handshake = createHandshakeMessage(
+          'web_display_stream',
+          stream.clientId,
+          ['frame_display', 'stream_control'],
+          { streamId: stream.streamId, monitorId: stream.monitorId }
+        );
         websocket.send(JSON.stringify(handshake));
 
         // Notify callbacks

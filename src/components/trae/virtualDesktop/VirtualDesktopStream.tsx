@@ -7,6 +7,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { WEBSOCKET_CONFIG } from '@/config/websocketConfig';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
@@ -92,17 +93,16 @@ export const VirtualDesktopStream: React.FC<VirtualDesktopStreamProps> = ({
 
     try {
       // Start the stream on the virtual desktop
-      await virtualDesktopManager.startStream(desktop.id, {
-        quality: quality[0],
-        frameRate: frameRate[0],
+      await virtualDesktopManager.startStream(desktop.id), {
+        quality: quality[0] || streamConfig?.quality || 80,
+        frameRate: frameRate[0] || streamConfig?.frameRate || 30,
         format: streamConfig?.format || 'webrtc',
         compression: streamConfig?.compression || 'h264',
-        enableAudio: streamConfig?.enableAudio !== false,
-        bitrate: streamConfig?.bitrate || 2000
-      });
-
+        bitrate: streamConfig?.bitrate || 2000,
+        resolution: desktop.resolution || { width: 1920, height: 1080 }
+      };
       // Connect WebSocket for real-time communication
-      const wsUrl = `ws://localhost:8084/desktop/${desktop.id}/stream`;
+      const wsUrl = `${WEBSOCKET_CONFIG.BASE_URL}/desktop/${desktop.id}/stream`;
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {

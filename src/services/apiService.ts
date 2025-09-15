@@ -63,7 +63,8 @@ export interface WorkflowExecution {
 }
 
 class ApiService {
-  private baseUrl = 'http://localhost:8091/api/v1';
+  private baseUrl = 'http://localhost:8007/api/v1';
+  private workflowBaseUrl = 'http://localhost:8007/api/workflows';
 
   /**
    * Make authenticated API request
@@ -223,6 +224,135 @@ class ApiService {
   }
 
   // ============================================================================
+  // DIRECT WORKFLOW ENDPOINTS (Advanced Features)
+  // ============================================================================
+
+  /**
+   * Make request to direct workflow endpoints
+   */
+  private async workflowRequest<T>(
+    endpoint: string, 
+    options: RequestInit = {}
+  ): Promise<{ success: boolean; data?: T; error?: string }> {
+    try {
+      const url = `${this.workflowBaseUrl}${endpoint}`;
+      const headers = {
+        'Content-Type': 'application/json',
+        ...authService.getAuthHeader(),
+        ...options.headers,
+      };
+
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error || `HTTP ${response.status}: ${response.statusText}`
+        };
+      }
+
+      return {
+        success: true,
+        data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Network error'
+      };
+    }
+  }
+
+  /**
+   * Execute advanced workflow with custom nodes and edges
+   */
+  async executeAdvancedWorkflow(config: {
+    workflow: {
+      name: string;
+      nodes: Array<{
+        id: string;
+        type: string;
+        config: any;
+      }>;
+      edges: Array<{
+        id: string;
+        source: string;
+        target: string;
+      }>;
+    };
+    debug_mode?: boolean;
+    step_by_step?: boolean;
+  }): Promise<{ success: boolean; data?: { execution_id: string; status: string }; error?: string }> {
+    return this.workflowRequest<{ execution_id: string; status: string }>('/execute', {
+      method: 'POST',
+      body: JSON.stringify(config)
+    });
+  }
+
+  /**
+   * Control workflow execution (pause, resume, stop, step)
+   */
+  async controlWorkflowExecution(
+    executionId: string, 
+    action: 'pause' | 'resume' | 'stop' | 'step'
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    return this.workflowRequest(`/${executionId}/control`, {
+      method: 'POST',
+      body: JSON.stringify({ action })
+    });
+  }
+
+  /**
+   * Get detailed workflow execution status
+   */
+  async getAdvancedWorkflowStatus(executionId: string): Promise<{ success: boolean; data?: any; error?: string }> {
+    return this.workflowRequest(`/${executionId}/status`);
+  }
+
+  /**
+   * List all workflows
+   */
+  async listWorkflows(): Promise<{ success: boolean; data?: any[]; error?: string }> {
+    return this.workflowRequest('');
+  }
+
+  /**
+   * Get specific workflow details
+   */
+  async getWorkflow(workflowId: string): Promise<{ success: boolean; data?: any; error?: string }> {
+    return this.workflowRequest(`/${workflowId}`);
+  }
+
+  /**
+   * Create a new workflow
+   */
+  async createWorkflow(workflow: {
+    name: string;
+    description?: string;
+    nodes: any[];
+    edges: any[];
+  }): Promise<{ success: boolean; data?: any; error?: string }> {
+    return this.workflowRequest('', {
+      method: 'POST',
+      body: JSON.stringify(workflow)
+    });
+  }
+
+  /**
+   * Delete a workflow
+   */
+  async deleteWorkflow(workflowId: string): Promise<{ success: boolean; error?: string }> {
+    return this.workflowRequest(`/${workflowId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // ============================================================================
   // AUTOMATION ACTIONS
   // ============================================================================
 
@@ -291,19 +421,14 @@ class ApiService {
    * Get system health status
    */
   async getHealthStatus(): Promise<{ success: boolean; data?: any; error?: string }> {
-    try {
-      const response = await fetch('http://localhost:8090/health');
-      const data = await response.json();
-      return {
-        success: response.ok,
-        data
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Health check failed'
-      };
+    // Use baseUrl-relative health endpoint for consistency and proxy support in dev
+    const apiRoot = this.baseUrl.replace(/\/api(\/v1)?$/, '');
+    const response = await fetch(`${apiRoot}/health`);
+    if (!response.ok) {
+      return { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
     }
+    const data = await response.json();
+    return { success: true, data };
   }
 }
 

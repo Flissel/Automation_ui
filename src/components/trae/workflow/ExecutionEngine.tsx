@@ -158,7 +158,7 @@ export const ExecutionEngine: React.FC<ExecutionEngineProps> = ({
         case 'websocket_config':
           // Real WebSocket configuration
           const wsConfig = {
-            url: nodeConfig.url || 'ws://localhost:8080',
+            url: nodeConfig.url || WEBSOCKET_CONFIG.BASE_URL,
             reconnectAttempts: nodeConfig.reconnectAttempts || 3,
             timeout: nodeConfig.timeout || 5000
           };

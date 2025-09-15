@@ -5,6 +5,7 @@
  */
 
 import { NodeInputSpec, NodeOutputSpec, NodeDependency } from '../types/dataFlow';
+import { WEBSOCKET_CONFIG } from './websocketConfig';
 
 export interface SimplifiedNodeTemplate {
   id: string;
@@ -99,7 +100,7 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
   websocket_config: {
     id: 'websocket_config',
     type: 'websocket_config',
-    label: 'WebSocket Service',
+    label: 'WebSocket Config',
     description: 'WebSocket service configuration and filesystem bridge',
     category: 'config',
     icon: 'Wifi',
@@ -131,7 +132,7 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
       watch_interval: { type: 'number', default: 1000, min: 100, label: 'File Watch Interval (ms)' }
     },
     defaultConfig: { 
-      url: 'ws://localhost', 
+      url: WEBSOCKET_CONFIG.BASE_URL, 
       port: 8080,
       reconnect: true,
       service_command: 'node websocket-server.js',
@@ -660,6 +661,8 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
       outputFormat: 'json'
     }
   },
+
+
 
   // RESULT NODES (gather action results from filesystem)
   workflow_result: {

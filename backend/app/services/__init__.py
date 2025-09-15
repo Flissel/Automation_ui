@@ -1,0 +1,75 @@
+"""Services Package for TRAE Backend
+
+Contains all service modules for backend functionality.
+"""
+
+from .manager import ServiceManager
+from .desktop_automation_service import DesktopAutomationService
+from .click_automation_service import ClickAutomationService
+from .shell_service import ShellService
+from .graph_execution_service import GraphExecutionService, get_graph_execution_service
+from ._ocr_service import OCRService
+from ..core.websocket_manager import WebSocketManager
+
+# Export services
+__all__ = [
+    'ServiceManager',
+    'DesktopAutomationService', 
+    'ClickAutomationService',
+    'ShellService',
+    'GraphExecutionService',
+    'get_graph_execution_service',
+    'get_service_manager',
+    'get_websocket_manager',
+    'get_ocr_service'
+]
+
+# Service getter functions
+def get_desktop_automation_service() -> DesktopAutomationService:
+    """Get DesktopAutomationService instance"""
+    return ServiceManager.get_service('desktop_automation')
+
+def get_click_automation_service() -> ClickAutomationService:
+    """Get ClickAutomationService instance"""
+    return ServiceManager.get_service('click_automation')
+
+def get_shell_service() -> ShellService:
+    """Get ShellService instance"""
+    return ServiceManager.get_service('shell')
+
+def get_websocket_manager() -> WebSocketManager:
+    """Get WebSocketManager instance"""
+    return ServiceManager.get_service('websocket_manager')
+
+def get_ocr_service() -> OCRService:
+    """Get OCRService instance"""
+    return ServiceManager.get_service('ocr')
+
+def get_service_manager() -> ServiceManager:
+    """Get ServiceManager instance from FastAPI app state"""
+    from fastapi import Request
+    from starlette.requests import Request as StarletteRequest
+    import contextvars
+    
+    # Try to get from FastAPI app context
+    try:
+        from fastapi.applications import FastAPI
+        from fastapi.routing import APIRoute
+        import inspect
+        
+        # Get the current request context if available
+        frame = inspect.currentframe()
+        while frame:
+            if 'request' in frame.f_locals and hasattr(frame.f_locals['request'], 'app'):
+                app = frame.f_locals['request'].app
+                if hasattr(app.state, 'service_manager'):
+                    return app.state.service_manager
+            frame = frame.f_back
+        
+        # Fallback: create a new instance if not found in app state
+        # This should only happen during startup or testing
+        return ServiceManager()
+        
+    except Exception:
+        # Final fallback
+        return ServiceManager()

@@ -24,6 +24,7 @@ import {
   Timer,
   Square
 } from 'lucide-react';
+import { WEBSOCKET_CONFIG } from '@/config/websocketConfig';
 
 interface NodeTemplate {
   id: string;
@@ -128,9 +129,9 @@ const nodeTemplates: NodeTemplate[] = [
     icon: Wifi,
     color: 'from-purple-400 to-violet-600',
     description: 'WebSocket connection for real-time communication',
-    defaultConfig: { url: 'ws://localhost:8080', protocol: 'ws', autoReconnect: true },
+    defaultConfig: { url: WEBSOCKET_CONFIG.BASE_URL, protocol: 'ws', autoReconnect: true },
     configSchema: [
-      { key: 'url', label: 'WebSocket URL', type: 'text', defaultValue: 'ws://localhost:8080', required: true },
+      { key: 'url', label: 'WebSocket URL', type: 'text', defaultValue: WEBSOCKET_CONFIG.BASE_URL, required: true },
       { key: 'protocol', label: 'Protocol', type: 'select', options: ['ws', 'wss'], defaultValue: 'ws', required: true },
       { key: 'autoReconnect', label: 'Auto Reconnect', type: 'checkbox', defaultValue: true }
     ],

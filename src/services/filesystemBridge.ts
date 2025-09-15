@@ -18,6 +18,9 @@
  * @version 1.0.0
  */
 
+// Import centralized WebSocket configuration
+import { WEBSOCKET_CONFIG, createFilesystemBridgeClient, createHandshakeMessage } from '@/config/websocketConfig';
+
 // Browser-compatible event emitter implementation
 class SimpleEventEmitter {
   private events: { [key: string]: Function[] } = {};
@@ -129,7 +132,8 @@ export class FilesystemBridge extends SimpleEventEmitter {
   public async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const wsUrl = 'ws://localhost:8084';
+        // Use centralized WebSocket configuration
+        const wsUrl = WEBSOCKET_CONFIG.BASE_URL;
         console.log(`Attempting to connect to WebSocket: ${wsUrl}`);
         
         this.websocket = new WebSocket(wsUrl);
@@ -334,7 +338,7 @@ export class FilesystemBridge extends SimpleEventEmitter {
     
     // Emit connected event with WebSocket URL data
     const connectionData = {
-      url: `ws://localhost:${this.config.websocketPort}`,
+      url: WEBSOCKET_CONFIG.BASE_URL,
       serverInfo: message.serverInfo || {},
       timestamp: new Date().toISOString()
     };
@@ -354,16 +358,20 @@ export class FilesystemBridge extends SimpleEventEmitter {
       return;
     }
 
-    const handshake = {
-      type: 'handshake',
-      timestamp: new Date().toISOString(),
-      clientInfo: {
-        clientType: 'web_interface',
+    // Use centralized handshake message creation
+    const handshake = createHandshakeMessage(
+      WEBSOCKET_CONFIG.CLIENT_TYPES.FILESYSTEM_BRIDGE,
+      `filesystem_bridge_${Date.now()}`,
+      [
+        WEBSOCKET_CONFIG.CAPABILITIES.FILE_OPERATIONS,
+        WEBSOCKET_CONFIG.CAPABILITIES.ACTION_COMMANDS,
+        WEBSOCKET_CONFIG.CAPABILITIES.WORKFLOW_DATA
+      ],
+      {
         version: '1.0.0',
-        timestamp: Date.now(),
-        capabilities: ['desktop_stream', 'action_commands', 'file_operations']
+        timestamp: Date.now()
       }
-    };
+    );
 
     this.websocket.send(JSON.stringify(handshake));
   }
@@ -382,7 +390,8 @@ export class FilesystemBridge extends SimpleEventEmitter {
   public testConnection(): Promise<void> {
     return new Promise((resolve, reject) => {
       console.log('Testing WebSocket connection...');
-      const testWs = new WebSocket('ws://localhost:8084');
+      // Use centralized WebSocket configuration for testing
+      const testWs = new WebSocket(WEBSOCKET_CONFIG.BASE_URL);
       
       testWs.onopen = () => {
         console.log('Test WebSocket connected successfully');
@@ -686,8 +695,8 @@ export class FilesystemBridge extends SimpleEventEmitter {
 // Export default configuration
 export const defaultFilesystemBridgeConfig: FilesystemBridgeConfig = {
   baseDataPath: './workflow-data',
-  websocketUrl: 'ws://localhost:8084',
-  websocketPort: 8084,
+  websocketUrl: WEBSOCKET_CONFIG.BASE_URL,
+  websocketPort: 8007,
   watchInterval: 1000,
   autoCleanup: true,
   maxFileAge: 3600000 // 1 hour

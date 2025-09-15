@@ -30,7 +30,7 @@ class AutoDualMonitorStarter:
     Folgt den gleichen Naming Conventions wie andere Agents
     """
     
-    def __init__(self, server_url: str = "ws://localhost:8084"):
+    def __init__(self, server_url: str = "ws://192.168.178.117:8084"):
         """
         Initialisierung des Auto-Starters
         
@@ -45,7 +45,7 @@ class AutoDualMonitorStarter:
         # Pfad-Konfiguration - folgt gleichen Code Standards
         self.script_dir = Path(__file__).parent
         self.desktop_client_dir = self.script_dir / "desktop-client"
-        self.capture_client_path = self.desktop_client_dir / "desktop_capture_client.py"
+        self.capture_client_path = self.desktop_client_dir / "dual_screen_capture_client.py"
         
         logger.info("AutoDualMonitorStarter initialisiert")
 
@@ -166,7 +166,7 @@ class AutoDualMonitorStarter:
             handshake_message = {
                 'type': 'handshake',
                 'clientInfo': {
-                    'clientType': 'auto_monitor_starter',
+                    'clientType': 'desktop_spawner',  # Changed from auto_monitor_starter to match server expectations
                     'clientId': f'auto_starter_{int(time.time())}',
                     'capabilities': ['monitor_detection', 'auto_client_spawning']
                 },
@@ -205,7 +205,6 @@ class AutoDualMonitorStarter:
                 str(self.capture_client_path),
                 "--server-url", self.server_url,
                 "--client-id", client_id,
-                "--monitor-index", str(monitor_index),
                 "--fps", "30",
                 "--quality", "80",
                 "--scale", "1.0"
@@ -296,20 +295,21 @@ class AutoDualMonitorStarter:
         logger.info(f"Starte Stream-Verifikation (Timeout: {timeout}s)")
         
         start_time = time.time()
-        expected_streams = len(self.detected_monitors)
+        # Da der Dual-Screen-Client beide Monitore bedient, erwarten wir nur 1 laufenden Client-Prozess
+        expected_processes = 1
         
         while time.time() - start_time < timeout:
             try:
-                # Prüfe ob alle gestarteten Clients noch laufen
+                # Prüfe ob der gestartete Client noch läuft
                 running_clients = 0
                 for process in self.started_clients:
                     if process.poll() is None:  # Prozess läuft noch
                         running_clients += 1
                 
-                logger.info(f"Laufende Clients: {running_clients}/{expected_streams}")
+                logger.info(f"Laufende Clients: {running_clients}/{expected_processes}")
                 
-                if running_clients == expected_streams:
-                    logger.info("✅ Alle Desktop-Clients laufen erfolgreich")
+                if running_clients >= expected_processes:
+                    logger.info("✅ Dual-Screen-Client läuft erfolgreich")
                     return True
                 
                 await asyncio.sleep(2)  # Warte 2 Sekunden vor nächster Prüfung
@@ -364,17 +364,18 @@ class AutoDualMonitorStarter:
                 logger.error("❌ Verbindung zum Server fehlgeschlagen")
                 return False
             
-            # Schritt 3: Desktop-Clients für alle Monitore starten
-            logger.info(f"Starte Desktop-Clients für {len(monitors)} Monitor(e)...")
+            # Schritt 3: Desktop-Client starten (ein Client für alle Monitore)
+            logger.info(f"Starte Dual-Screen Desktop-Client für {len(monitors)} Monitor(e)...")
             
-            for monitor in monitors:
-                process = self.start_desktop_client(monitor)
+            # Der dual_screen_capture_client handhabt automatisch alle Monitore
+            if len(monitors) > 0:
+                process = self.start_desktop_client(monitors[0])  # Nutze ersten Monitor für Client-ID
                 if not process:
-                    logger.error(f"❌ Fehler beim Starten des Clients für Monitor {monitor['monitor_index']}")
+                    logger.error("❌ Fehler beim Starten des Dual-Screen-Clients")
                     return False
                 
-                # Kurze Pause zwischen Client-Starts
-                await asyncio.sleep(1)
+                # Kurze Pause für Client-Initialisierung
+                await asyncio.sleep(2)
             
             # Schritt 4: Desktop-Instance beim Server erstellen
             await self.send_desktop_creation_request(monitors)
@@ -415,7 +416,7 @@ async def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Auto Dual Monitor Starter für TRAE Unity AI Platform')
-    parser.add_argument('--server-url', default='ws://localhost:8084',
+    parser.add_argument('--server-url', default='ws://192.168.178.117:8084',
                        help='WebSocket Server URL')
     
     args = parser.parse_args()

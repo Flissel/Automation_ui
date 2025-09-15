@@ -7,9 +7,11 @@ import ExecutionHistory from '@/components/trae/ExecutionHistory';
 import ConsoleLog from '@/components/trae/ConsoleLog';
 import WorkflowVariables from '@/components/trae/WorkflowVariables';
 import WorkflowSettings from '@/components/trae/WorkflowSettings';
+import { DebugBar } from '@/components/workflow/DebugBar';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWorkflowStore } from '@/stores/workflowStore';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import AppHeader from '@/components/layout/AppHeader';
 
 const Workflow: React.FC = () => {
@@ -22,8 +24,37 @@ const Workflow: React.FC = () => {
     activeDebugTab,
     setActiveDebugTab,
     workflowName,
-    setWorkflowName
+    setWorkflowName,
+    currentExecution,
+    debugMode,
+    stepByStep,
+    startExecution,
+    validateWorkflow
   } = useWorkflowStore();
+
+  // Initialize WebSocket connection for real-time updates
+  const { isConnected, sendMessage } = useWebSocket();
+
+  // Execute workflow handler
+  const handleExecuteWorkflow = useCallback(async () => {
+    try {
+      // Validate workflow before execution
+      const validation = validateWorkflow();
+      if (!validation.isValid) {
+        console.error('Workflow validation failed:', validation.errors);
+        return;
+      }
+
+      // Start execution
+      await startExecution({
+        workflowId: 'current-workflow',
+        debugMode,
+        stepByStep
+      });
+    } catch (error) {
+      console.error('Failed to execute workflow:', error);
+    }
+  }, [validateWorkflow, startExecution, debugMode, stepByStep]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -40,14 +71,14 @@ const Workflow: React.FC = () => {
             break;
           case 'Enter':
             e.preventDefault();
-            console.log('Execute workflow');
+            handleExecuteWorkflow();
             break;
         }
       }
       
       if (e.key === 'F5') {
         e.preventDefault();
-        console.log('Execute workflow');
+        handleExecuteWorkflow();
       }
       
       // Tab switching
@@ -75,6 +106,11 @@ const Workflow: React.FC = () => {
 
   const headerActions = (
     <div className="flex items-center space-x-2">
+      {/* WebSocket Connection Status */}
+      <div className={`w-2 h-2 rounded-full ${
+        isConnected ? 'bg-green-500' : 'bg-red-500'
+      }`} title={isConnected ? 'Connected' : 'Disconnected'} />
+      
       <Button variant="outline" size="sm">
         <Upload className="w-4 h-4 mr-2" />
         Load
@@ -83,9 +119,13 @@ const Workflow: React.FC = () => {
         <Download className="w-4 h-4 mr-2" />
         Save
       </Button>
-      <Button size="sm">
+      <Button 
+        size="sm" 
+        onClick={handleExecuteWorkflow}
+        disabled={currentExecution?.status === 'running'}
+      >
         <Play className="w-4 h-4 mr-2" />
-        Execute
+        {currentExecution?.status === 'running' ? 'Running...' : 'Execute'}
       </Button>
     </div>
   );
@@ -97,6 +137,9 @@ const Workflow: React.FC = () => {
         subtitle="n8n-style visual workflow automation"
         actions={headerActions}
       />
+
+      {/* Debug Bar */}
+      <DebugBar />
 
       {/* Canvas and Debug Panel */}
       <div className="flex-1 overflow-hidden">

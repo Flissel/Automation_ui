@@ -55,7 +55,8 @@ import {
   Wifi,
   Radio,
   FileText,
-  Cog
+  Cog,
+  X
 } from 'lucide-react';
 
 // Types
@@ -152,6 +153,7 @@ const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
       case 'http_request_action': return 'bg-gradient-to-br from-red-100 to-rose-200 border-red-400 shadow-red-200/50';
       case 'if_condition': return 'bg-gradient-to-br from-cyan-100 to-teal-200 border-cyan-400 shadow-cyan-200/50';
       case 'variable_store': return 'bg-gradient-to-br from-pink-100 to-rose-200 border-pink-400 shadow-pink-200/50';
+  
       case 'end': return 'bg-gradient-to-br from-gray-100 to-slate-200 border-gray-400 shadow-gray-200/50';
       default: return 'bg-gradient-to-br from-white to-gray-100 border-gray-300 shadow-gray-200/50';
     }
@@ -169,6 +171,7 @@ const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
       case 'http_request_action': return <Globe className="w-5 h-5 text-red-600" />;
       case 'if_condition': return <GitBranch className="w-5 h-5 text-cyan-600" />;
       case 'variable_store': return <Database className="w-5 h-5 text-pink-600" />;
+  
       case 'end': return <Square className="w-5 h-5 text-gray-600" />;
       default: return <Settings className="w-5 h-5 text-gray-600" />;
     }

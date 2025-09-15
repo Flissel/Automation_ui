@@ -155,47 +155,6 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
   const { toast } = useToast();
 
   // ============================================================================
-  // INPUT DATA PROCESSING
-  // ============================================================================
-
-  const processInputData = useCallback(() => {
-    const inputResults: WorkflowData[] = [];
-
-    // Process workflow data input
-    if (workflowDataInput && workflowDataInput.length > 0) {
-      workflowDataInput.forEach(data => {
-        inputResults.push({
-          ...data,
-          metadata: {
-          ...data.metadata
-          }
-        });
-      });
-    }
-
-    // Process action results input
-    if (actionResultsInput && actionResultsInput.length > 0) {
-      actionResultsInput.forEach(actionResult => {
-        const workflowData: WorkflowData = {
-          id: `action_${Date.now()}`,
-          timestamp: Date.now(),
-          nodeId: 'unknown',
-          nodeType: 'action',
-          data: actionResult,
-          metadata: {
-            executionId: `execution_${Date.now()}`,
-            workflowId: `workflow_${Date.now()}`,
-            status: 'completed' as const
-          }
-        };
-        inputResults.push(workflowData);
-      });
-    }
-
-    return inputResults;
-  }, [workflowDataInput, actionResultsInput]);
-
-  // ============================================================================
   // DATA COLLECTION AND FILTERING
   // ============================================================================
 
@@ -206,7 +165,39 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
       const allResults: WorkflowData[] = [];
 
       // Process input data from connected nodes
-      const inputData = processInputData();
+      const inputData: WorkflowData[] = [];
+
+      // Process workflow data input
+      if (workflowDataInput && workflowDataInput.length > 0) {
+        workflowDataInput.forEach(data => {
+          inputData.push({
+            ...data,
+            metadata: {
+            ...data.metadata
+            }
+          });
+        });
+      }
+
+      // Process action results input
+      if (actionResultsInput && actionResultsInput.length > 0) {
+        actionResultsInput.forEach(actionResult => {
+          const workflowData: WorkflowData = {
+            id: `action_${Date.now()}`,
+            timestamp: Date.now(),
+            nodeId: 'unknown',
+            nodeType: 'action',
+            data: actionResult,
+            metadata: {
+              executionId: `execution_${Date.now()}`,
+              workflowId: `workflow_${Date.now()}`,
+              status: 'completed' as const
+            }
+          };
+          inputData.push(workflowData);
+        });
+      }
+
       allResults.push(...inputData);
 
       // Collect results from filesystem if bridge is available
@@ -229,48 +220,58 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
         .slice(0, maxResults);
 
       setResults(sortedResults);
-      applyFilters(sortedResults);
 
-    } catch (error) {
-      const errorMessage = `Failed to collect results: ${error}`;
+      if (onResultUpdate) {
+        onResultUpdate(sortedResults);
+      }
+
       toast({
-        title: "Collection Error",
-        description: errorMessage,
-        variant: "destructive"
+        title: "Results Updated",
+        description: `Collected ${sortedResults.length} workflow results`,
       });
 
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      
       if (onError) {
         onError(errorMessage);
       }
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
-  }, [filesystemBridge, maxResults, processInputData, onError]);
+  }, [filesystemBridge, maxResults, workflowDataInput, actionResultsInput, onResultUpdate, onError, toast]);
 
-  const applyFilters = useCallback((resultsToFilter: WorkflowData[] = results) => {
-    let filtered = [...resultsToFilter];
+  // Filter function for manual filtering (not used in useEffect to avoid loops)
+  const applyFiltersToResults = useCallback((sourceResults: WorkflowData[], currentFilter: ResultFilter) => {
+    let filtered = [...sourceResults];
 
     // Filter by node type
-    if (filter.nodeType) {
-      filtered = filtered.filter(result => result.nodeType === filter.nodeType);
+    if (currentFilter.nodeType) {
+      filtered = filtered.filter(result => result.nodeType === currentFilter.nodeType);
     }
 
     // Filter by status
-    if (filter.status) {
-      filtered = filtered.filter(result => result.metadata.status === filter.status);
+    if (currentFilter.status) {
+      filtered = filtered.filter(result => result.metadata.status === currentFilter.status);
     }
 
     // Filter by date range
-    if (filter.dateRange) {
+    if (currentFilter.dateRange) {
       filtered = filtered.filter(result => {
         const resultDate = new Date(result.timestamp);
-        return resultDate >= filter.dateRange!.start && resultDate <= filter.dateRange!.end;
+        return resultDate >= currentFilter.dateRange!.start && resultDate <= currentFilter.dateRange!.end;
       });
     }
 
     // Filter by search term
-    if (filter.searchTerm) {
-      const searchLower = filter.searchTerm.toLowerCase();
+    if (currentFilter.searchTerm) {
+      const searchLower = currentFilter.searchTerm.toLowerCase();
       filtered = filtered.filter(result => 
         result.nodeId.toLowerCase().includes(searchLower) ||
         result.nodeType.toLowerCase().includes(searchLower) ||
@@ -278,9 +279,8 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
       );
     }
 
-    setFilteredResults(filtered);
-    calculateAggregation(filtered);
-  }, [filter, results]);
+    return filtered;
+  }, []);
 
   const calculateAggregation = useCallback((resultsToAggregate: WorkflowData[]) => {
     const agg: ResultAggregation = {
@@ -303,16 +303,19 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
       agg.statusBreakdown[status] = (agg.statusBreakdown[status] || 0) + 1;
       
       switch (status) {
-        case 'completed':
+        case 'completed': {
           agg.successCount++;
           break;
-        case 'failed':
+        }
+        case 'failed': {
           agg.failureCount++;
           break;
+        }
         case 'pending':
-        case 'processing':
+        case 'processing': {
           agg.pendingCount++;
           break;
+        }
       }
 
       // Count by node type
@@ -341,7 +344,7 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
 
     resultsToAggregate.forEach(result => {
       const hourKey = Math.floor(result.timestamp / (60 * 60 * 1000));
-      if (hourlyBuckets.hasOwnProperty(hourKey)) {
+      if (Object.prototype.hasOwnProperty.call(hourlyBuckets, hourKey)) {
         hourlyBuckets[hourKey]++;
       }
     });
@@ -496,11 +499,20 @@ ${exportData.map(result => `
   // LIFECYCLE EFFECTS
   // ============================================================================
 
+  // Apply filters when filter changes - using stable function to avoid loops
+  useEffect(() => {
+    const filtered = applyFiltersToResults(results, filter);
+    setFilteredResults(filtered);
+    calculateAggregation(filtered);
+  }, [filter, results, applyFiltersToResults, calculateAggregation]);
+
+  // Set up refresh interval for real-time monitoring
   useEffect(() => {
     if (enableRealTimeMonitoring && refreshInterval > 0) {
-      refreshIntervalRef.current = setInterval(() => {
+      const intervalId = setInterval(() => {
         collectResults();
       }, refreshInterval * 1000);
+      refreshIntervalRef.current = intervalId;
 
       return () => {
         if (refreshIntervalRef.current) {
@@ -510,20 +522,10 @@ ${exportData.map(result => `
     }
   }, [enableRealTimeMonitoring, refreshInterval, collectResults]);
 
-  useEffect(() => {
-    applyFilters();
-  }, [filter, applyFilters]);
-
-  useEffect(() => {
-    if (filesystemBridge) {
-      collectResults();
-    }
-  }, [filesystemBridge, collectResults]);
-
-  // Trigger collection when input data changes
+  // Initial data collection on mount and when key dependencies change
   useEffect(() => {
     collectResults();
-  }, [workflowDataInput, actionResultsInput, collectResults]);
+  }, [filesystemBridge, workflowDataInput, actionResultsInput]);
 
   // ============================================================================
   // RENDER COMPONENT

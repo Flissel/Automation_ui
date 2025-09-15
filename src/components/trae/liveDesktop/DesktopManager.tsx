@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Monitor, Plus, Play, Square, Trash2, Settings } from 'lucide-react';
+import { createDesktopManagerClient, sendWebSocketMessage } from '@/config/websocketConfig';
 
 interface DesktopInstance {
   id: string;
@@ -51,26 +52,18 @@ export const DesktopManager: React.FC<DesktopManagerProps> = ({
   const connectToServer = () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    const ws = new WebSocket('ws://localhost:8084');
-    wsRef.current = ws;
+    const { clientId, websocket, handshakeMessage } = createDesktopManagerClient();
+    wsRef.current = websocket;
 
-    ws.onopen = () => {
+    websocket.onopen = () => {
       console.log('Desktop Manager connected to WebSocket server');
       setIsConnected(true);
       
-      // Register as desktop manager
-      ws.send(JSON.stringify({
-        type: 'handshake',
-        clientInfo: {
-          clientType: 'desktop_manager',
-          clientId: `desktop_manager_${Date.now()}`,
-          capabilities: ['desktop_spawning', 'multi_instance_management']
-        },
-        timestamp: new Date().toISOString()
-      }));
+      // Register as desktop manager using standardized handshake
+      sendWebSocketMessage(websocket, handshakeMessage);
     };
 
-    ws.onmessage = (event) => {
+    websocket.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
         handleServerMessage(message);
@@ -79,12 +72,12 @@ export const DesktopManager: React.FC<DesktopManagerProps> = ({
       }
     };
 
-    ws.onclose = () => {
+    websocket.onclose = () => {
       console.log('Desktop Manager WebSocket disconnected');
       setIsConnected(false);
     };
 
-    ws.onerror = (error) => {
+    websocket.onerror = (error) => {
       console.error('Desktop Manager WebSocket error:', error);
     };
   };
