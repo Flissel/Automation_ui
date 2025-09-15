@@ -36,6 +36,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FilesystemBridge, FilesystemBridgeConfig, WorkflowData, ActionCommand, ActionResult } from '@/services/filesystemBridge';
+import { WEBSOCKET_CONFIG } from '@/config/websocketConfig';
 
 // ============================================================================
 // INTERFACES
@@ -103,11 +104,11 @@ interface LiveDesktopInterfaceProps {
 // ============================================================================
 
 const DEFAULT_WEBSOCKET_CONFIG: WebSocketConfig = {
-  url: 'ws://localhost',
-  port: 8084,
+  url: WEBSOCKET_CONFIG.BASE_URL,
+  port: 8007, // Legacy support - extracted from BASE_URL in practice
   autoReconnect: true,
-  reconnectInterval: 5000,
-  maxReconnectAttempts: 5,
+  reconnectInterval: WEBSOCKET_CONFIG.CONNECTION.RECONNECT_DELAY,
+  maxReconnectAttempts: WEBSOCKET_CONFIG.CONNECTION.MAX_RECONNECT_ATTEMPTS,
   enableFilesystemBridge: true,
   dataDirectory: './workflow-data',
   fileFormat: 'json',
@@ -116,8 +117,8 @@ const DEFAULT_WEBSOCKET_CONFIG: WebSocketConfig = {
 
 const DEFAULT_FILESYSTEM_CONFIG: FilesystemBridgeConfig = {
   baseDataPath: './workflow-data',
-  websocketUrl: 'ws://localhost',
-  websocketPort: 8084,
+  websocketUrl: WEBSOCKET_CONFIG.BASE_URL,
+  websocketPort: 8007, // Legacy support - extracted from BASE_URL in practice
   watchInterval: 1000,
   autoCleanup: true,
   maxFileAge: 3600000 // 1 hour
@@ -174,8 +175,9 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
   const [streamQuality, setStreamQuality] = useState<'low' | 'medium' | 'high'>('medium');
   const [frameRate, setFrameRate] = useState(30);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
   const filesystemBridgeRef = useRef<FilesystemBridge | null>(null);
+  // Store latest frame metadata for click coordinate mapping and routing
+  const lastFrameInfoRef = useRef<{ width: number; height: number; monitorId?: string; sourceClientId?: string } | null>(null);
   const { toast } = useToast();
 
   // ============================================================================
@@ -301,6 +303,23 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
       });
 
       bridge.on('frame_data', (data) => {
+        // Capture routing and sizing info for click routing before rendering
+        try {
+          const sourceClientId = data?.routingInfo?.sourceClientId || data?.metadata?.clientId || data?.clientId;
+          const monitorId = data?.routingInfo?.monitorId || data?.monitorId || data?.metadata?.monitorId;
+          if (data?.width && data?.height) {
+            lastFrameInfoRef.current = {
+              width: data.width,
+              height: data.height,
+              sourceClientId: sourceClientId || undefined,
+              monitorId: monitorId || undefined
+            };
+          }
+        } catch (e) {
+          // Safe-guard: do not break frame rendering on metadata issues
+          console.warn('[LiveDesktopInterface] Failed to capture frame routing info:', e);
+        }
+
         if (data.frameData) {
           handleFrameData(data.frameData, data.width, data.height);
         }
@@ -543,6 +562,58 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
     img.src = `data:image/jpeg;base64,${frameData}`;
   }, []);
 
+  const handleCanvasClick = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!filesystemBridgeRef.current || !desktopStreamActive) {
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+
+    const last = lastFrameInfoRef.current;
+    let nativeX = Math.round(offsetX);
+    let nativeY = Math.round(offsetY);
+
+    // Map click coordinates to the original frame resolution if available
+    const displayedWidth = canvas.clientWidth || rect.width;
+    const displayedHeight = canvas.clientHeight || rect.height;
+
+    if (last && displayedWidth > 0 && displayedHeight > 0) {
+      const scaleX = last.width / displayedWidth;
+      const scaleY = last.height / displayedHeight;
+      nativeX = Math.round(offsetX * scaleX);
+      nativeY = Math.round(offsetY * scaleY);
+    }
+
+    const clickData = {
+      type: 'desktop_click',
+      x: nativeX,
+      y: nativeY,
+      canvasX: Math.round(offsetX),
+      canvasY: Math.round(offsetY),
+      frame: last ? { width: last.width, height: last.height, monitorId: last.monitorId, sourceClientId: last.sourceClientId } : undefined,
+      timestamp: Date.now()
+    };
+
+    try {
+      filesystemBridgeRef.current.sendWebSocketData('desktop_click', clickData);
+      toast({
+        title: 'Click Sent',
+        description: `Sent click at (${nativeX}, ${nativeY})`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Click Failed',
+        description: 'Unable to send click event to desktop client',
+        variant: 'destructive'
+      });
+    }
+  }, [desktopStreamActive, toast]);
+
   // ============================================================================
   // LIFECYCLE EFFECTS
   // ============================================================================
@@ -580,7 +651,7 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
                   <><WifiOff className="h-3 w-3 mr-1" /> Disconnected</>
                 )}
               </Badge>
-              <Badge variant={interfaceStatus.filesystemBridgeActive ? "default" : "secondary"}>
+              <Badge variant={interfaceStatus.filesystemBridgeActive ? "default" : "secondary"} data-testid="bridge-status-badge">
                 <Database className="h-3 w-3 mr-1" />
                 Bridge {interfaceStatus.filesystemBridgeActive ? 'Active' : 'Inactive'}
               </Badge>
@@ -660,6 +731,7 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
                   onClick={initializeFilesystemBridge}
                   disabled={isLoading || interfaceStatus.filesystemBridgeActive}
                   className="flex items-center gap-2"
+                  data-testid="start-bridge-button"
                 >
                   {isLoading ? (
                     <RefreshCw className="h-4 w-4 animate-spin" />
@@ -690,6 +762,7 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
                   }}
                   disabled={!interfaceStatus.filesystemBridgeActive}
                   className="flex items-center gap-2"
+                  data-testid="stop-bridge-button"
                 >
                   <Square className="h-4 w-4" />
                   Stop Bridge
@@ -768,6 +841,7 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
                           onClick={startDesktopStream}
                           disabled={!interfaceStatus.filesystemBridgeActive || desktopStreamActive}
                           className="flex items-center gap-2"
+                          data-testid="start-stream-button"
                         >
                           <Play className="h-4 w-4" />
                           {desktopStreamActive ? 'Stream Active' : 'Start Stream'}
@@ -778,6 +852,7 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
                           onClick={stopDesktopStream}
                           disabled={!desktopStreamActive}
                           className="flex items-center gap-2"
+                          data-testid="stop-stream-button"
                         >
                           <Square className="h-4 w-4" />
                           Stop Stream
@@ -823,13 +898,13 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
                     <CardContent className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Desktop Client:</span>
-                        <Badge variant={desktopConnected ? "default" : "destructive"}>
+                        <Badge variant={desktopConnected ? "default" : "destructive"} data-testid="desktop-client-status-badge">
                           {desktopConnected ? 'Connected' : 'Disconnected'}
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Stream:</span>
-                        <Badge variant={desktopStreamActive ? "default" : "secondary"}>
+                        <Badge variant={desktopStreamActive ? "default" : "secondary"} data-testid="stream-status-badge">
                           {desktopStreamActive ? 'Active' : 'Inactive'}
                         </Badge>
                       </div>
@@ -860,6 +935,8 @@ export const LiveDesktopInterface: React.FC<LiveDesktopInterfaceProps> = ({
                           ref={canvasRef}
                           className="w-full h-full object-contain"
                           style={{ maxHeight: '400px' }}
+                          onClick={handleCanvasClick}
+                          data-testid="live-desktop-canvas"
                         />
                         {!desktopStreamActive && (
                           <div className="absolute inset-0 flex items-center justify-center text-white">

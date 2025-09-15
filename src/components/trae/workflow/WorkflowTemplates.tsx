@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Play, Monitor, Globe, Database, Zap } from 'lucide-react';
+import { WEBSOCKET_CONFIG } from '@/config/websocketConfig';
 
 export interface WorkflowTemplate {
   id: string;
@@ -18,6 +19,122 @@ export interface WorkflowTemplate {
 }
 
 const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
+  {
+    id: 'dual-desktop-automation',
+    name: 'Dual Desktop Automation',
+    description: 'Automation workflow with two separate desktop interfaces for multi-stream configuration',
+    category: 'desktop',
+    icon: Monitor,
+    difficulty: 'intermediate',
+    estimatedTime: '8 min',
+    nodes: [
+      {
+        id: 'trigger-1',
+        type: 'manual_trigger',
+        position: { x: 50, y: 150 },
+        data: { label: 'Manual Start', type: 'manual_trigger', config: {} }
+      },
+      {
+        id: 'websocket-config-1',
+        type: 'websocket_config',
+        position: { x: 50, y: 50 },
+        data: { 
+          label: 'WebSocket Service', 
+          type: 'websocket_config',
+          config: { 
+            url: WEBSOCKET_CONFIG.BASE_URL, 
+            port: 8007, 
+            reconnect: true,
+            filesystem_bridge: true,
+            data_directory: './workflow-data'
+          }
+        }
+      },
+      {
+        id: 'websocket-config-2',
+        type: 'websocket_config',
+        position: { x: 50, y: 250 },
+        data: { 
+          label: 'WebSocket Service 2', 
+          type: 'websocket_config',
+            url: WEBSOCKET_CONFIG.BASE_URL, 
+            port: 8085, 
+            reconnect: true,
+            filesystem_bridge: true,
+            data_directory: './workflow-data-2'
+          }
+        }
+      },
+      {
+        id: 'desktop-1',
+        type: 'live_desktop',
+        position: { x: 300, y: 100 },
+        data: { 
+          label: 'Live Desktop Interface 1', 
+          type: 'live_desktop',
+          config: { 
+            fps: 30, 
+            quality: 80, 
+            width: 1920, 
+            height: 1080,
+            data_output_path: './workflow-data/desktop-1'
+          }
+        }
+      },
+      {
+        id: 'desktop-2',
+        type: 'live_desktop',
+        position: { x: 300, y: 200 },
+        data: { 
+          label: 'Live Desktop Interface 2', 
+          type: 'live_desktop',
+          config: { 
+            fps: 30, 
+            quality: 80, 
+            width: 1920, 
+            height: 1080,
+            data_output_path: './workflow-data/desktop-2'
+          }
+        }
+      },
+      {
+        id: 'click-1',
+        type: 'click_action',
+        position: { x: 550, y: 80 },
+        data: { 
+          label: 'Click Action Desktop 1', 
+          type: 'click_action',
+          config: { x: 100, y: 100, button: 'left' }
+        }
+      },
+      {
+        id: 'click-2',
+        type: 'click_action',
+        position: { x: 550, y: 180 },
+        data: { 
+          label: 'Click Action Desktop 2', 
+          type: 'click_action',
+          config: { x: 200, y: 200, button: 'left' }
+        }
+      },
+      {
+        id: 'end-1',
+        type: 'end',
+        position: { x: 750, y: 150 },
+        data: { label: 'End', type: 'end', config: {} }
+      }
+    ],
+    edges: [
+      { id: 'e1', source: 'trigger-1', target: 'desktop-1' },
+      { id: 'e2', source: 'trigger-1', target: 'desktop-2' },
+      { id: 'e3', source: 'websocket-config-1', target: 'desktop-1' },
+      { id: 'e4', source: 'websocket-config-2', target: 'desktop-2' },
+      { id: 'e5', source: 'desktop-1', target: 'click-1' },
+      { id: 'e6', source: 'desktop-2', target: 'click-2' },
+      { id: 'e7', source: 'click-1', target: 'end-1' },
+      { id: 'e8', source: 'click-2', target: 'end-1' }
+    ]
+  },
   {
     id: 'basic-desktop-automation',
     name: 'Basic Desktop Automation',
@@ -40,7 +157,7 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
         data: { 
           label: 'WebSocket Connection', 
           type: 'websocket_comm',
-          config: { url: 'ws://localhost:8080', protocol: 'ws' }
+          config: { url: WEBSOCKET_CONFIG.BASE_URL, protocol: 'ws' }
         }
       },
       {
@@ -247,3 +364,4 @@ export const WorkflowTemplates: React.FC<WorkflowTemplatesProps> = ({
 };
 
 export { WORKFLOW_TEMPLATES };
+

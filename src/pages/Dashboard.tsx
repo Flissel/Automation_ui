@@ -252,15 +252,16 @@ const Dashboard = () => {
               variant="outline" 
               size="sm"
               disabled={refreshing}
+              data-testid="dashboard-refresh-button"
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
             <div className="text-right">
-              <p className="text-sm font-medium">{user?.email || 'User'}</p>
+              <p className="text-sm font-medium" data-testid="dashboard-user-email">{user?.email || 'User'}</p>
               <p className="text-xs text-muted-foreground">Administrator</p>
             </div>
-            <Button onClick={handleSignOut} variant="outline" size="sm">
+            <Button onClick={handleSignOut} variant="outline" size="sm" data-testid="dashboard-signout-button">
               <LogOut className="w-4 h-4 mr-2" />
               Sign Out
             </Button>
@@ -271,7 +272,7 @@ const Dashboard = () => {
       <main className="p-6">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">Welcome back!</h2>
+          <h2 className="text-3xl font-bold mb-2" data-testid="dashboard-welcome-title">Welcome back!</h2>
           <p className="text-muted-foreground">
             Access your desktop automation tools and manage remote systems from this unified dashboard.
           </p>
@@ -280,7 +281,7 @@ const Dashboard = () => {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {stats.map((stat, index) => (
-            <Card key={index} className="relative">
+            <Card key={index} className="relative" data-testid={`stat-card-${stat.label.toLowerCase().replace(/\s+/g, '-')}`}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -305,14 +306,14 @@ const Dashboard = () => {
         {/* Quick Actions */}
         <div className="mb-8">
           <h3 className="text-xl font-semibold mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6" data-testid="quick-actions-grid">
             {quickActions.map((action, index) => (
-              <Card key={index} className="cursor-pointer hover:shadow-lg transition-shadow" onClick={action.action}>
+              <Card key={index} className="cursor-pointer hover:shadow-lg transition-shadow" onClick={action.action} data-testid={`quick-action-card-${index}`}>
                 <CardContent className="p-6">
                   <div className={`w-12 h-12 rounded-lg ${action.color} flex items-center justify-center text-white mb-4`}>
                     {action.icon}
                   </div>
-                  <h4 className="font-semibold mb-2">{action.title}</h4>
+                  <h4 className="font-semibold mb-2" data-testid={`quick-action-title-${index}`}>{action.title}</h4>
                   <p className="text-sm text-muted-foreground">{action.description}</p>
                 </CardContent>
               </Card>
@@ -327,7 +328,7 @@ const Dashboard = () => {
             <CardDescription>Latest system events and workflow executions</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+            <div className="space-y-3" data-testid="recent-activity-list">
               {/* Show recent workflow executions */}
               {executions.slice(0, 5).map((execution, index) => {
                 const getStatusIcon = (status: string) => {
@@ -360,7 +361,7 @@ const Dashboard = () => {
                 const template = workflows.find(w => w.id === execution.templateId);
 
                 return (
-                  <div key={execution.id} className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
+                  <div key={execution.id} className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50" data-testid={`workflow-execution-${execution.id}`}>
                     {getStatusIcon(execution.status)}
                     <div className="flex-1">
                       <p className="text-sm font-medium">
@@ -377,7 +378,7 @@ const Dashboard = () => {
 
               {/* Show active desktops */}
               {desktops.filter(d => d.status === 'active').slice(0, 3).map((desktop, index) => (
-                <div key={desktop.id} className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50">
+                <div key={desktop.id} className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50" data-testid={`active-desktop-${desktop.id}`}>
                   <Monitor className="w-5 h-5 text-blue-500" />
                   <div className="flex-1">
                     <p className="text-sm font-medium">Desktop "{desktop.name}" connected</p>
@@ -390,7 +391,7 @@ const Dashboard = () => {
 
               {/* Show message if no activity */}
               {executions.length === 0 && desktops.length === 0 && (
-                <div className="text-center py-8">
+                <div className="text-center py-8" data-testid="recent-activity-empty-state">
                   <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                   <p className="text-sm text-muted-foreground">No recent activity</p>
                   <p className="text-xs text-muted-foreground">Start a workflow or connect a desktop to see activity here</p>

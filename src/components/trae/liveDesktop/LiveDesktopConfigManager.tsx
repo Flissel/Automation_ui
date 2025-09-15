@@ -16,6 +16,8 @@ import { Save, Upload, Download, Trash2, Plus, Settings, Copy } from 'lucide-rea
 import { LiveDesktopConfig, LiveDesktopTemplate } from '@/types/liveDesktop';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+// Import centralized WebSocket configuration for consistent URL handling
+import { WEBSOCKET_CONFIG } from '@/config/websocketConfig';
 
 interface LiveDesktopConfigManagerProps {
   currentConfig: LiveDesktopConfig | null;
@@ -87,7 +89,7 @@ export const LiveDesktopConfigManager: React.FC<LiveDesktopConfigManagerProps> =
               id: item.id,
               name: item.name,
               description: item.description || '',
-              websocketUrl: config.websocketUrl || 'ws://localhost:8084',
+              websocketUrl: config.websocketUrl || WEBSOCKET_CONFIG.BASE_URL,
               streaming: config.streaming || { fps: 10, quality: 75, scale: 0.8 },
               connection: config.connection || { timeout: 30, maxReconnectAttempts: 5, reconnectInterval: 5 },
               ocr: config.ocr || { enabled: false, extractionInterval: 30, autoSend: false },
@@ -210,7 +212,7 @@ export const LiveDesktopConfigManager: React.FC<LiveDesktopConfigManagerProps> =
       id: `config-${Date.now()}`,
       name: newConfigName.trim(),
       description: newConfigDescription.trim(),
-      websocketUrl: 'ws://localhost:8000',
+      websocketUrl: WEBSOCKET_CONFIG.BASE_URL,
       streaming: {
         fps: baseConfig.streaming?.fps || 10,
         quality: baseConfig.streaming?.quality || 75,

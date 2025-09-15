@@ -7,6 +7,7 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { WEBSOCKET_CONFIG } from '@/config/websocketConfig';
 
 // ============================================================================
 // INTERFACES AND TYPES
@@ -68,7 +69,7 @@ interface MultiDesktopStreamGridProps {
 
 export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
   selectedClients = [],
-  serverUrl = 'ws://localhost:8084',
+  serverUrl = WEBSOCKET_CONFIG.BASE_URL,
   maxStreams = 4,
   gridLayout = 'auto',
   streamConfig = {},
@@ -95,10 +96,12 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
   // Process screenshots from parent component and update canvas
   const processScreenshots = useCallback(() => {
     if (!latestScreenshots || Object.keys(latestScreenshots).length === 0) {
+      console.log('[DEBUG] [MultiDesktopStreamGrid] No screenshots to process');
       return;
     }
 
-    console.log('[MultiDesktopStreamGrid] Processing screenshots:', Object.keys(latestScreenshots));
+    console.log('[DEBUG] [MultiDesktopStreamGrid] Processing screenshots:', Object.keys(latestScreenshots));
+    console.log('[DEBUG] [MultiDesktopStreamGrid] Screenshot data:', latestScreenshots);
 
     setStreamStates(prevStreams => {
       const newStreams = new Map(prevStreams);
@@ -107,8 +110,11 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
       Object.entries(latestScreenshots).forEach(([streamKey, imageUrl]) => {
         // Skip if this is just a client key without monitor info
         if (!streamKey.includes('_monitor_')) {
+          console.log('[DEBUG] [MultiDesktopStreamGrid] Skipping non-monitor key:', streamKey);
           return;
         }
+        
+        console.log('[DEBUG] [MultiDesktopStreamGrid] Processing monitor stream:', streamKey);
         
         // Extract clientId and monitorId from streamKey (format: clientId_monitor_X)
         const parts = streamKey.split('_');
@@ -135,7 +141,8 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
           };
           
           newStreams.set(streamId, stream);
-          console.log(`[MultiDesktopStreamGrid] Created stream for: ${streamId}`);
+          console.log(`[DEBUG] [MultiDesktopStreamGrid] Created stream for: ${streamId}`);
+          console.log(`[DEBUG] [MultiDesktopStreamGrid] Stream details:`, { streamId, clientId, monitorId: monitorIndex });
         }
         
         // Update stream state
@@ -160,6 +167,15 @@ export const MultiDesktopStreamGrid: React.FC<MultiDesktopStreamGridProps> = ({
       return newStreams;
     });
   }, [latestScreenshots, onFrameReceived]);
+
+  // Debug: Log when latestScreenshots changes
+  useEffect(() => {
+    console.log('[DEBUG] [MultiDesktopStreamGrid] latestScreenshots changed:', Object.keys(latestScreenshots || {}));
+    if (latestScreenshots && Object.keys(latestScreenshots).length > 0) {
+      console.log('[DEBUG] [MultiDesktopStreamGrid] Calling processScreenshots...');
+      processScreenshots();
+    }
+  }, [latestScreenshots, processScreenshots]);
 
   // ============================================================================
   // IMAGE RENDERING

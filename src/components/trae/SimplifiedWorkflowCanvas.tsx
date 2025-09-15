@@ -1,352 +1,337 @@
 
-/**
- * Simplified Workflow Canvas - n8n Style
- * Clean, minimal workflow builder with standardized data flow
- */
-
-import React, { useCallback, useState, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   ReactFlow,
   Node,
   Edge,
-  addEdge,
   Connection,
   useNodesState,
   useEdgesState,
+  addEdge,
   Controls,
   MiniMap,
   Background,
   BackgroundVariant,
-  NodeTypes,
-  ReactFlowProvider,
-  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { toast } from 'sonner';
-
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Play, Plus, Save, FolderOpen } from 'lucide-react';
-
+import { toast } from 'sonner';
+import {
+  Plus,
+  Play,
+  Save,
+  FolderOpen,
+  AlertTriangle,
+} from 'lucide-react';
 import SimplifiedNode from './SimplifiedNode';
 import { SimplifiedConnectionValidator } from './workflow/SimplifiedConnectionValidator';
 import { SaveLoadDialog } from './workflow/SaveLoadDialog';
 import { NodeConfigurationModal } from './workflow/NodeConfigurationModal';
-import { SIMPLIFIED_NODE_TEMPLATES } from '../../config/simplifiedNodeTemplates';
+import { SIMPLIFIED_NODE_TEMPLATES } from '@/config/simplifiedNodeTemplates';
+import { useWorkflowStore } from '@/stores/workflowStore';
 
-// Define node types
-const nodeTypes: NodeTypes = {
+const nodeTypes = {
   simplified: SimplifiedNode,
 };
 
 interface SimplifiedWorkflowCanvasProps {
-  workflowId?: string;
-  readOnly?: boolean;
+  className?: string;
 }
 
-const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = ({
-  workflowId,
-  readOnly = false,
-}) => {
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([
-    {
-      id: '1',
-      type: 'simplified',
-      position: { x: 250, y: 50 },
-      data: { 
-        ...SIMPLIFIED_NODE_TEMPLATES.manual_trigger,
-        status: 'idle'
-      },
-    }
-  ]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = ({ className }) => {
+  // Store state
+  const {
+    nodes: storeNodes,
+    edges: storeEdges,
+    setNodes: setStoreNodes,
+    setEdges: setStoreEdges,
+    executionResults,
+    isExecuting,
+    validateWorkflow,
+    validateNodeConfiguration,
+  } = useWorkflowStore();
+
+  // Local state for ReactFlow
+  const [nodes, setNodes, onNodesChange] = useNodesState(storeNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(storeEdges);
+  
+  // UI state
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isSaveLoadOpen, setIsSaveLoadOpen] = useState(false);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
 
-  const reactFlowInstance = useReactFlow();
+  // Create stable references for store setters
+  const stableSetStoreNodes = useCallback(setStoreNodes, [setStoreNodes]);
+  const stableSetStoreEdges = useCallback(setStoreEdges, [setStoreEdges]);
 
-  // Validate connections
+  // Sync nodes with store when they change
+  useEffect(() => {
+    const currentNodesJson = JSON.stringify(nodes);
+    const storeNodesJson = JSON.stringify(storeNodes);
+    
+    if (currentNodesJson !== storeNodesJson) {
+      stableSetStoreNodes(nodes);
+    }
+  }, [nodes, storeNodes, stableSetStoreNodes]);
+
+  // Sync edges with store when they change
+  useEffect(() => {
+    const currentEdgesJson = JSON.stringify(edges);
+    const storeEdgesJson = JSON.stringify(storeEdges);
+    
+    if (currentEdgesJson !== storeEdgesJson) {
+      stableSetStoreEdges(edges);
+    }
+  }, [edges, storeEdges, stableSetStoreEdges]);
+
+  // Update node status based on execution results
+  useEffect(() => {
+    if (executionResults && Object.keys(executionResults).length > 0) {
+      setNodes((nds) =>
+        nds.map((node) => {
+          const result = executionResults[node.id];
+          if (result) {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                status: result.success ? 'completed' : 'error',
+                result: result.result,
+                error: result.error,
+              },
+            };
+          }
+          return node;
+        })
+      );
+    }
+  }, [executionResults, setNodes]);
+
+  // Update node status during execution
+  useEffect(() => {
+    if (isExecuting) {
+      setNodes((nds) =>
+        nds.map((node) => ({
+          ...node,
+          data: {
+            ...node.data,
+            status: 'running',
+          },
+        }))
+      );
+    }
+  }, [isExecuting, setNodes]);
+
+  // Handle connections with validation
   const onConnect = useCallback(
     (params: Connection) => {
-      if (readOnly) return;
+      const validator = new SimplifiedConnectionValidator(nodes, edges);
+      const validation = validator.validateConnection(params, nodes);
       
-      const validation = SimplifiedConnectionValidator.validateConnection(params, nodes);
-      
-      if (!validation.valid) {
-        toast.error(`Connection failed: ${validation.error}`);
-        return;
+      if (validation.valid) {
+        setEdges((eds) => addEdge(params, eds));
+        toast.success('Connection created!');
+      } else {
+        toast.error(validation.error || 'Invalid connection');
       }
-      
-      if (validation.warning) {
-        toast.warning(validation.warning);
-      }
-      
-      const newEdge = {
-        ...params,
-        id: `edge-${params.source}-${params.target}-${Date.now()}`,
-        type: 'default',
-        animated: true,
-        style: { stroke: '#000000', strokeWidth: 2 }
-      };
-      
-      setEdges((eds) => addEdge(newEdge, eds));
-      toast.success('Connection created!');
     },
-    [readOnly, nodes, setEdges]
+    [nodes, edges, setEdges]
   );
 
-  // Event listener for config button clicks
-  useEffect(() => {
-    const handleOpenNodeConfig = (event: CustomEvent) => {
-      const { nodeId, nodeData } = event.detail;
-      const node = nodes.find(n => n.id === nodeId);
-      if (node) {
-        setSelectedNode(node);
-        setIsConfigModalOpen(true);
-      }
-    };
-
-    window.addEventListener('openNodeConfig', handleOpenNodeConfig as EventListener);
-    return () => {
-      window.removeEventListener('openNodeConfig', handleOpenNodeConfig as EventListener);
-    };
-  }, [nodes]);
-
-  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
-    // Only for node selection - config moved to dedicated button
-    console.log('Node selected:', node.id);
+  // Handle node clicks
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    setSelectedNode(node);
+    setIsConfigModalOpen(true);
   }, []);
 
+  // Add node function with validation and dependency handling
   const addNode = useCallback((templateId: string) => {
-    if (readOnly) return;
-    
     const template = SIMPLIFIED_NODE_TEMPLATES[templateId];
-    if (!template) return;
+    if (!template) {
+      toast.error('Template not found');
+      return;
+    }
 
-    const position = reactFlowInstance.screenToFlowPosition({
-      x: Math.random() * 400 + 100,
-      y: Math.random() * 400 + 100,
-    });
+    // Check if dependencies are met
+    if (template.dependencies.length > 0) {
+      const missingDeps = template.dependencies.filter(dep => 
+        !nodes.some(node => node.data?.type === dep)
+      );
+      
+      if (missingDeps.length > 0) {
+        toast.error(`Missing dependencies: ${missingDeps.join(', ')}`);
+        return;
+      }
+    }
 
-    const depValidation = SimplifiedConnectionValidator.checkNodeDependencies(templateId, nodes);
-    
     const newNode: Node = {
-      id: `node-${Date.now()}`,
+      id: `${template.id}-${Date.now()}`,
       type: 'simplified',
-      position,
+      position: { x: Math.random() * 400, y: Math.random() * 400 },
       data: {
-        ...template,
-        status: 'idle',
-        dependencies: template.dependencies.map(dep => ({
-          ...dep,
-          status: nodes.some(n => n.data?.type === dep.type) ? 'connected' : 'missing'
-        }))
+        label: template.label,
+        type: template.id,
+        configured: false,
+        config: {},
+        color: template.color,
+        description: template.description,
+        inputs: template.inputs,
+        outputs: template.outputs,
       },
     };
 
     setNodes((nds) => [...nds, newNode]);
     setIsLibraryOpen(false);
-    
-    if (!depValidation.valid) {
-      toast.warning(`Added ${template.label} - ${depValidation.error}`);
-    } else {
-      toast.success(`Added ${template.label}!`);
-    }
-  }, [readOnly, reactFlowInstance, setNodes, nodes]);
+    toast.success(`${template.label} node added!`);
+  }, [nodes, setNodes]);
 
+  // Validation with memoization
   const validation = useMemo(() => {
-    return SimplifiedConnectionValidator.validateWorkflow(nodes, edges);
-  }, [nodes, edges]);
+    const connectionValidation = SimplifiedConnectionValidator.validateWorkflow(nodes, edges);
+    const storeValidation = validateWorkflow();
+    
+    return {
+      valid: connectionValidation.valid && storeValidation.valid,
+      error: connectionValidation.error || storeValidation.error,
+      warnings: [...(connectionValidation.warning ? [connectionValidation.warning] : []), ...(storeValidation.warnings || [])],
+    };
+  }, [nodes, edges, validateWorkflow]);
 
+  // Group templates by category
   const templatesByCategory = useMemo(() => {
-    const grouped: Record<string, typeof SIMPLIFIED_NODE_TEMPLATES[string][]> = {};
-    Object.values(SIMPLIFIED_NODE_TEMPLATES).forEach(template => {
-      if (!grouped[template.category]) {
-        grouped[template.category] = [];
+    return Object.values(SIMPLIFIED_NODE_TEMPLATES).reduce((acc, template) => {
+      const category = template.category || 'Other';
+      if (!acc[category]) {
+        acc[category] = [];
       }
-      grouped[template.category].push(template);
-    });
-    return grouped;
+      acc[category].push(template);
+      return acc;
+    }, {} as Record<string, any>);
   }, []);
 
-  // Handle workflow loading
-  const handleLoadWorkflow = useCallback((newNodes: Node[], newEdges: Edge[]) => {
-    setNodes(newNodes);
-    setEdges(newEdges);
-  }, [setNodes, setEdges]);
-
-  // Handle node configuration updates
-  const handleNodeConfigSave = useCallback((nodeId: string, newData: any) => {
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === nodeId) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              ...newData,
-            },
-          };
-        }
-        return node;
-      })
-    );
-    setIsConfigModalOpen(false);
-    toast.success('Node configuration updated!');
-  }, [setNodes]);
-
-  // Handle node deletion
-  const handleNodeDelete = useCallback((nodeId: string) => {
-    setNodes((nds) => nds.filter((node) => node.id !== nodeId));
-    setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
-    setIsConfigModalOpen(false);
-    toast.success('Node deleted!');
-  }, [setNodes, setEdges]);
-
   return (
-    <div className="h-full flex bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      {/* Main Canvas */}
-      <div className="flex-1 relative overflow-hidden">
-        {/* Toolbar */}
-        <div className="absolute top-6 left-6 z-20 flex space-x-3">
-          <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 p-2 flex space-x-2">
-            <Button 
-              onClick={() => setIsLibraryOpen(!isLibraryOpen)} 
-              variant="ghost" 
-              size="sm"
-              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Node
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              disabled={!validation.valid}
-              className="bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500"
-            >
-              <Play className="w-4 h-4 mr-2" />
-              Execute
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setIsSaveLoadOpen(true)}
-              className="bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Save
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setIsSaveLoadOpen(true)}
-              className="bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:from-purple-600 hover:to-pink-700"
-            >
-              <FolderOpen className="w-4 h-4 mr-2" />
-              Load
-            </Button>
-          </div>
-        </div>
-
-        {/* Validation Status */}
-        {!validation.valid && (
-          <div className="absolute top-6 right-6 z-20">
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 shadow-lg backdrop-blur-sm max-w-sm">
-              <div className="flex items-start space-x-3">
-                <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold text-amber-800">Workflow Issues</p>
-                  <p className="text-xs text-amber-700 mt-1">{validation.error}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={onNodeClick}
-          nodeTypes={nodeTypes}
-          fitView
-          style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          }}
+    <div className={`h-full w-full relative ${className || ''}`}>
+      {/* Top Toolbar */}
+      <div className="absolute top-4 left-4 z-10 flex gap-2">
+        <Button
+          onClick={() => setIsLibraryOpen(true)}
+          variant="outline"
+          size="sm"
+          className="bg-white/90 backdrop-blur-sm"
         >
-          <Controls className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-white/20" />
-          <MiniMap 
-            className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-white/20"
-            nodeColor={(node) => {
-              switch (node.data?.status) {
-                case 'running': return '#3b82f6';
-                case 'completed': return '#10b981';
-                case 'error': return '#ef4444';
-                default: return '#6b7280';
-              }
-            }}
-          />
-          <Background 
-            variant={BackgroundVariant.Dots} 
-            gap={20} 
-            size={1.5} 
-            color="rgba(255,255,255,0.3)"
-          />
-        </ReactFlow>
+          <Plus className="w-4 h-4 mr-2" />
+          Add Node
+        </Button>
+        
+        <Button
+          onClick={() => setIsSaveLoadOpen(true)}
+          variant="outline"
+          size="sm"
+          className="bg-white/90 backdrop-blur-sm"
+        >
+          <Save className="w-4 h-4 mr-2" />
+          Save/Load
+        </Button>
       </div>
 
-      {/* Node Library Sidebar */}
+      {/* Validation Status */}
+      <div className="absolute top-4 right-4 z-10">
+        {!validation.valid && (
+          <Badge variant="destructive" className="bg-red-500/90 backdrop-blur-sm">
+            <AlertTriangle className="w-3 h-3 mr-1" />
+            {validation.error}
+          </Badge>
+        )}
+        {validation.valid && validation.warnings.length > 0 && (
+          <Badge variant="secondary" className="bg-yellow-500/90 backdrop-blur-sm">
+            <AlertTriangle className="w-3 h-3 mr-1" />
+            {validation.warnings.length} warning(s)
+          </Badge>
+        )}
+        {validation.valid && validation.warnings.length === 0 && (
+          <Badge variant="default" className="bg-green-500/90 backdrop-blur-sm">
+            ✓ Valid Workflow
+          </Badge>
+        )}
+      </div>
+
+      {/* ReactFlow Canvas */}
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodeClick={onNodeClick}
+        nodeTypes={nodeTypes}
+        fitView
+        className="bg-gray-50"
+      >
+        <Controls />
+        <MiniMap />
+        <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+      </ReactFlow>
+
+      {/* Node Library Modal */}
       {isLibraryOpen && (
-        <div className="w-80 bg-white/95 backdrop-blur-xl border-l border-white/20 shadow-2xl">
-          <div className="h-full flex flex-col">
-            <div className="p-6 border-b border-slate-200">
-              <h3 className="text-xl font-bold text-slate-700">Node Library</h3>
-              <p className="text-sm text-slate-600 mt-1">Simplified workflow nodes</p>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Node Library</h2>
+              <Button
+                onClick={() => setIsLibraryOpen(false)}
+                variant="ghost"
+                size="sm"
+              >
+                ×
+              </Button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="space-y-6">
               {Object.entries(templatesByCategory).map(([category, templates]) => (
-                <div key={category} className="mb-6">
-                  <h4 className="text-sm font-semibold text-slate-700 mb-3 capitalize">
-                    {category}
-                  </h4>
-                  <div className="space-y-2">
-                    {templates.map((template) => (
-                      <button
-                        key={template.id}
-                        onClick={() => addNode(template.id)}
-                        className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-all"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div 
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold"
-                            style={{ backgroundColor: template.color }}
-                          >
-                            {template.label.charAt(0)}
+                <div key={category}>
+                  <h3 className="text-lg font-medium mb-3 text-gray-700">{category}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {templates.map((template) => {
+                      const canAdd = template.dependencies.length === 0 || 
+                        template.dependencies.every(dep => 
+                          nodes.some(node => node.data?.type === dep)
+                        );
+                      
+                      return (
+                        <div
+                          key={template.id}
+                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                            canAdd 
+                              ? 'hover:bg-gray-50 border-gray-200' 
+                              : 'bg-gray-100 border-gray-300 cursor-not-allowed'
+                          }`}
+                          onClick={() => canAdd && addNode(template.id)}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <div 
+                              className="w-3 h-3 rounded-full" 
+                              style={{ backgroundColor: template.color }}
+                            />
+                            <span className="font-medium">{template.label}</span>
                           </div>
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-slate-800">
-                              {template.label}
+                          <p className="text-sm text-gray-600 mb-2">{template.description}</p>
+                          
+                          {template.dependencies.length > 0 && (
+                            <div className="text-xs text-gray-500">
+                              Requires: {template.dependencies.join(', ')}
                             </div>
-                            <div className="text-xs text-slate-600">
-                              {template.description}
-                            </div>
-                            {template.dependencies.length > 0 && (
-                              <div className="mt-1">
-                                <Badge variant="outline" className="text-xs">
-                                  Requires config
-                                </Badge>
-                              </div>
-                            )}
+                          )}
+                          
+                          <div className="flex justify-between text-xs text-gray-500 mt-2">
+                            <span>Inputs: {template.inputs?.length || (template.input ? 1 : 0)}</span>
+                            <span>Outputs: {template.outputs?.length || (template.output ? 1 : 0)}</span>
                           </div>
                         </div>
-                      </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -356,31 +341,46 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
       )}
 
       {/* Save/Load Dialog */}
-      <SaveLoadDialog
-        isOpen={isSaveLoadOpen}
-        onClose={() => setIsSaveLoadOpen(false)}
-        nodes={nodes}
-        edges={edges}
-        onLoadWorkflow={handleLoadWorkflow}
-      />
+      {isSaveLoadOpen && (
+        <SaveLoadDialog
+          isOpen={isSaveLoadOpen}
+          onClose={() => setIsSaveLoadOpen(false)}
+          nodes={nodes}
+          edges={edges}
+          onLoad={(loadedNodes, loadedEdges) => {
+            setNodes(loadedNodes);
+            setEdges(loadedEdges);
+          }}
+        />
+      )}
 
       {/* Node Configuration Modal */}
-      <NodeConfigurationModal
-        node={selectedNode as any}
-        isOpen={isConfigModalOpen}
-        onClose={() => setIsConfigModalOpen(false)}
-        onSave={handleNodeConfigSave}
-        onDelete={handleNodeDelete}
-      />
+      {isConfigModalOpen && selectedNode && (
+        <NodeConfigurationModal
+          isOpen={isConfigModalOpen}
+          onClose={() => {
+            setIsConfigModalOpen(false);
+            setSelectedNode(null);
+          }}
+          node={selectedNode}
+          onSave={(updatedNode) => {
+            setNodes((nds) =>
+              nds.map((n) => (n.id === updatedNode.id ? updatedNode : n))
+            );
+            setIsConfigModalOpen(false);
+            setSelectedNode(null);
+          }}
+        />
+      )}
     </div>
   );
 };
 
 const SimplifiedWorkflowCanvas: React.FC<SimplifiedWorkflowCanvasProps> = (props) => {
   return (
-    <ReactFlowProvider>
+    <div className="h-full w-full">
       <SimplifiedWorkflowCanvasInner {...props} />
-    </ReactFlowProvider>
+    </div>
   );
 };
 

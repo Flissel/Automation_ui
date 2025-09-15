@@ -9,8 +9,8 @@ import LiveDesktop from "./pages/LiveDesktop";
 import MultiDesktopStreams from "./pages/MultiDesktopStreams";
 import VirtualDesktops from "./pages/VirtualDesktops";
 import Workflow from "./pages/Workflow";
-import Monitoring from "./pages/Monitoring";
-import Settings from "./pages/Settings";
+import ManualTriggerTest from "./pages/ManualTriggerTest";
+
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -31,8 +31,8 @@ const App = () => (
             <Route path="/multi-desktop" element={<MultiDesktopStreams />} />
             <Route path="/virtual-desktops" element={<VirtualDesktops />} />
             <Route path="/workflow" element={<Workflow />} />
-            <Route path="/monitoring" element={<Monitoring />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/manual-trigger-test" element={<ManualTriggerTest />} />
+
             <Route path="/auth" element={<Auth />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

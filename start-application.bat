@@ -21,15 +21,15 @@ set /p choice="Enter your choice (1-4): "
 if "%choice%"=="1" (
     echo.
     echo Starting with logs...
-    powershell -ExecutionPolicy Bypass -File "%~dp0start-application.ps1" -ShowLogs
+    powershell -ExecutionPolicy Bypass -File "%~dp0scripts\start-application.ps1" -ShowLogs
 ) else if "%choice%"=="2" (
     echo.
     echo Starting in background...
-    powershell -ExecutionPolicy Bypass -File "%~dp0start-application.ps1"
+    powershell -ExecutionPolicy Bypass -File "%~dp0scripts\start-application.ps1"
 ) else if "%choice%"=="3" (
     echo.
     echo Starting without desktop capture...
-    powershell -ExecutionPolicy Bypass -File "%~dp0start-application.ps1" -SkipDesktopClient
+    powershell -ExecutionPolicy Bypass -File "%~dp0scripts\start-application.ps1" -SkipDesktopClient
 ) else if "%choice%"=="4" (
     echo.
     echo Exiting...

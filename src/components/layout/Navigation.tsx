@@ -5,9 +5,7 @@ import { Button } from "@/components/ui/button";
 import { 
   Monitor, 
   Workflow, 
-  Settings, 
   LogOut,
-  Activity,
   Grid,
   Menu,
   X
@@ -52,8 +50,6 @@ const Navigation = () => {
     { name: "Live Desktop", path: "/live-desktop", icon: <Monitor className="w-4 h-4" /> },
     { name: "Multi Desktop", path: "/multi-desktop", icon: <Grid className="w-4 h-4" /> },
     { name: "Workflow", path: "/workflow", icon: <Workflow className="w-4 h-4" /> },
-    { name: "Monitoring", path: "/monitoring", icon: <Activity className="w-4 h-4" /> },
-    { name: "Settings", path: "/settings", icon: <Settings className="w-4 h-4" /> },
   ];
 
   // Don't show navigation on auth page when not authenticated

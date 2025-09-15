@@ -25,6 +25,7 @@ import io
 import cv2
 import numpy as np
 from screeninfo import get_monitors
+import pyautogui
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -367,15 +368,15 @@ class DualScreenCaptureClient:
     async def ensure_connection(self) -> bool:
         """
         Stellt sicher, dass eine aktive Verbindung besteht.
-        
+
         Returns:
             True wenn Verbindung aktiv, False bei Fehler
         """
+        # Wenn keine aktive Verbindung existiert, direkt versuchen zu verbinden
         if not self.is_connected or not self.websocket:
             logger.info("🔄 Verbindung nicht aktiv, versuche Wiederverbindung...")
             return await self.connect()
-        
-        # Prüfe ob Verbindung noch aktiv ist
+
         try:
             # Prüfe verschiedene Möglichkeiten für den Verbindungsstatus
             is_closed = False
@@ -385,66 +386,127 @@ class DualScreenCaptureClient:
                 is_closed = self.websocket.close_code is not None
             elif hasattr(self.websocket, 'state'):
                 is_closed = str(self.websocket.state) == 'CLOSED'
-            
+
             if is_closed:
                 logger.warning("🔌 Verbindung wurde geschlossen, versuche Wiederverbindung...")
-                self.is_connected = False
+                await self._close_connection()
                 return await self.connect()
+
+            # Verbindung scheint aktiv zu sein
+            return True
         except Exception as e:
             logger.error(f"💥 Fehler bei Verbindungsprüfung: {e}")
-            self.is_connected = False
+            try:
+                await self._close_connection()
+            except Exception:
+                pass
             return await self.connect()
-        
+
+        # Fallback (sollte nicht erreicht werden)
+        # Halte API stabil, indem wir True zurückgeben, wenn keine Fehler auftreten
         return True
 
-    def capture_dual_screen(self) -> Optional[Image.Image]:
+    def capture_individual_monitors(self) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
         """
-        Erfasst beide Bildschirme als ein zusammenhängendes Bild mit robuster Fehlerbehandlung.
+        Erfasst jeden Monitor einzeln für echte Dual-Screen-Unterstützung.
         
         Returns:
-            PIL Image mit beiden Bildschirmen oder None bei Fehler
+            Tuple mit (monitor1_image, monitor2_image) oder (None, None) bei Fehler
         """
         capture_attempts = 0
         max_capture_attempts = 3
         
         while capture_attempts < max_capture_attempts:
             try:
-                # Erfasse den gesamten Desktop-Bereich mit all_screens=True für Multi-Monitor-Support
-                bbox = (0, 0, self.total_width, self.total_height)
-                screenshot = ImageGrab.grab(bbox=bbox, all_screens=True)
+                monitor1_image = None
+                monitor2_image = None
                 
-                # Validiere das erfasste Bild
-                if screenshot and screenshot.size[0] > 0 and screenshot.size[1] > 0:
-                    # Prüfe ob das Bild nicht komplett schwarz ist (Indikator für Capture-Probleme)
-                    if self._validate_screenshot(screenshot):
-                        logger.debug(f"✅ Dual-Screen erfasst: {screenshot.size}")
-                        self.stats['frames_sent'] += 1
-                        return screenshot
-                    else:
-                        logger.warning(f"⚠️ Screenshot-Validierung fehlgeschlagen (Versuch {capture_attempts + 1})")
+                # Erfasse jeden Monitor einzeln basierend auf seiner Position und Größe
+                if len(self.monitors) >= 1:
+                    monitor1 = self.monitors[0]
+                    bbox1 = (monitor1['x'], monitor1['y'], 
+                            monitor1['x'] + monitor1['width'], 
+                            monitor1['y'] + monitor1['height'])
+                    monitor1_image = ImageGrab.grab(bbox=bbox1, all_screens=True)
+                    
+                    # Validiere Monitor 1 Bild
+                    if not self._validate_screenshot(monitor1_image):
+                        logger.warning(f"⚠️ Monitor 1 Screenshot-Validierung fehlgeschlagen (Versuch {capture_attempts + 1})")
+                        monitor1_image = None
+                
+                if len(self.monitors) >= 2:
+                    monitor2 = self.monitors[1]
+                    bbox2 = (monitor2['x'], monitor2['y'], 
+                            monitor2['x'] + monitor2['width'], 
+                            monitor2['y'] + monitor2['height'])
+                    monitor2_image = ImageGrab.grab(bbox=bbox2, all_screens=True)
+                    
+                    # Validiere Monitor 2 Bild
+                    if not self._validate_screenshot(monitor2_image):
+                        logger.warning(f"⚠️ Monitor 2 Screenshot-Validierung fehlgeschlagen (Versuch {capture_attempts + 1})")
+                        monitor2_image = None
+                
+                # Erfolg wenn mindestens ein Monitor erfasst wurde
+                if monitor1_image or monitor2_image:
+                    logger.debug(f"✅ Individuelle Monitore erfasst: Monitor1={monitor1_image.size if monitor1_image else 'None'}, Monitor2={monitor2_image.size if monitor2_image else 'None'}")
+                    return monitor1_image, monitor2_image
                 else:
-                    logger.warning(f"⚠️ Ungültiges Screenshot erhalten (Versuch {capture_attempts + 1})")
+                    logger.warning(f"⚠️ Keine gültigen Monitor-Screenshots erhalten (Versuch {capture_attempts + 1})")
                 
             except PermissionError:
                 logger.error("🔒 Berechtigung verweigert - Desktop-Capture nicht möglich")
                 self.stats['frames_failed'] += 1
-                return None
+                return None, None
             except OSError as e:
-                logger.error(f"💾 Betriebssystem-Fehler bei Capture: {e}")
+                logger.error(f"💾 Betriebssystem-Fehler bei Monitor-Capture: {e}")
                 capture_attempts += 1
                 if capture_attempts < max_capture_attempts:
                     time.sleep(0.1)  # Kurze Pause vor erneutem Versuch
             except Exception as e:
-                logger.error(f"💥 Unerwarteter Fehler bei Dual-Screen-Capture: {e}")
+                logger.error(f"💥 Unerwarteter Fehler bei Individual-Monitor-Capture: {e}")
                 capture_attempts += 1
                 if capture_attempts < max_capture_attempts:
                     time.sleep(0.1)
             
             capture_attempts += 1
         
-        logger.error(f"❌ Dual-Screen-Capture nach {max_capture_attempts} Versuchen fehlgeschlagen")
+        logger.error(f"❌ Individual-Monitor-Capture nach {max_capture_attempts} Versuchen fehlgeschlagen")
         self.stats['frames_failed'] += 1
-        return None
+        return None, None
+
+    def capture_dual_screen(self) -> Optional[Image.Image]:
+        """
+        Legacy-Methode für Rückwärtskompatibilität - verwendet jetzt Individual-Monitor-Capture.
+        
+        Returns:
+            PIL Image mit beiden Bildschirmen oder None bei Fehler
+        """
+        monitor1_image, monitor2_image = self.capture_individual_monitors()
+        
+        if monitor1_image and monitor2_image:
+            # Kombiniere beide Monitore zu einem Bild für Legacy-Unterstützung
+            try:
+                combined_width = monitor1_image.width + monitor2_image.width
+                combined_height = max(monitor1_image.height, monitor2_image.height)
+                combined_image = Image.new('RGB', (combined_width, combined_height), (0, 0, 0))
+                
+                combined_image.paste(monitor1_image, (0, 0))
+                combined_image.paste(monitor2_image, (monitor1_image.width, 0))
+                
+                logger.debug(f"✅ Legacy Dual-Screen kombiniert: {combined_image.size}")
+                self.stats['frames_sent'] += 1
+                return combined_image
+            except Exception as e:
+                logger.error(f"💥 Fehler beim Kombinieren der Monitor-Bilder: {e}")
+                return None
+        elif monitor1_image:
+            # Nur Monitor 1 verfügbar
+            self.stats['frames_sent'] += 1
+            return monitor1_image
+        else:
+            # Kein Monitor verfügbar
+            self.stats['frames_failed'] += 1
+            return None
 
     def _validate_screenshot(self, screenshot: Image.Image) -> bool:
         """
@@ -744,9 +806,9 @@ class DualScreenCaptureClient:
                     await asyncio.sleep(2)
                     continue
                 
-                # Erfasse beide Bildschirme gleichzeitig
-                combined_image = self.capture_dual_screen()
-                if not combined_image:
+                # Erfasse beide Bildschirme individuell für bessere Qualität
+                screen1_image, screen2_image = self.capture_individual_monitors()
+                if not screen1_image or not screen2_image:
                     consecutive_errors += 1
                     if consecutive_errors > max_consecutive_errors:
                         logger.error(f"❌ {consecutive_errors} aufeinanderfolgende Capture-Fehler - pausiere...")
@@ -755,9 +817,6 @@ class DualScreenCaptureClient:
                     else:
                         await asyncio.sleep(0.1)
                     continue
-                
-                # Teile das Bild in zwei separate Bildschirme
-                screen1_image, screen2_image = self.split_dual_screen(combined_image)
                 
                 if screen1_image and screen2_image:
                     # Verarbeite beide Bilder parallel mit Timeout
@@ -962,6 +1021,75 @@ class DualScreenCaptureClient:
         except Exception as e:
             logger.error(f"Error sending permission response: {e}")
 
+    def perform_mouse_click(self, monitor_id: str, x: int, y: int, button: str = 'left', double: bool = False, source_viewer_id: Optional[str] = None) -> bool:
+        """
+        Führt einen Maus-Klick an der richtigen physischen Position aus.
+        - Erwartet Canvas/Frame-Koordinaten (x,y) relativ zum jeweiligen Monitor-Bild.
+        - Verwendet self.capture_config['scale'] zur Rückrechnung auf OS-Pixel.
+        - Berücksichtigt Monitor-Offset (x,y) und Größe aus self.monitors.
+        """
+        try:
+            # Permission prüfen (einfaches Modell: desktop_access)
+            requester = source_viewer_id or "web_client"
+            if hasattr(self, 'permission_handler') and not self.permission_handler.check_permission(requester, 'desktop_access'):
+                logger.warning(f"Mouse click denied by permissions for requester={requester}")
+                return False
+
+            if not self.monitors:
+                logger.warning("Mouse click ignored: no monitors detected")
+                return False
+
+            # Monitor-Index aus monitorId ableiten (monitor_0 / monitor_1)
+            idx = 0
+            try:
+                if isinstance(monitor_id, str) and '_' in monitor_id:
+                    idx = int(monitor_id.split('_')[-1])
+            except Exception:
+                idx = 0
+
+            if idx < 0 or idx >= len(self.monitors):
+                logger.warning(f"Mouse click monitor index out of range: {idx} / {len(self.monitors)}")
+                return False
+
+            mon = self.monitors[idx]
+
+            # Skalierung berücksichtigen (wie bei process_image)
+            try:
+                scale = float(self.capture_config.get('scale', 1.0) or 1.0)
+            except Exception:
+                scale = 1.0
+            if scale <= 0:
+                scale = 1.0
+
+            # Frame-Koordinaten -> OS-Koordinaten
+            abs_x = int(mon['x'] + (x / scale))
+            abs_y = int(mon['y'] + (y / scale))
+
+            # Clamping in Monitorgrenzen
+            abs_x = max(mon['x'], min(mon['x'] + mon['width'] - 1, abs_x))
+            abs_y = max(mon['y'], min(mon['y'] + mon['height'] - 1, abs_y))
+
+            btn = button if button in ('left', 'right', 'middle') else 'left'
+            logger.info(f"🖱️ Click at ({abs_x},{abs_y}) on {monitor_id} btn={btn} double={double} scale={scale}")
+
+            # Klick ausführen
+            try:
+                pyautogui.moveTo(abs_x, abs_y)
+                if double:
+                    pyautogui.click(button=btn)
+                    time.sleep(0.05)
+                    pyautogui.click(button=btn)
+                else:
+                    pyautogui.click(button=btn)
+            except Exception as e:
+                logger.error(f"Error executing pyautogui click: {e}")
+                return False
+
+            return True
+        except Exception as e:
+            logger.error(f"Error performing mouse click: {e}")
+            return False
+
     async def handle_messages(self):
         """
         Behandelt eingehende WebSocket-Nachrichten.
@@ -1014,6 +1142,38 @@ class DualScreenCaptureClient:
                     elif message_type == 'revoke_permission':
                         # Handle permission revocation
                         await self.handle_permission_revocation(data)
+                        
+                    elif message_type == 'mouse_click':
+                        # Handle incoming mouse click from web UI
+                        monitor_id = data.get('monitorId') or data.get('monitor_id') or 'monitor_0'
+                        try:
+                            x = int(float(data.get('x')))
+                            y = int(float(data.get('y')))
+                        except Exception:
+                            logger.warning(f"Invalid click coordinates in message: {data}")
+                            continue
+                        button = (data.get('button') or 'left').lower()
+                        double = bool(data.get('double', False))
+                        source_viewer_id = data.get('sourceViewerId')
+
+                        ok = self.perform_mouse_click(monitor_id, x, y, button, double, source_viewer_id)
+
+                        # Send acknowledgement back (best effort)
+                        try:
+                            ack = {
+                                'type': 'mouse_click_ack',
+                                'ok': ok,
+                                'monitorId': monitor_id,
+                                'x': x,
+                                'y': y,
+                                'button': button,
+                                'double': double,
+                                'clientId': self.client_id,
+                                'timestamp': time.time()
+                            }
+                            await self.websocket.send(json.dumps(ack))
+                        except Exception as e:
+                            logger.debug(f"Failed to send mouse_click_ack: {e}")
                         
                 except json.JSONDecodeError as e:
                     logger.error(f"Fehler beim Parsen der Nachricht: {e}")
@@ -1092,3 +1252,306 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+class DualScreenCaptureClient_DuplicateIgnore:
+    """
+    Erweiterte Desktop-Capture-Client für gleichzeitige Dual-Screen-Erfassung.
+    Folgt den TRAE Unity AI Platform Namenskonventionen und Coding-Standards.
+    Implementiert robuste Fehlerbehandlung und automatische Wiederverbindung.
+    """
+    
+    def __init__(self, server_url: str, client_id: Optional[str] = None):
+        """
+        Initialisiert den Dual-Screen-Capture-Client.
+        
+        Args:
+            server_url: WebSocket-Server-URL für die Verbindung
+            client_id: Optionale Client-Kennung (automatisch generiert falls nicht angegeben)
+        """
+        self.server_url = server_url
+        self.client_id = client_id or f"dual_screen_client_{str(uuid.uuid4())[:8]}"
+        self.websocket: Optional[websockets.WebSocketServerProtocol] = None
+        
+        # Initialize permission handler
+        self.permission_handler = PermissionHandler()
+        self.permission_handler.set_permission_callback(self.send_permission_response)
+        
+        # Robustheit und Wiederverbindung
+        self.is_connected = False
+        self.reconnect_attempts = 0
+        self.max_reconnect_attempts = 10
+        self.reconnect_delay = 5.0  # Sekunden
+        self.last_successful_send = time.time()
+        self.connection_timeout = 30.0  # Sekunden
+        self.ping_interval = 10.0  # Sekunden
+        self.last_ping = time.time()
+        
+        # Capture-Konfiguration mit adaptiver Qualität
+        self.is_capturing = False
+        self.capture_config = {
+            'fps': 8,  # Reduziert für bessere Stabilität
+            'quality': 75,  # Reduziert für bessere Performance
+            'scale': 1.0,
+            'format': 'jpeg',
+            'adaptive_quality': True,  # Passt Qualität bei Problemen an
+            'min_quality': 50,
+            'max_quality': 90
+        }
+        
+        # Monitor-Informationen
+        self.monitors = []
+        self.total_width = 0
+        self.total_height = 0
+        self.screen_split_position = 0
+        
+        # Threading für asynchrone Verarbeitung
+        self.capture_thread = None
+        self.processing_thread = None
+        self.frame_queue = asyncio.Queue(maxsize=5)  # Begrenzte Queue-Größe
+        
+        # Performance-Monitoring
+        self.frame_stats = {
+            'frames_sent': 0,
+            'frames_failed': 0,
+            'avg_frame_size': 0,
+            'last_frame_time': 0,
+            'consecutive_failures': 0
+        }
+        
+        # Zusätzliche Stats für Kompatibilität
+        self.stats = self.frame_stats
+        
+        # Client-Fähigkeiten
+        self.capabilities = {
+            'dual_screen_capture': True,
+            'async_processing': True,
+            'screen_splitting': True,
+            'multiple_monitors': True,
+            'max_resolution': [3840, 1080],  # Dual 1920x1080 screens
+            'supported_formats': ['jpeg', 'png'],
+            'max_fps': 60,
+            'auto_reconnect': True,
+            'adaptive_quality': True,
+            'error_recovery': True
+        }
+        
+        # Initialisiere Monitor-Erkennung
+        self._detect_dual_monitors()
+        
+        logger.info(f"DualScreenCaptureClient initialisiert: {self.client_id}")
+        logger.info(f"Erkannte Monitore: {len(self.monitors)}")
+        logger.info(f"Gesamtauflösung: {self.total_width}x{self.total_height}")
+        logger.info(f"Split-Position: {self.screen_split_position}")
+
+    def _detect_dual_monitors(self):
+        """
+        Erkennt verfügbare Monitore und berechnet die Gesamtauflösung.
+        Optimiert für Dual-Monitor-Setups.
+        """
+        try:
+            # Verwende screeninfo für präzise Monitor-Erkennung
+            monitors = get_monitors()
+            self.monitors = []
+            
+            min_x = float('inf')
+            max_x = float('-inf')
+            min_y = float('inf')
+            max_y = float('-inf')
+            
+            for i, monitor in enumerate(monitors):
+                monitor_info = {
+                    'index': i,
+                    'name': f'Monitor {i + 1}',
+                    'x': monitor.x,
+                    'y': monitor.y,
+                    'width': monitor.width,
+                    'height': monitor.height,
+                    'is_primary': monitor.is_primary if hasattr(monitor, 'is_primary') else (i == 0)
+                }
+                self.monitors.append(monitor_info)
+                
+                # Berechne Gesamtbounding-Box
+                min_x = min(min_x, monitor.x)
+                max_x = max(max_x, monitor.x + monitor.width)
+                min_y = min(min_y, monitor.y)
+                max_y = max(max_y, monitor.y + monitor.height)
+                
+                logger.info(f"Monitor {i}: {monitor.width}x{monitor.height} @ ({monitor.x}, {monitor.y})")
+            
+            # Berechne Gesamtauflösung
+            self.total_width = max_x - min_x
+            self.total_height = max_y - min_y
+            
+            # Berechne Split-Position (normalerweise bei der Hälfte der Breite)
+            if len(self.monitors) >= 2:
+                # Sortiere Monitore nach X-Position
+                sorted_monitors = sorted(self.monitors, key=lambda m: m['x'])
+                # Split-Position ist am Ende des ersten Monitors
+                self.screen_split_position = sorted_monitors[0]['width']
+            else:
+                # Fallback für Single-Monitor
+                self.screen_split_position = self.total_width // 2
+                
+            logger.info(f"Dual-Monitor-Setup erkannt: {self.total_width}x{self.total_height}")
+            logger.info(f"Split-Position berechnet: {self.screen_split_position}")
+            
+        except Exception as e:
+            logger.error(f"Fehler bei Monitor-Erkennung: {e}")
+            # Fallback-Konfiguration
+            self.monitors = [
+                {
+                    'index': 0,
+                    'name': 'Primary Monitor',
+                    'x': 0,
+                    'y': 0,
+                    'width': 1920,
+                    'height': 1080,
+                    'is_primary': True
+                },
+                {
+                    'index': 1,
+                    'name': 'Secondary Monitor',
+                    'x': 1920,
+                    'y': 0,
+                    'width': 1920,
+                    'height': 1080,
+                    'is_primary': False
+                }
+            ]
+            self.total_width = 3840
+            self.total_height = 1080
+            self.screen_split_position = 1920
+
+    async def connect(self):
+        """
+        Stellt robuste Verbindung zum WebSocket-Server her mit automatischer Wiederverbindung.
+        """
+        while self.reconnect_attempts < self.max_reconnect_attempts:
+            try:
+                logger.info(f"Verbindungsversuch {self.reconnect_attempts + 1}/{self.max_reconnect_attempts} zu: {self.server_url}")
+                
+                # Verbindung mit Timeout herstellen
+                self.websocket = await asyncio.wait_for(
+                    websockets.connect(
+                        self.server_url,
+                        ping_interval=self.ping_interval,
+                        ping_timeout=10,
+                        close_timeout=10
+                    ),
+                    timeout=self.connection_timeout
+                )
+                
+                logger.info("WebSocket-Verbindung hergestellt")
+                
+                # Handshake durchführen
+                if await self._perform_handshake():
+                    self.is_connected = True
+                    self.reconnect_attempts = 0
+                    self.last_successful_send = time.time()
+                    logger.info("✅ Verbindung erfolgreich hergestellt und bestätigt")
+                    return True
+                else:
+                    logger.error("❌ Handshake fehlgeschlagen")
+                    await self._close_connection()
+                    
+            except asyncio.TimeoutError:
+                logger.error(f"⏱️ Verbindungs-Timeout nach {self.connection_timeout}s")
+            except websockets.exceptions.ConnectionClosed:
+                logger.error("🔌 Verbindung vom Server geschlossen")
+            except Exception as e:
+                logger.error(f"💥 Verbindungsfehler: {e}")
+            
+            # Wiederverbindungslogik
+            self.reconnect_attempts += 1
+            if self.reconnect_attempts < self.max_reconnect_attempts:
+                wait_time = min(self.reconnect_delay * self.reconnect_attempts, 30)
+                logger.info(f"⏳ Warte {wait_time}s vor nächstem Verbindungsversuch...")
+                await asyncio.sleep(wait_time)
+            
+        logger.error(f"❌ Maximale Anzahl Wiederverbindungsversuche ({self.max_reconnect_attempts}) erreicht")
+        return False
+
+    async def _perform_handshake(self) -> bool:
+        """
+        Führt den Handshake mit dem Server durch.
+        
+        Returns:
+            True wenn erfolgreich, False bei Fehler
+        """
+        try:
+            # Sende Handshake mit erweiterten Dual-Screen-Fähigkeiten
+            handshake_message = {
+                'type': 'handshake',
+                'clientInfo': {
+                    'clientType': 'dual_screen_desktop',
+                    'clientId': self.client_id,
+                    'desktopId': f'dual_desktop_{self.client_id}',
+                    'screenId': 'dual_screen',
+                    'capabilities': self.capabilities,
+                    'monitors': self.monitors,
+                    'total_resolution': {
+                        'width': self.total_width,
+                        'height': self.total_height
+                    },
+                    'split_position': self.screen_split_position,
+                    'reconnect_attempt': self.reconnect_attempts
+                },
+                'capabilities': self.capabilities,
+                'timestamp': time.time()
+            }
+            
+            await self.websocket.send(json.dumps(handshake_message))
+            logger.info("📤 Handshake gesendet")
+            
+            # Warte auf Server-Antworten mit Timeout
+            for attempt in range(3):
+                try:
+                    response = await asyncio.wait_for(self.websocket.recv(), timeout=10.0)
+                    response_data = json.loads(response)
+                    response_type = response_data.get('type')
+                    
+                    logger.info(f"📥 Server-Antwort {attempt + 1}: {response_type}")
+                    
+                    if response_type == 'handshake_ack':
+                        logger.info("✅ Handshake bestätigt")
+                        return True
+                    elif response_type == 'connection_established':
+                        logger.info("✅ Verbindung hergestellt bestätigt")
+                        return True
+                    elif response_type == 'ping':
+                        logger.debug("🏓 Ping vom Server empfangen")
+                        continue
+                    else:
+                        logger.warning(f"⚠️ Unerwartete Server-Nachricht: {response_type}")
+                        
+                except asyncio.TimeoutError:
+                    logger.warning(f"⏱️ Timeout beim Warten auf Handshake-Antwort (Versuch {attempt + 1})")
+                    continue
+                except json.JSONDecodeError as e:
+                    logger.error(f"📄 JSON-Dekodierungsfehler: {e}")
+                    continue
+                except Exception as e:
+                    logger.error(f"💥 Fehler beim Empfangen der Handshake-Antwort: {e}")
+                    break
+            
+            logger.error("❌ Keine gültige Handshake-Bestätigung erhalten")
+            return False
+            
+        except Exception as e:
+            logger.error(f"💥 Handshake-Fehler: {e}")
+            return False
+
+    async def _close_connection(self):
+        """
+        Schließt die WebSocket-Verbindung sauber.
+        """
+        try:
+            if self.websocket:
+                await self.websocket.close()
+                logger.info("🔌 WebSocket-Verbindung geschlossen")
+        except Exception as e:
+            logger.error(f"💥 Fehler beim Schließen der Verbindung: {e}")
+        finally:
+            self.websocket = None
+            self.is_connected = False

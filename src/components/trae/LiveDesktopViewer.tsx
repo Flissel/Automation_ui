@@ -33,6 +33,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { createLiveDesktopClient, WEBSOCKET_CONFIG } from '@/config/websocketConfig';
 
 // ============================================================================
 // INTERFACES
@@ -447,9 +448,9 @@ export const LiveDesktopViewer: React.FC<LiveDesktopViewerProps> = ({
 
     try {
       setIsLoading(true);
-      // Note: In production, this should connect to your actual WebSocket server
-      const wsUrl = `ws://localhost:8000/ws/live-desktop/${viewerId}`;
-      wsRef.current = new WebSocket(wsUrl);
+      // Use centralized WebSocket client creation for consistency
+      const { websocket } = createLiveDesktopClient(viewerId);
+      wsRef.current = websocket;
 
       wsRef.current.onopen = () => {
         console.log(`[${viewerId}] WebSocket connected`);
@@ -632,7 +633,7 @@ export const LiveDesktopViewer: React.FC<LiveDesktopViewerProps> = ({
                 max="60"
                 value={ocrConfig.extractionInterval}
                 onChange={(e) => setOcrConfig(prev => ({ 
-                  ...prev, 
+                  ...prev,
                   extractionInterval: parseInt(e.target.value) || 4 
                 }))}
               />
@@ -645,7 +646,7 @@ export const LiveDesktopViewer: React.FC<LiveDesktopViewerProps> = ({
                   type="checkbox"
                   checked={ocrConfig.autoSend}
                   onChange={(e) => setOcrConfig(prev => ({ 
-                    ...prev, 
+                    ...prev,
                     autoSend: e.target.checked 
                   }))}
                 />
@@ -662,7 +663,7 @@ export const LiveDesktopViewer: React.FC<LiveDesktopViewerProps> = ({
               placeholder="https://your-n8n-instance.com/webhook/..."
               value={ocrConfig.n8nWebhookUrl}
               onChange={(e) => setOcrConfig(prev => ({ 
-                ...prev, 
+                ...prev,
                 n8nWebhookUrl: e.target.value 
               }))}
             />

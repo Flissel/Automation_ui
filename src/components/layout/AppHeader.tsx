@@ -30,8 +30,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       const currentPath = pathSegments[pathSegments.length - 1];
       const pathMap: Record<string, string> = {
         'workflow': 'Workflow Builder',
-        'monitoring': 'System Monitoring',
-        'settings': 'Settings',
         'live-desktop': 'Live Desktop'
       };
       if (pathMap[currentPath]) {
@@ -55,14 +53,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             e.preventDefault();
             navigate('/dashboard');
             break;
-          case 'm':
-            e.preventDefault();
-            navigate('/monitoring');
-            break;
-          case ',':
-            e.preventDefault();
-            navigate('/settings');
-            break;
+
         }
       }
       if (e.key === 'Escape' && showBackButton) {
@@ -91,24 +82,27 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <div>
             <Breadcrumb>
               <BreadcrumbList>
-                {breadcrumbs.map((breadcrumb, index) => (
-                  <React.Fragment key={`breadcrumb-${index}-${breadcrumb.path}`}>
-                    <BreadcrumbItem>
-                      <BreadcrumbLink
-                        href={breadcrumb.path}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          navigate(breadcrumb.path);
-                        }}
-                        className="flex items-center space-x-1"
-                      >
-                        {breadcrumb.icon && <breadcrumb.icon className="h-4 w-4" />}
-                        <span>{breadcrumb.label}</span>
-                      </BreadcrumbLink>
-                    </BreadcrumbItem>
-                    {index < breadcrumbs.length - 1 && <BreadcrumbSeparator />}
-                  </React.Fragment>
-                ))}
+                {breadcrumbs.map((breadcrumb, index) => {
+                  const IconComponent = breadcrumb.icon;
+                  return (
+                    <React.Fragment key={index}>
+                      <BreadcrumbItem>
+                        <BreadcrumbLink
+                          href={breadcrumb.path}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            navigate(breadcrumb.path);
+                          }}
+                          className="flex items-center space-x-1"
+                        >
+                          {IconComponent && <IconComponent className="h-4 w-4" />}
+                          <span>{breadcrumb.label}</span>
+                        </BreadcrumbLink>
+                      </BreadcrumbItem>
+                      {index < breadcrumbs.length - 1 && <BreadcrumbSeparator />}
+                    </React.Fragment>
+                  );
+                })}
               </BreadcrumbList>
             </Breadcrumb>
             

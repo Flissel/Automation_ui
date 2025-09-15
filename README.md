@@ -1,73 +1,113 @@
-# Welcome to your Lovable project
+# Trusted Login System
 
-## Project info
+🔐 **A secure and user-friendly login system with desktop integration and workflow automation**
 
-**URL**: https://lovable.dev/projects/b6a5f341-42de-4abb-a2e6-a7ee3ac5a709
+---
 
-## How can I edit this code?
+## 🌍 Documentation
 
-There are several ways of editing your application.
+<!-- Note: German documentation has been removed. Please use the English documentation below. -->
 
-**Use Lovable**
+### 🇬🇧 English Documentation
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/b6a5f341-42de-4abb-a2e6-a7ee3ac5a709) and start prompting.
+📖 **[Complete English Documentation](docs/en/README.md)**
 
-Changes made via Lovable will be committed automatically to this repo.
+**Quick Access:**
+- 🏗️ [Architecture](docs/en/architecture/) - System architecture and technical documentation
+- 👨‍💻 [Development](docs/en/development/) - Developer onboarding and testing
+- ⚙️ [Operations](docs/en/operations/) - Deployment and maintenance
+- 🔒 [Security](docs/en/security/) - Security policies and error handling
+- 🔗 [Integration](docs/en/integration/) - API documentation and integration guides
+- 👤 [User](docs/en/user/) - User manual and guides
 
-**Use your preferred IDE**
+---
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🚀 Quick Start
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Prerequisites
 
-Follow these steps:
+- Node.js 18+ 
+- Python 3.9+
+- PostgreSQL 14+
+- Docker (optional)
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Installation & Setup
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+```bash
+# Clone repository / Repository klonen
+git clone <repository-url>
+cd trusted-login-system
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Install dependencies / Abhängigkeiten installieren
+npm install
+cd backend && pip install -r requirements.txt
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# Setup environment / Umgebung einrichten
+cp .env.example .env
+# Edit .env with your configuration / .env mit Ihrer Konfiguration bearbeiten
+
+# Start development servers / Entwicklungsserver starten
+npm run dev        # Frontend
+npm run dev:backend # Backend
 ```
 
-**Edit a file directly in GitHub**
+### Additional Information
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- 📚 **[Startup Guide](STARTUP_GUIDE.md)** - Detaillierte Installationsanleitung
+- 🔧 **[Development Setup](docs/en/development/developer_onboarding.md)** - Entwicklungsumgebung einrichten
+- 🐳 **[Deployment Guide](docs/en/operations/deployment_guide.md)** - Container-basierte Entwicklung
 
-**Use GitHub Codespaces**
+---
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 🎯 Project Overview
 
-## What technologies are used for this project?
 
-This project is built with:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+The Trusted Login System is a modern, secure authentication solution with advanced desktop integration capabilities. It provides:
 
-## How can I deploy this project?
+- **🔐 Secure Authentication** - Multi-factor authentication and secure session management
+- **🖥️ Desktop Integration** - Seamless integration with desktop applications
+- **⚡ Workflow Automation** - Automated workflows and processes
+- **📊 Monitoring & Analytics** - Comprehensive monitoring and reporting
+- **🔧 API-First Design** - RESTful APIs for easy integration
 
-Simply open [Lovable](https://lovable.dev/projects/b6a5f341-42de-4abb-a2e6-a7ee3ac5a709) and click on Share -> Publish.
+---
 
-## Can I connect a custom domain to my Lovable project?
+## 🛠️ Technology Stack
 
-Yes, you can!
+### Frontend
+- **React 18** - Modern UI framework
+- **TypeScript** - Type-safe development
+- **Tailwind CSS** - Utility-first styling
+- **Vite** - Fast build tool
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Backend
+- **FastAPI** - High-performance Python web framework
+- **PostgreSQL** - Robust relational database
+- **Redis** - Caching and session storage
+- **WebSockets** - Real-time communication
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+### DevOps
+- **Docker** - Containerization
+- **GitHub Actions** - CI/CD pipeline
+- **Prometheus** - Monitoring and metrics
+- **Grafana** - Visualization and dashboards
+
+---
+
+## 📞 Support
+
+- 🐛 **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/your-repo/discussions)
+- 📧 **Email**: support@trusted-login-system.com
+- 📖 **Wiki**: [Project Wiki](https://github.com/your-repo/wiki)
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+**Made with ❤️ by the Trusted Login System Team**

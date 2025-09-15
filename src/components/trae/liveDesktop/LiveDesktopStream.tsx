@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Play, Pause, Square, Wifi, WifiOff, Monitor, Maximize } from 'lucide-react';
 import { LiveDesktopConfig, LiveDesktopStatus, OCRRegion } from '@/types/liveDesktop';
+import { createWebClient, WEBSOCKET_CONFIG } from '@/config/websocketConfig';
 import { useToast } from '@/hooks/use-toast';
 
 interface LiveDesktopStreamProps {
@@ -30,6 +31,7 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const lastFrameInfoRef = useRef<{ width: number; height: number; monitorId?: string; sourceClientId?: string } | null>(null);
   const [status, setStatus] = useState<LiveDesktopStatus>({
     connected: false,
     streaming: false,
@@ -81,12 +83,20 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
     setIsConnecting(true);
 
     try {
-      const wsUrl = `ws://localhost:8084?client_type=web&config_id=${config.id}`;
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+      // Use centralized WebSocket client creation for consistency
+      // IMPORTANT: Use WEB client type for frontend viewer and send handshake on connect
+      const { websocket, handshakeMessage } = createWebClient(`live_desktop_${config.id}`);
+      wsRef.current = websocket;
 
-      ws.onopen = () => {
+      websocket.onopen = () => {
         console.log('WebSocket connected');
+        // Send standardized handshake so server can register this web client properly
+        try {
+          websocket.send(JSON.stringify(handshakeMessage));
+        } catch (err) {
+          console.warn('Failed to send handshake:', err);
+        }
+
         setStatus(prev => ({
           ...prev,
           connected: true,
@@ -103,7 +113,7 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
         });
       };
 
-      ws.onmessage = (event) => {
+      websocket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           console.log('WebSocket message:', data.type);
@@ -120,6 +130,14 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
 
             case 'frame_data':
               if (data.frameData) {
+                // Track last frame meta info for click mapping
+                lastFrameInfoRef.current = {
+                  width: Number(data.width) || 0,
+                  height: Number(data.height) || 0,
+                  monitorId: data.monitorId || data.routingInfo?.monitorId,
+                  sourceClientId: data.routingInfo?.sourceClientId || data.metadata?.clientId || undefined,
+                };
+
                 drawFrame(data.frameData);
                 setStatus(prev => ({
                   ...prev,
@@ -171,7 +189,7 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
         }
       };
 
-      ws.onerror = (error) => {
+      websocket.onerror = (error) => {
         console.warn('WebSocket connection failed - live desktop service may not be available');
         // Only show toast if user explicitly tried to connect
         if (isConnecting) {
@@ -184,7 +202,7 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
         setIsConnecting(false);
       };
 
-      ws.onclose = () => {
+      websocket.onclose = () => {
         console.log('WebSocket disconnected');
         setStatus(prev => ({
           ...prev,
@@ -204,8 +222,8 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
 
       // Connection timeout
       setTimeout(() => {
-        if (ws.readyState === WebSocket.CONNECTING) {
-          ws.close();
+        if (websocket.readyState === WebSocket.CONNECTING) {
+          websocket.close();
           setIsConnecting(false);
           toast({
             title: "Connection Timeout",
@@ -248,6 +266,62 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
       }
     }));
   }, [status.streaming, config]);
+
+  // Map canvas click to remote desktop coordinates and send via WS
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    try {
+      const canvas = canvasRef.current;
+      const ws = wsRef.current;
+      const frameInfo = lastFrameInfoRef.current;
+      if (!canvas || !ws || ws.readyState !== WebSocket.OPEN || !frameInfo) {
+        console.warn('Click ignored: missing canvas/ws/frameInfo or socket not open');
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+
+      // Use canvas width/height as the actual drawing buffer dims
+      const canvasW = canvas.width;
+      const canvasH = canvas.height;
+      if (!canvasW || !canvasH || !frameInfo.width || !frameInfo.height) {
+        console.warn('Click ignored: invalid dimensions', { canvasW, canvasH, frameInfo });
+        return;
+      }
+
+      // Normalize from canvas space to original frame pixel space
+      const normX = Math.max(0, Math.min(1, clickX / canvasW));
+      const normY = Math.max(0, Math.min(1, clickY / canvasH));
+      const remoteX = Math.round(normX * frameInfo.width);
+      const remoteY = Math.round(normY * frameInfo.height);
+
+      const targetClientId = frameInfo.sourceClientId;
+      if (!targetClientId) {
+        console.warn('No sourceClientId on last frame; cannot route click');
+        return;
+      }
+
+      const payload = {
+        type: 'desktop_click',
+        clientId: targetClientId,
+        monitorId: frameInfo.monitorId || 'monitor_0',
+        x: remoteX,
+        y: remoteY,
+        button: 'left',
+        double: false,
+        timestamp: new Date().toISOString(),
+      } as const;
+
+      console.log('Sending desktop_click', payload);
+      ws.send(JSON.stringify(payload));
+
+      // Optional UX feedback
+      toast({ title: 'Click sent', description: `(${remoteX}, ${remoteY}) → ${payload.monitorId}`, duration: 1500 });
+    } catch (err) {
+      console.error('Error handling canvas click:', err);
+    }
+  }, [toast]);
 
   // Enable fullscreen
   const enterFullscreen = useCallback(() => {
@@ -300,6 +374,7 @@ export const LiveDesktopStream: React.FC<LiveDesktopStreamProps> = ({
               height={600}
               className="w-full bg-muted border rounded-lg"
               style={{ aspectRatio: '4/3' }}
+              onClick={handleCanvasClick}
             />
             
             {!status.streaming && (
