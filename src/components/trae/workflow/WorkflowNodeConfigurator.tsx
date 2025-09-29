@@ -352,4 +352,9 @@ export const WorkflowNodeConfigurator: React.FC<WorkflowNodeConfiguratorProps> =
       
       toast.success(`Imported workflow: ${workflowData.name}`);
     } catch (error) {
-      toast.error(`Import
+      toast.error(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [importJsonText, setNodes, setEdges]);
+
+  return null;
+};

@@ -114,7 +114,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         throw new Error(`Invalid WebSocket URL: ${url}`);
       }
       
-      addExecutionLog(`🔄 Attempting to connect to ${url}...`);
+      addExecutionLog(`🔄 Connecting to Supabase Edge Function: ${url}`);
       ws.current = new WebSocket(url);
 
       ws.current.onopen = () => {
