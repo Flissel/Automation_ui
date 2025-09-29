@@ -11,8 +11,8 @@
 // ============================================================================
 
 /**
- * Get WebSocket base URL from environment variables or use default
- * Priority: VITE_WS_URL > VITE_WS_HOST:VITE_WS_PORT > localhost:8084
+ * Get WebSocket base URL from environment variables or use Supabase Edge Function
+ * Priority: VITE_WS_URL > Supabase Edge Function (wss://...)
  */
 const getWebSocketBaseUrl = (): string => {
   // Check for full WebSocket URL in environment
@@ -20,11 +20,9 @@ const getWebSocketBaseUrl = (): string => {
     return import.meta.env.VITE_WS_URL;
   }
   
-  // Build from host and port if available
-  const wsHost = import.meta.env.VITE_WS_HOST || 'localhost';
-  const wsPort = import.meta.env.VITE_WS_PORT || '8084'; 
-  
-  return `ws://${wsHost}:${wsPort}`;
+  // Default to Supabase Edge Function URL
+  const supabaseProjectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || 'dgzreelowtzquljhxskq';
+  return `wss://${supabaseProjectId}.supabase.co/functions/v1`;
 };
 
 // ============================================================================
@@ -35,13 +33,13 @@ export const WEBSOCKET_CONFIG = {
   // Base WebSocket server URL
   BASE_URL: getWebSocketBaseUrl(),
   
-  // WebSocket endpoint paths
+  // Supabase Edge Function endpoint paths
   ENDPOINTS: {
-    LIVE_DESKTOP: '/ws/live-desktop',
-    MULTI_DESKTOP: '/ws/live-desktop', // Use same endpoint as live desktop
-    FILESYSTEM_BRIDGE: '/ws/live-desktop', // Use same endpoint as live desktop
-    WORKFLOW: '/ws/live-desktop', // Use same endpoint as live desktop
-    DEFAULT: '/ws/live-desktop'
+    LIVE_DESKTOP: '/live-desktop-stream',
+    MULTI_DESKTOP: '/live-desktop-stream',
+    FILESYSTEM_BRIDGE: '/live-desktop-stream',
+    WORKFLOW: '/live-desktop-stream',
+    DEFAULT: '/live-desktop-stream'
   },
   
   // Connection settings

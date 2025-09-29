@@ -42,8 +42,7 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
           label: 'WebSocket Service', 
           type: 'websocket_config',
           config: { 
-            url: WEBSOCKET_CONFIG.BASE_URL, 
-            port: 8007, 
+            url: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`,
             reconnect: true,
             filesystem_bridge: true,
             data_directory: './workflow-data'
@@ -57,8 +56,8 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
         data: { 
           label: 'WebSocket Service 2', 
           type: 'websocket_config',
-            url: WEBSOCKET_CONFIG.BASE_URL, 
-            port: 8085, 
+          config: {
+            url: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`, 
             reconnect: true,
             filesystem_bridge: true,
             data_directory: './workflow-data-2'

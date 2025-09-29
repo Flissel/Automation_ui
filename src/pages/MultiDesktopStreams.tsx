@@ -65,28 +65,25 @@ const MultiDesktopStreams: React.FC = () => {
 
   const connectWebSocket = () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket already connected, skipping connection attempt');
+      console.log('✅ WebSocket already connected');
       return;
     }
 
-    console.log('🔗 [DEBUG] Attempting to connect to WebSocket server');
-    console.log('🔗 [DEBUG] WebSocket URL:', WEBSOCKET_CONFIG.BASE_URL);
+    console.log('🔗 Connecting to Supabase Edge Function...');
+    console.log('🔗 WebSocket URL:', `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.MULTI_DESKTOP}`);
     setIsLoading(true);
+    setConnectionError(null);
     
     try {
       const { clientId, websocket, handshakeMessage } = createMultiDesktopClient('multi_desktop_streams');
       wsRef.current = websocket;
-      console.log('🔗 [DEBUG] WebSocket instance created, waiting for connection...');
-      console.log('🔗 [DEBUG] WebSocket readyState after creation:', websocket.readyState);
       
       websocket.onopen = () => {
-      console.log('🔗 [DEBUG] WebSocket connected for multi-desktop streams');
-      console.log('🔗 [DEBUG] WebSocket URL:', WEBSOCKET_CONFIG.BASE_URL);
-      console.log('🔗 [DEBUG] WebSocket readyState:', websocket.readyState);
+      console.log('✅ Connected to Supabase Edge Function');
       setIsConnected(true);
       setIsLoading(false);
-      setConnectionError(null); // Clear any previous errors
-      setReconnectAttempts(0); // Reset reconnection attempts on successful connection
+      setConnectionError(null);
+      setReconnectAttempts(0);
       
       // Register as web client (standardized handshake)
       console.log('📤 [DEBUG] Sending handshake message:', handshakeMessage);

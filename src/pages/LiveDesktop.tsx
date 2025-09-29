@@ -31,8 +31,7 @@ const demoScenarios: DemoScenario[] = [{
   description: 'Automated monitoring with filesystem data collection',
   icon: <Monitor className="w-6 h-6" />,
   websocketConfig: {
-    url: WEBSOCKET_CONFIG.BASE_URL,
-    port: 8080,
+    url: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`,
     autoReconnect: true,
     enableFilesystemBridge: true,
     dataDirectory: './monitoring-data'
@@ -73,8 +72,7 @@ const demoScenarios: DemoScenario[] = [{
   description: 'Interactive support session with result tracking',
   icon: <Settings className="w-6 h-6" />,
   websocketConfig: {
-    url: WEBSOCKET_CONFIG.BASE_URL,
-    port: 8080,
+    url: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`,
     autoReconnect: true,
     enableFilesystemBridge: true,
     dataDirectory: './support-data'
@@ -114,8 +112,7 @@ const demoScenarios: DemoScenario[] = [{
   description: 'Complex workflow with multiple actions and result aggregation',
   icon: <Workflow className="w-6 h-6" />,
   websocketConfig: {
-    url: WEBSOCKET_CONFIG.BASE_URL,
-    port: 8080,
+    url: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`,
     autoReconnect: true,
     enableFilesystemBridge: true,
     dataDirectory: './workflow-data'
@@ -165,8 +162,7 @@ const demoScenarios: DemoScenario[] = [{
   description: 'Continuous data collection with filesystem persistence',
   icon: <Database className="w-6 h-6" />,
   websocketConfig: {
-    url: WEBSOCKET_CONFIG.BASE_URL,
-    port: 8080,
+    url: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`,
     autoReconnect: true,
     enableFilesystemBridge: true,
     dataDirectory: './collection-data'
@@ -225,8 +221,8 @@ const LiveDesktop: React.FC = () => {
   // Execution Panel State
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionLogs, setExecutionLogs] = useState<string[]>([]);
-  const [websocketUrl, setWebsocketUrl] = useState(WEBSOCKET_CONFIG.BASE_URL);
-  const [websocketPort, setWebsocketPort] = useState('8080');
+  const [websocketUrl, setWebsocketUrl] = useState(`${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`);
+  const [websocketPort, setWebsocketPort] = useState('');
   const [autoReconnect, setAutoReconnect] = useState(true);
   const [dataDirectory, setDataDirectory] = useState('./automation-data');
   const [executionMode, setExecutionMode] = useState<'manual' | 'auto' | 'scheduled'>('manual');
@@ -264,7 +260,7 @@ const LiveDesktop: React.FC = () => {
     
     setIsExecuting(true);
     addExecutionLog(`Starting execution for scenario: ${currentScenario.title}`);
-    addExecutionLog(`WebSocket URL: ${websocketUrl}:${websocketPort}`);
+    addExecutionLog(`Supabase Edge Function: ${websocketUrl}`);
     addExecutionLog(`Data Directory: ${dataDirectory}`);
     addExecutionLog(`Execution Mode: ${executionMode}`);
     
@@ -343,8 +339,8 @@ const LiveDesktop: React.FC = () => {
     const savedConfig = localStorage.getItem('liveDesktopConfig');
     if (savedConfig) {
       const config = JSON.parse(savedConfig);
-      setWebsocketUrl(config.websocketUrl || WEBSOCKET_CONFIG.BASE_URL);
-      setWebsocketPort(config.websocketPort || '8080');
+      setWebsocketUrl(config.websocketUrl || `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`);
+      setWebsocketPort(config.websocketPort || '');
       setAutoReconnect(config.autoReconnect ?? true);
       setDataDirectory(config.dataDirectory || './automation-data');
       setExecutionMode(config.executionMode || 'manual');
@@ -352,9 +348,9 @@ const LiveDesktop: React.FC = () => {
       if (config.selectedScenario) {
         setSelectedScenario(config.selectedScenario);
       }
-      addExecutionLog('Configuration loaded from localStorage');
+      addExecutionLog('✅ Configuration loaded from localStorage');
     } else {
-      addExecutionLog('No saved configuration found');
+      addExecutionLog('ℹ️ No saved configuration found');
     }
   };
 
@@ -443,25 +439,16 @@ const LiveDesktop: React.FC = () => {
             
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-medium">WebSocket URL</label>
+                <label className="text-xs font-medium">Supabase Edge Function URL</label>
                 <input
                   type="text"
                   value={websocketUrl}
                   onChange={(e) => setWebsocketUrl(e.target.value)}
                   className="w-full mt-1 px-2 py-1 text-xs border rounded"
-                  placeholder="ws://localhost"
+                  placeholder="wss://...supabase.co/functions/v1/live-desktop-stream"
+                  disabled
                 />
-              </div>
-              
-              <div>
-                <label className="text-xs font-medium">Port</label>
-                <input
-                  type="text"
-                  value={websocketPort}
-                  onChange={(e) => setWebsocketPort(e.target.value)}
-                  className="w-full mt-1 px-2 py-1 text-xs border rounded"
-                  placeholder="8080"
-                />
+                <p className="text-xs text-muted-foreground mt-1">Using Supabase Edge Function</p>
               </div>
               
               <div>

@@ -8,8 +8,8 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(() => ({
   plugins: [react(), componentTagger()],
   server: {
-    host: "0.0.0.0", // Allow LAN access; Windows compatible
-    port: 5174,
+    host: "0.0.0.0",
+    port: 8080,
     strictPort: true,
   },
   resolve: {
