@@ -102,8 +102,10 @@ interface MultiDesktopOCRDesignerNodeData {
   };
 }
 
-interface MultiDesktopOCRDesignerNodeProps extends NodeProps {
+interface MultiDesktopOCRDesignerNodeProps {
+  id: string;
   data: MultiDesktopOCRDesignerNodeData;
+  selected?: boolean;
 }
 
 // ============================================================================
@@ -387,7 +389,7 @@ export const MultiDesktopOCRDesignerNode: React.FC<MultiDesktopOCRDesignerNodePr
           <Switch
             checked={nodeData.autoStart}
             onCheckedChange={toggleAutoStart}
-            size="sm"
+            className="scale-90"
           />
           <Label className="text-xs">Auto-start</Label>
         </div>
