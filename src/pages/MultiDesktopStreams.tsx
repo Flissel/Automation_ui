@@ -12,6 +12,8 @@ interface DesktopClient {
   connected: boolean;
   streaming: boolean;
   timestamp: string;
+  monitors?: string[];
+  availableMonitors?: string[];
 }
 
 interface DesktopScreen {
