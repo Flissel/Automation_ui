@@ -23,10 +23,10 @@ interface NodeData extends Record<string, unknown> {
 }
 
 interface NodeConfigurationModalProps {
-  node: Node<NodeData> | null;
+  node: Node | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (nodeId: string, newData: Partial<NodeData>) => void;
+  onSave: (node: Node) => void;
   onDelete?: (nodeId: string) => void;
 }
 
@@ -81,10 +81,15 @@ export const NodeConfigurationModal: React.FC<NodeConfigurationModalProps> = ({
   if (!isOpen || !node) return null;
 
   const handleSave = () => {
-    onSave(node.id, {
-      label,
-      config
-    });
+    const updatedNode = {
+      ...node,
+      data: {
+        ...node.data,
+        label,
+        config
+      }
+    };
+    onSave(updatedNode);
     onClose();
   };
 

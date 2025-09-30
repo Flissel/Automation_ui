@@ -25,7 +25,7 @@ import {
   FileAudio,
   Scissors,
   Combine,
-  Compress
+  Archive
 } from 'lucide-react';
 
 interface MediaFile {
