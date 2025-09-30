@@ -650,7 +650,7 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
           setIsConfigModalOpen(false);
           setSelectedNode(null);
         }}
-        onSave={onNodeDataChange}
+        onSave={(node) => onNodeDataChange(node.id, node.data)}
         onDelete={onDeleteNode}
       />
     </div>

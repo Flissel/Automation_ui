@@ -222,7 +222,47 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
       setResults(sortedResults);
 
       if (onResultUpdate) {
-        onResultUpdate(sortedResults);
+        // Create ResultAggregation object from sorted results
+        const successResults = sortedResults.filter(r => r.metadata?.status === 'completed');
+        const failedResults = sortedResults.filter(r => r.metadata?.status === 'failed');
+        const pendingResults = sortedResults.filter(r => r.metadata?.status === 'pending');
+        
+        // Calculate node type breakdown
+        const nodeTypeBreakdown: Record<string, number> = {};
+        sortedResults.forEach(r => {
+          nodeTypeBreakdown[r.nodeType] = (nodeTypeBreakdown[r.nodeType] || 0) + 1;
+        });
+
+        // Calculate status breakdown
+        const statusBreakdown: Record<string, number> = {
+          completed: successResults.length,
+          failed: failedResults.length,
+          pending: pendingResults.length
+        };
+
+        // Calculate time range data (group by hour)
+        const timeRangeData = sortedResults.reduce((acc, r) => {
+          const hourTimestamp = Math.floor(r.timestamp / 3600000) * 3600000;
+          const existing = acc.find(item => item.timestamp === hourTimestamp);
+          if (existing) {
+            existing.count++;
+          } else {
+            acc.push({ timestamp: hourTimestamp, count: 1 });
+          }
+          return acc;
+        }, [] as Array<{ timestamp: number; count: number }>);
+
+        const aggregation: ResultAggregation = {
+          totalResults: sortedResults.length,
+          successCount: successResults.length,
+          failureCount: failedResults.length,
+          pendingCount: pendingResults.length,
+          averageExecutionTime: 0, // No execution time data available in WorkflowData
+          nodeTypeBreakdown,
+          statusBreakdown,
+          timeRangeData
+        };
+        onResultUpdate(aggregation);
       }
 
       toast({

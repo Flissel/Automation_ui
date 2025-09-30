@@ -128,7 +128,15 @@ export const useMultiStreamManager = ({
       displayName,
       websocket: null,
       canvasRef: React.createRef<HTMLCanvasElement>(),
-      status: 'disconnected' as any,
+      status: {
+        connected: false,
+        streaming: false,
+        connectionName: null,
+        latency: 0,
+        fpsActual: 0,
+        bytesReceived: 0,
+        lastFrameTime: null
+      },
       config: {
         id: streamId,
         name: displayName,
@@ -184,7 +192,15 @@ export const useMultiStreamManager = ({
         // Update stream state
         stream.websocket = websocket;
         stream.isConnected = true;
-        stream.status = 'connected' as any;
+        stream.status = {
+          connected: true,
+          streaming: false,
+          connectionName: stream.displayName,
+          latency: 0,
+          fpsActual: 0,
+          bytesReceived: 0,
+          lastFrameTime: null
+        };
         stream.retryCount = 0;
 
         // Send handshake for this specific stream
@@ -198,7 +214,7 @@ export const useMultiStreamManager = ({
 
         // Notify callbacks
         onStreamConnected?.(stream.streamId);
-        onStreamStatusChange?.(stream.streamId, 'connected' as any);
+        onStreamStatusChange?.(stream.streamId, stream.status);
 
         // Update global state
         setConnectionCount(prev => prev + 1);
@@ -302,20 +318,26 @@ export const useMultiStreamManager = ({
    * Handle stream status updates
    */
   const handleStreamStatus = useCallback((stream: DisplayStream, data: any) => {
-    const newStatus: LiveDesktopStatus = data.streaming ? 'streaming' : 'connected';
+    const newStatus: LiveDesktopStatus = {
+      connected: true,
+      streaming: data.streaming || false,
+      connectionName: stream.displayName,
+      latency: data.latency || 0,
+      fpsActual: data.fps || 0,
+      bytesReceived: stream.frameCount * (data.frameSize || 0),
+      lastFrameTime: stream.lastFrameTime?.toISOString() || null
+    };
     
-    if (stream.status !== newStatus) {
-      stream.status = newStatus;
-      stream.isStreaming = data.streaming;
-      
-      onStreamStatusChange?.(stream.streamId, newStatus);
-      
-      // Update global streaming count
-      setStreamingCount(prev => {
-        const currentStreaming = Array.from(streamsRef.current.values()).filter(s => s.isStreaming).length;
-        return currentStreaming;
-      });
-    }
+    stream.status = newStatus;
+    stream.isStreaming = data.streaming;
+    
+    onStreamStatusChange?.(stream.streamId, newStatus);
+    
+    // Update global streaming count
+    setStreamingCount(prev => {
+      const currentStreaming = Array.from(streamsRef.current.values()).filter(s => s.isStreaming).length;
+      return currentStreaming;
+    });
   }, [onStreamStatusChange]);
 
   /**
@@ -324,11 +346,19 @@ export const useMultiStreamManager = ({
   const handleStreamDisconnection = useCallback((stream: DisplayStream) => {
     stream.isConnected = false;
     stream.isStreaming = false;
-    stream.status = 'disconnected';
+    stream.status = {
+      connected: false,
+      streaming: false,
+      connectionName: null,
+      latency: 0,
+      fpsActual: 0,
+      bytesReceived: 0,
+      lastFrameTime: null
+    };
     stream.websocket = null;
 
     onStreamDisconnected?.(stream.streamId);
-    onStreamStatusChange?.(stream.streamId, 'disconnected');
+    onStreamStatusChange?.(stream.streamId, stream.status);
 
     setConnectionCount(prev => Math.max(0, prev - 1));
     setStreamingCount(prev => Math.max(0, prev - 1));
@@ -349,8 +379,16 @@ export const useMultiStreamManager = ({
    * Handle stream errors
    */
   const handleStreamError = useCallback((stream: DisplayStream) => {
-    stream.status = 'error';
-    onStreamStatusChange?.(stream.streamId, 'error');
+    stream.status = {
+      connected: false,
+      streaming: false,
+      connectionName: stream.displayName,
+      latency: 0,
+      fpsActual: 0,
+      bytesReceived: 0,
+      lastFrameTime: null
+    };
+    onStreamStatusChange?.(stream.streamId, stream.status);
   }, [onStreamStatusChange]);
 
   // ============================================================================
@@ -541,7 +579,13 @@ export const useMultiStreamManager = ({
 
 // Export a placeholder component for compatibility
 export const MultiStreamManager: React.FC<MultiStreamManagerProps> = (props) => {
-  useMultiStreamManager(props);
+  useMultiStreamManager({
+    ...props,
+    onFrameReceived: props.onFrameReceived || (() => {}),
+    onStreamConnected: props.onStreamConnected || (() => {}),
+    onStreamDisconnected: props.onStreamDisconnected || (() => {}),
+    onStreamStatusChange: props.onStreamStatusChange || (() => {})
+  });
   return null;
 };
 
