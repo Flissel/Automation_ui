@@ -46,8 +46,8 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
     edges: storeEdges,
     setNodes: setStoreNodes,
     setEdges: setStoreEdges,
-    executionResults,
-    isExecuting,
+    nodeResults,
+    currentExecution,
     validateWorkflow,
     validateNodeConfiguration,
   } = useWorkflowStore();
@@ -88,17 +88,17 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
 
   // Update node status based on execution results
   useEffect(() => {
-    if (executionResults && Object.keys(executionResults).length > 0) {
+    if (nodeResults && Object.keys(nodeResults).length > 0) {
       setNodes((nds) =>
         nds.map((node) => {
-          const result = executionResults[node.id];
+          const result = nodeResults[node.id];
           if (result) {
             return {
               ...node,
               data: {
                 ...node.data,
-                status: result.success ? 'completed' : 'error',
-                result: result.result,
+                status: result.status === 'completed' ? 'completed' : result.status === 'failed' ? 'error' : result.status,
+                result: result.outputData,
                 error: result.error,
               },
             };
@@ -107,11 +107,11 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
         })
       );
     }
-  }, [executionResults, setNodes]);
+  }, [nodeResults, setNodes]);
 
   // Update node status during execution
   useEffect(() => {
-    if (isExecuting) {
+    if (currentExecution?.status === 'running') {
       setNodes((nds) =>
         nds.map((node) => ({
           ...node,
@@ -122,7 +122,7 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
         }))
       );
     }
-  }, [isExecuting, setNodes]);
+  }, [currentExecution, setNodes]);
 
   // Handle connections with validation
   const onConnect = useCallback(
@@ -193,9 +193,9 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
     const storeValidation = validateWorkflow();
     
     return {
-      valid: connectionValidation.valid && storeValidation.valid,
-      error: connectionValidation.error || storeValidation.error,
-      warnings: [...(connectionValidation.warning ? [connectionValidation.warning] : []), ...(storeValidation.warnings || [])],
+      valid: connectionValidation.valid && storeValidation.isValid,
+      error: connectionValidation.error || storeValidation.errors?.[0],
+      warnings: [...(connectionValidation.warnings || []), ...(storeValidation.errors?.slice(1) || [])],
     };
   }, [nodes, edges, validateWorkflow]);
 
@@ -347,7 +347,7 @@ const SimplifiedWorkflowCanvasInner: React.FC<SimplifiedWorkflowCanvasProps> = (
           onClose={() => setIsSaveLoadOpen(false)}
           nodes={nodes}
           edges={edges}
-          onLoad={(loadedNodes, loadedEdges) => {
+          onLoadWorkflow={(loadedNodes, loadedEdges) => {
             setNodes(loadedNodes);
             setEdges(loadedEdges);
           }}

@@ -75,7 +75,7 @@ interface MultiStreamManagerProps {
 // MULTI-STREAM MANAGER COMPONENT
 // ============================================================================
 
-export const MultiStreamManager: React.FC<MultiStreamManagerProps> = ({
+export const useMultiStreamManager = ({
   serverUrl = WEBSOCKET_CONFIG.BASE_URL,
   selectedClients = [],
   maxStreams = 4,
@@ -101,7 +101,7 @@ export const MultiStreamManager: React.FC<MultiStreamManagerProps> = ({
   const reconnectTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // Default stream configuration following TRAE standards
-  const defaultConfig: LiveDesktopConfig = {
+  const defaultConfig = {
     fps: 15,
     quality: 85,
     scale: 1.0,
@@ -128,8 +128,33 @@ export const MultiStreamManager: React.FC<MultiStreamManagerProps> = ({
       displayName,
       websocket: null,
       canvasRef: React.createRef<HTMLCanvasElement>(),
-      status: 'disconnected',
-      config: { ...defaultConfig },
+      status: 'disconnected' as any,
+      config: {
+        id: streamId,
+        name: displayName,
+        description: `Stream for ${displayName}`,
+        websocketUrl: serverUrl,
+        streaming: {
+          fps: defaultConfig.fps,
+          quality: defaultConfig.quality,
+          scale: defaultConfig.scale,
+          format: defaultConfig.format
+        },
+        connection: {
+          timeout: 30000,
+          maxReconnectAttempts: 5,
+          reconnectInterval: 3000,
+          autoReconnect: true
+        },
+        ocr: {
+          enabled: false,
+          extractionInterval: 5,
+          autoSend: false
+        },
+        ocrRegions: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
       isConnected: false,
       isStreaming: false,
       lastFrameTime: null,
@@ -159,7 +184,7 @@ export const MultiStreamManager: React.FC<MultiStreamManagerProps> = ({
         // Update stream state
         stream.websocket = websocket;
         stream.isConnected = true;
-        stream.status = 'connected';
+        stream.status = 'connected' as any;
         stream.retryCount = 0;
 
         // Send handshake for this specific stream
@@ -173,7 +198,7 @@ export const MultiStreamManager: React.FC<MultiStreamManagerProps> = ({
 
         // Notify callbacks
         onStreamConnected?.(stream.streamId);
-        onStreamStatusChange?.(stream.streamId, 'connected');
+        onStreamStatusChange?.(stream.streamId, 'connected' as any);
 
         // Update global state
         setConnectionCount(prev => prev + 1);
@@ -277,7 +302,7 @@ export const MultiStreamManager: React.FC<MultiStreamManagerProps> = ({
    * Handle stream status updates
    */
   const handleStreamStatus = useCallback((stream: DisplayStream, data: any) => {
-    const newStatus = data.streaming ? 'streaming' : 'connected';
+    const newStatus: LiveDesktopStatus = data.streaming ? 'streaming' : 'connected';
     
     if (stream.status !== newStatus) {
       stream.status = newStatus;
@@ -512,6 +537,12 @@ export const MultiStreamManager: React.FC<MultiStreamManagerProps> = ({
     getStream: (streamId: string) => streamsRef.current.get(streamId),
     getAllStreams: () => Array.from(streamsRef.current.values())
   };
+};
+
+// Export a placeholder component for compatibility
+export const MultiStreamManager: React.FC<MultiStreamManagerProps> = (props) => {
+  useMultiStreamManager(props);
+  return null;
 };
 
 export default MultiStreamManager;
