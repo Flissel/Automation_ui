@@ -47,6 +47,13 @@ interface WebClient {
 const desktopClients = new Map<string, DesktopClient>();
 const webClients = new Map<string, WebClient>();
 
+// Mock desktop clients for testing
+const MOCK_DESKTOP_CLIENTS = [
+  { id: 'desktop_001', name: 'Main Workstation', monitors: ['monitor_0', 'monitor_1'], connected: true },
+  { id: 'desktop_002', name: 'Development PC', monitors: ['monitor_0'], connected: true },
+  { id: 'desktop_003', name: 'Test Machine', monitors: ['monitor_0', 'monitor_1'], connected: true }
+];
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -161,31 +168,11 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
   socket.onopen = async () => {
     console.log(`Web client ${clientId} connected`);
     
-    // Load configuration from database
-    let streamConfig: StreamConfig | null = null;
-    if (configId) {
-      try {
-        const { data, error } = await supabase
-          .from('live_desktop_configs')
-          .select('*')
-          .eq('id', configId)
-          .single();
-        
-        if (data) {
-          streamConfig = data.configuration;
-        }
-      } catch (error) {
-        console.error("Error loading config:", error);
-      }
-    }
-
-    // Send connection status and available desktop clients
+    // Send connection acknowledgment
     socket.send(JSON.stringify({
       type: 'connection_established',
       clientId,
-      configId,
-      config: streamConfig,
-      availableDesktopClients: Array.from(desktopClients.keys()),
+      role: 'web_client',
       timestamp: new Date().toISOString()
     }));
   };
@@ -196,28 +183,71 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
       console.log(`Web client ${clientId} message:`, message.type);
 
       switch (message.type) {
+        case 'handshake':
+          console.log(`Handshake received from ${clientId}:`, message.clientInfo);
+          socket.send(JSON.stringify({
+            type: 'handshake_ack',
+            clientId,
+            timestamp: new Date().toISOString()
+          }));
+          break;
+
+        case 'get_desktop_clients':
+          console.log(`Desktop clients list requested by ${clientId}`);
+          // Send list of mock desktop clients
+          const clientsList = MOCK_DESKTOP_CLIENTS.map(client => ({
+            clientId: client.id,
+            name: client.name,
+            connected: client.connected,
+            streaming: false,
+            monitors: client.monitors,
+            availableMonitors: client.monitors,
+            timestamp: new Date().toISOString()
+          }));
+          
+          socket.send(JSON.stringify({
+            type: 'desktop_clients_list',
+            clients: clientsList,
+            timestamp: new Date().toISOString()
+          }));
+          break;
+
         case 'start_stream':
-          await startStreamForClient(message.desktopClientId || getFirstAvailableDesktopClient(), message.config);
+          console.log(`Start stream request for ${message.desktopClientId || 'default'}`);
+          const desktopClientId = message.desktopClientId || MOCK_DESKTOP_CLIENTS[0].id;
+          
+          // Send mock frame data periodically
+          startMockStream(socket, desktopClientId, message.monitorId);
+          
+          socket.send(JSON.stringify({
+            type: 'stream_started',
+            desktopClientId,
+            monitorId: message.monitorId || 'monitor_0',
+            timestamp: new Date().toISOString()
+          }));
           break;
           
         case 'stop_stream':
-          await stopStreamForClient(message.desktopClientId || getFirstAvailableDesktopClient());
-          break;
+          console.log(`Stop stream request for ${message.desktopClientId || 'default'}`);
+          stopMockStream(socket);
           
-        case 'update_config':
-          // Update config and notify desktop clients
-          await updateStreamConfig(message.config);
+          socket.send(JSON.stringify({
+            type: 'stream_stopped',
+            desktopClientId: message.desktopClientId,
+            timestamp: new Date().toISOString()
+          }));
           break;
           
         case 'request_screenshot':
-          await requestScreenshotFromDesktop(message.desktopClientId);
+          console.log(`Screenshot request for ${message.desktopClientId}`);
+          sendMockScreenshot(socket, message.desktopClientId);
           break;
           
         case 'ping':
           socket.send(JSON.stringify({ 
             type: 'pong', 
             timestamp: new Date().toISOString(),
-            availableDesktopClients: Array.from(desktopClients.keys())
+            availableDesktopClients: MOCK_DESKTOP_CLIENTS.map(c => c.id)
           }));
           break;
           
@@ -380,6 +410,84 @@ async function requestScreenshotFromDesktop(desktopClientId: string) {
 function getFirstAvailableDesktopClient(): string | null {
   const clientIds = Array.from(desktopClients.keys());
   return clientIds.length > 0 ? clientIds[0] : null;
+}
+
+// Mock stream management
+const activeStreams = new Map<WebSocket, NodeJS.Timer>();
+
+function startMockStream(socket: WebSocket, desktopClientId: string, monitorId: string = 'monitor_0') {
+  // Stop existing stream if any
+  stopMockStream(socket);
+  
+  let frameNumber = 0;
+  const interval = setInterval(() => {
+    if (socket.readyState !== WebSocket.OPEN) {
+      stopMockStream(socket);
+      return;
+    }
+    
+    frameNumber++;
+    
+    // Generate mock frame data (simulated base64 image)
+    const mockFrameData = generateMockFrameData(frameNumber);
+    
+    socket.send(JSON.stringify({
+      type: 'frame_data',
+      desktopClientId,
+      monitorId,
+      frameData: mockFrameData,
+      frameNumber,
+      timestamp: new Date().toISOString(),
+      metadata: {
+        width: 1920,
+        height: 1080,
+        format: 'jpeg'
+      }
+    }));
+  }, 100); // 10 FPS
+  
+  activeStreams.set(socket, interval);
+  console.log(`Started mock stream for ${desktopClientId}:${monitorId}`);
+}
+
+function stopMockStream(socket: WebSocket) {
+  const interval = activeStreams.get(socket);
+  if (interval) {
+    clearInterval(interval);
+    activeStreams.delete(socket);
+    console.log('Stopped mock stream');
+  }
+}
+
+function sendMockScreenshot(socket: WebSocket, desktopClientId: string) {
+  const mockScreenshotData = generateMockFrameData(0);
+  
+  socket.send(JSON.stringify({
+    type: 'screenshot',
+    desktopClientId,
+    imageData: mockScreenshotData,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      width: 1920,
+      height: 1080,
+      format: 'jpeg'
+    }
+  }));
+}
+
+function generateMockFrameData(frameNumber: number): string {
+  // Generate a simple SVG as base64 encoded mock frame
+  const svg = `<svg width="1920" height="1080" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1920" height="1080" fill="#1a1a2e"/>
+    <text x="960" y="540" font-family="Arial" font-size="48" fill="#fff" text-anchor="middle">
+      Mock Desktop Stream - Frame ${frameNumber}
+    </text>
+    <text x="960" y="600" font-family="Arial" font-size="24" fill="#aaa" text-anchor="middle">
+      ${new Date().toISOString()}
+    </text>
+  </svg>`;
+  
+  return btoa(svg);
 }
 
 // Health check for desktop clients
