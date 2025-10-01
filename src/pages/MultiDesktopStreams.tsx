@@ -100,7 +100,8 @@ const MultiDesktopStreams: React.FC = () => {
       }, 1000);
     };
 
-    websocket.onmessage = (event) => {
+      websocket.onmessage = (event) => {
+        console.log('📨 [DEBUG] Received message from server:', event.data);
       try {
         const message = JSON.parse(event.data);
         console.log('📥 [DEBUG] WebSocket message received - TYPE:', message.type);
