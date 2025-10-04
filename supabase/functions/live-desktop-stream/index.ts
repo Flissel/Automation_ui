@@ -194,9 +194,10 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
 
         case 'get_desktop_clients':
           console.log(`Desktop clients list requested by ${clientId}`);
-          // Send list of mock desktop clients
+          // Send list of mock desktop clients with both id and clientId for compatibility
           const clientsList = MOCK_DESKTOP_CLIENTS.map(client => ({
-            clientId: client.id,
+            id: client.id, // Frontend expects 'id'
+            clientId: client.id, // Also include clientId for compatibility
             name: client.name,
             connected: client.connected,
             streaming: false,
@@ -213,6 +214,7 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
           break;
 
         case 'start_stream':
+        case 'start_desktop_stream': // Accept alias for compatibility
           console.log(`Start stream request for ${message.desktopClientId || 'default'}`);
           const desktopClientId = message.desktopClientId || MOCK_DESKTOP_CLIENTS[0].id;
           
@@ -228,6 +230,7 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
           break;
           
         case 'stop_stream':
+        case 'stop_desktop_stream': // Accept alias for compatibility
           console.log(`Stop stream request for ${message.desktopClientId || 'default'}`);
           stopMockStream(socket);
           
@@ -441,7 +444,8 @@ function startMockStream(socket: WebSocket, desktopClientId: string, monitorId: 
       metadata: {
         width: 1920,
         height: 1080,
-        format: 'jpeg'
+        format: 'svg', // Mark as SVG format
+        clientId: desktopClientId // Include for compatibility
       }
     }));
   }, 100); // 10 FPS

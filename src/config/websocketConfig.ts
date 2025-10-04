@@ -17,7 +17,16 @@
 const getWebSocketBaseUrl = (): string => {
   // Check for full WebSocket URL in environment
   if (import.meta.env.VITE_WS_URL) {
-    return import.meta.env.VITE_WS_URL;
+    const envUrl = import.meta.env.VITE_WS_URL;
+    
+    // Safety check: if envUrl points to localhost but we're not on localhost, ignore it
+    if (envUrl.includes('localhost') && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      console.warn('⚠️ VITE_WS_URL points to localhost but running on', window.location.hostname, '- using Supabase Edge Function instead');
+      const supabaseProjectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || 'dgzreelowtzquljhxskq';
+      return `wss://${supabaseProjectId}.supabase.co/functions/v1`;
+    }
+    
+    return envUrl;
   }
   
   // Default to Supabase Edge Function URL
