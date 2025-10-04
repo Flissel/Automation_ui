@@ -115,15 +115,22 @@ const MultiDesktopStreams: React.FC = () => {
           case 'desktop_clients_list':
             console.log('🔍 [DEBUG] Received desktop clients list:', message.clients);
             console.log('🔍 [DEBUG] Message object:', message);
-            setAvailableClients(message.clients);
-            setDesktopClients(message.clients || []);
+            
+            // Map clients to include 'id' field from 'clientId' for compatibility
+            const mappedClients = (message.clients || []).map((client: any) => ({
+              ...client,
+              id: client.clientId || client.id // Ensure id field exists
+            }));
+            
+            setAvailableClients(mappedClients);
+            setDesktopClients(mappedClients);
             
             // ============================================================================
             // AUTOMATISCHES STREAMING ALLER VERFÜGBAREN DESKTOPS
             // ============================================================================
             
             // Auto-select ALL connected clients for streaming (nicht nur 4)
-            const connectedClients = (message.clients || []).filter((client: any) => client.connected);
+            const connectedClients = mappedClients.filter((client: any) => client.connected);
             console.log('🔍 [DEBUG] All clients from message:', message.clients);
             console.log('🔍 [DEBUG] Connected clients filtered:', connectedClients);
             console.log(`🖥️ Automatisches Streaming für ${connectedClients.length} verfügbare Desktop-Clients wird gestartet...`);
@@ -148,7 +155,7 @@ const MultiDesktopStreams: React.FC = () => {
                   // Start streaming nur für verfügbare Monitore
                   availableMonitors.forEach((monitorId: string) => {
                     const streamMessage = {
-                      type: 'start_desktop_stream',
+                      type: 'start_stream', // Changed from start_desktop_stream
                       desktopClientId: clientId,
                       monitorId: monitorId,
                       timestamp: new Date().toISOString(),
@@ -191,7 +198,7 @@ const MultiDesktopStreams: React.FC = () => {
                   
                   availableMonitors.forEach((monitorId: string) => {
                     sendWebSocketMessage(websocket, {
-                      type: 'start_desktop_stream',
+                      type: 'start_stream', // Changed from start_desktop_stream
                       desktopClientId: message.desktopClientId,
                       monitorId: monitorId,
                       timestamp: new Date().toISOString(),
@@ -235,16 +242,22 @@ const MultiDesktopStreams: React.FC = () => {
             
           case 'frame_data':
             console.log('Frame data received:', {
-              clientId: message.metadata?.clientId,
+              desktopClientId: message.desktopClientId,
               monitorId: message.monitorId,
-              dimensions: `${message.width}x${message.height}`,
-              isMultiMonitor: message.routingInfo?.isMultiMonitor
+              dimensions: message.metadata ? `${message.metadata.width}x${message.metadata.height}` : 'N/A',
+              format: message.metadata?.format
             });
             
-            // Handle multi-monitor frame data
-            if (message.metadata?.clientId && message.frameData) {
-              const imageUrl = `data:image/jpeg;base64,${message.frameData}`;
-              const clientId = message.metadata.clientId;
+            // Handle multi-monitor frame data using desktopClientId
+            if (message.desktopClientId && message.frameData) {
+              // Determine image format from metadata
+              const format = message.metadata?.format || 'jpeg';
+              const isSvg = format.toLowerCase().includes('svg');
+              const imageUrl = isSvg 
+                ? `data:image/svg+xml;base64,${message.frameData}`
+                : `data:image/${format};base64,${message.frameData}`;
+              
+              const clientId = message.desktopClientId;
               const monitorId = message.monitorId || 'monitor_0';
               
               // Create a unique key for this monitor stream
@@ -591,7 +604,7 @@ const MultiDesktopStreams: React.FC = () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'request_screenshot',
-        clientId: clientId,
+        desktopClientId: clientId, // Changed from clientId to desktopClientId
         timestamp: new Date().toISOString()
       }));
     }
