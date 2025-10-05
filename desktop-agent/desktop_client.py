@@ -72,21 +72,15 @@ class DesktopStreamClient:
     
     async def send_handshake(self):
         """Send handshake message to server"""
+        monitor_ids = [f"monitor_{i}" for i in range(len(self.monitors))]
+        
         handshake = {
             "type": "handshake",
-            "clientType": "desktop",
-            "clientId": self.client_id,
-            "capabilities": ["screen_capture", "multi_monitor"],
-            "monitors": [
-                {
-                    "id": i,
-                    "width": mon["width"],
-                    "height": mon["height"],
-                    "name": f"Monitor {i}"
-                }
-                for i, mon in enumerate(self.monitors)
-            ],
-            "availableMonitors": len(self.monitors)
+            "clientInfo": {
+                "name": self.client_id,
+                "monitors": monitor_ids,
+                "capabilities": ["screen_capture", "multi_monitor"]
+            }
         }
         
         await self.ws.send(json.dumps(handshake))
@@ -100,12 +94,12 @@ class DesktopStreamClient:
                     data = json.loads(message)
                     msg_type = data.get("type")
                     
-                    if msg_type == "start_stream":
-                        monitor_id = data.get("monitorId", 0)
-                        print(f"[{datetime.now().strftime('%H:%M:%S')}] ▶ Start capture requested for monitor {monitor_id}")
+                    if msg_type == "start_capture":
+                        monitor_id = data.get("monitorId", "monitor_0")
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] ▶ Start capture requested for {monitor_id}")
                         self.capturing = True
                         
-                    elif msg_type == "stop_stream":
+                    elif msg_type == "stop_capture":
                         print(f"[{datetime.now().strftime('%H:%M:%S')}] ⏸ Stop capture requested")
                         self.capturing = False
                         
@@ -164,6 +158,7 @@ class DesktopStreamClient:
             frame_message = {
                 "type": "frame_data",
                 "desktopClientId": self.client_id,
+                "monitorId": f"monitor_{monitor_id}",
                 "frameData": frame_data,
                 "frameNumber": self.frame_number,
                 "timestamp": datetime.now().isoformat(),
@@ -171,7 +166,6 @@ class DesktopStreamClient:
                     "width": img.width,
                     "height": img.height,
                     "format": "jpeg",
-                    "monitorId": monitor_id,
                     "clientId": self.client_id
                 }
             }
