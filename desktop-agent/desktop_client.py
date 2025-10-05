@@ -235,26 +235,37 @@ class DesktopStreamClient:
 
 async def main():
     """Main entry point"""
-    # Configuration
-    WEBSOCKET_URL = "wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream"
-    CLIENT_ID = "desktop_001"  # Change this for each desktop
-    FPS = 10
-    QUALITY = 75
-    SCALE = 1.0
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='TRAE Unity AI - Desktop Client Agent')
+    parser.add_argument('--client-id', type=str, default='desktop_001',
+                        help='Unique client ID (e.g., desktop_003)')
+    parser.add_argument('--fps', type=int, default=10,
+                        help='Frames per second (default: 10)')
+    parser.add_argument('--quality', type=int, default=75,
+                        help='JPEG quality 1-100 (default: 75)')
+    parser.add_argument('--scale', type=float, default=1.0,
+                        help='Scale factor for frames (default: 1.0)')
+    parser.add_argument('--url', type=str, 
+                        default='wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream',
+                        help='WebSocket URL')
+    
+    args = parser.parse_args()
     
     print("=" * 60)
     print("TRAE Unity AI - Desktop Client Agent")
     print("=" * 60)
-    print(f"Client ID: {CLIENT_ID}")
-    print(f"FPS: {FPS} | Quality: {QUALITY}% | Scale: {SCALE}x")
+    print(f"Client ID: {args.client_id}")
+    print(f"FPS: {args.fps} | Quality: {args.quality}% | Scale: {args.scale}x")
+    print(f"WebSocket: {args.url}")
     print("=" * 60)
     
     client = DesktopStreamClient(
-        websocket_url=WEBSOCKET_URL,
-        client_id=CLIENT_ID,
-        fps=FPS,
-        quality=QUALITY,
-        scale=SCALE
+        websocket_url=args.url,
+        client_id=args.client_id,
+        fps=args.fps,
+        quality=args.quality,
+        scale=args.scale
     )
     
     try:
