@@ -10,32 +10,34 @@ This agent captures your desktop screen(s) and streams them in real-time to the 
 pip install -r requirements.txt
 ```
 
-### 2. Configure Your Desktop
-
-Edit `desktop_client.py` and update the configuration:
-
-```python
-WEBSOCKET_URL = "wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream"
-CLIENT_ID = "desktop_001"  # Change this for each desktop (e.g., "office_pc", "home_laptop")
-FPS = 10              # Frames per second (1-30)
-QUALITY = 75          # JPEG quality (1-100, higher = better quality, larger size)
-SCALE = 1.0           # Scale factor (0.5 = 50% size, 1.0 = full size)
-```
-
-### 3. Run the Agent
+### 2. Run the Agent
 
 ```bash
+# Run with default settings (desktop_001)
 python desktop_client.py
+
+# Run with custom client ID (to match UI selection)
+python desktop_client.py --client-id desktop_003
+
+# Run with custom settings
+python desktop_client.py --client-id my_desktop --fps 15 --quality 85 --scale 0.75
 ```
 
-## Configuration Options
+## Command Line Options
 
-| Parameter | Description | Recommended Values |
-|-----------|-------------|-------------------|
-| `CLIENT_ID` | Unique identifier for this desktop | `desktop_001`, `office_pc`, etc. |
-| `FPS` | Frames per second to stream | 5-15 (10 recommended) |
-| `QUALITY` | JPEG compression quality | 60-85 (75 recommended) |
-| `SCALE` | Frame scaling (reduce bandwidth) | 0.5-1.0 (1.0 = full resolution) |
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--client-id` | Unique identifier for this desktop | `desktop_001` |
+| `--fps` | Frames per second to stream | `10` |
+| `--quality` | JPEG quality (1-100) | `75` |
+| `--scale` | Scale factor for frames | `1.0` |
+| `--url` | WebSocket server URL | Supabase edge function |
+
+**Examples:**
+- `--client-id desktop_003` - Match the desktop ID from the UI
+- `--fps 15` - Stream at 15 FPS for smoother video
+- `--quality 60` - Lower quality to save bandwidth
+- `--scale 0.5` - Half resolution to reduce bandwidth
 
 ## Features
 
@@ -50,29 +52,20 @@ python desktop_client.py
 
 ### Stream Office Desktop
 
-```python
-CLIENT_ID = "office_desktop"
-FPS = 10
-QUALITY = 75
-SCALE = 1.0  # Full quality
+```bash
+python desktop_client.py --client-id office_desktop --fps 10 --quality 75
 ```
 
 ### Stream Remote Server (Low Bandwidth)
 
-```python
-CLIENT_ID = "remote_server"
-FPS = 5
-QUALITY = 60
-SCALE = 0.5  # Half size to save bandwidth
+```bash
+python desktop_client.py --client-id remote_server --fps 5 --quality 60 --scale 0.5
 ```
 
 ### Stream Gaming PC (High Quality)
 
-```python
-CLIENT_ID = "gaming_pc"
-FPS = 15
-QUALITY = 85
-SCALE = 1.0
+```bash
+python desktop_client.py --client-id gaming_pc --fps 15 --quality 85
 ```
 
 ## Troubleshooting
