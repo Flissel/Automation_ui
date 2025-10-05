@@ -35,6 +35,10 @@ interface DesktopClient {
   clientId: string;
   isStreaming: boolean;
   lastPing: number;
+  name?: string;
+  monitors?: string[];
+  capabilities?: any;
+  connectedAt: number;
 }
 
 interface WebClient {
@@ -88,7 +92,8 @@ function handleDesktopClient(socket: WebSocket, clientId: string) {
     socket,
     clientId,
     isStreaming: false,
-    lastPing: Date.now()
+    lastPing: Date.now(),
+    connectedAt: Date.now()
   };
 
   desktopClients.set(clientId, client);
@@ -112,6 +117,19 @@ function handleDesktopClient(socket: WebSocket, clientId: string) {
       console.log(`Desktop client ${clientId} message:`, message.type);
 
       switch (message.type) {
+        case 'handshake':
+          // Store desktop client metadata
+          client.name = message.clientInfo?.name || clientId;
+          client.monitors = message.clientInfo?.monitors || [];
+          client.capabilities = message.clientInfo?.capabilities;
+          client.lastPing = Date.now();
+          console.log(`Desktop client ${clientId} handshake:`, {
+            name: client.name,
+            monitors: client.monitors,
+            capabilities: client.capabilities
+          });
+          break;
+
         case 'frame_data':
           // Relay frame to all connected web clients
           relayFrameToWebClients(message, clientId);
@@ -194,10 +212,23 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
 
         case 'get_desktop_clients':
           console.log(`Desktop clients list requested by ${clientId}`);
-          // Send list of mock desktop clients with both id and clientId for compatibility
-          const clientsList = MOCK_DESKTOP_CLIENTS.map(client => ({
-            id: client.id, // Frontend expects 'id'
-            clientId: client.id, // Also include clientId for compatibility
+          
+          // Build list from real desktop clients
+          const realClients = Array.from(desktopClients.values()).map(client => ({
+            id: client.clientId,
+            clientId: client.clientId,
+            name: client.name || client.clientId,
+            connected: true,
+            streaming: client.isStreaming,
+            monitors: client.monitors || ['monitor_0'],
+            availableMonitors: client.monitors || ['monitor_0'],
+            timestamp: new Date().toISOString()
+          }));
+          
+          // If no real clients, fall back to mock clients for demo
+          const clientsList = realClients.length > 0 ? realClients : MOCK_DESKTOP_CLIENTS.map(client => ({
+            id: client.id,
+            clientId: client.id,
             name: client.name,
             connected: client.connected,
             streaming: false,
@@ -218,8 +249,29 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
           console.log(`Start stream request for ${message.desktopClientId || 'default'}`);
           const desktopClientId = message.desktopClientId || MOCK_DESKTOP_CLIENTS[0].id;
           
-          // Send mock frame data periodically
-          startMockStream(socket, desktopClientId, message.monitorId);
+          // Try to find real desktop client
+          const desktopClient = desktopClients.get(desktopClientId);
+          
+          if (desktopClient) {
+            // Send start_capture command to real desktop client
+            console.log(`Starting real stream for ${desktopClientId} on ${message.monitorId || 'monitor_0'}`);
+            desktopClient.socket.send(JSON.stringify({
+              type: 'start_capture',
+              monitorId: message.monitorId || 'monitor_0',
+              config: {
+                fps: 10,
+                quality: 75,
+                scale: 1.0,
+                format: 'jpeg'
+              },
+              timestamp: new Date().toISOString()
+            }));
+            desktopClient.isStreaming = true;
+          } else {
+            // Fall back to mock stream if desktop client not found
+            console.log(`Desktop client ${desktopClientId} not found, using mock stream`);
+            startMockStream(socket, desktopClientId, message.monitorId);
+          }
           
           socket.send(JSON.stringify({
             type: 'stream_started',
@@ -232,7 +284,22 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
         case 'stop_stream':
         case 'stop_desktop_stream': // Accept alias for compatibility
           console.log(`Stop stream request for ${message.desktopClientId || 'default'}`);
-          stopMockStream(socket);
+          
+          // Try to find real desktop client
+          const desktopClientToStop = desktopClients.get(message.desktopClientId);
+          
+          if (desktopClientToStop) {
+            // Send stop_capture command to real desktop client
+            console.log(`Stopping real stream for ${message.desktopClientId}`);
+            desktopClientToStop.socket.send(JSON.stringify({
+              type: 'stop_capture',
+              timestamp: new Date().toISOString()
+            }));
+            desktopClientToStop.isStreaming = false;
+          } else {
+            // Fall back to stopping mock stream
+            stopMockStream(socket);
+          }
           
           socket.send(JSON.stringify({
             type: 'stream_stopped',
