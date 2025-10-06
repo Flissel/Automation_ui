@@ -7,13 +7,46 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
   }
   public: {
     Tables: {
+      active_desktop_clients: {
+        Row: {
+          capabilities: Json | null
+          client_id: string
+          connected_at: string | null
+          is_streaming: boolean | null
+          last_ping: string | null
+          monitors: Json | null
+          name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          capabilities?: Json | null
+          client_id: string
+          connected_at?: string | null
+          is_streaming?: boolean | null
+          last_ping?: string | null
+          monitors?: Json | null
+          name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          capabilities?: Json | null
+          client_id?: string
+          connected_at?: string | null
+          is_streaming?: boolean | null
+          last_ping?: string | null
+          monitors?: Json | null
+          name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       agent_assignments: {
         Row: {
           agent_type: string
@@ -114,6 +147,103 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          message_type: string | null
+          room_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          message_type?: string | null
+          room_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          message_type?: string | null
+          room_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_participants: {
+        Row: {
+          id: string
+          joined_at: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_participants_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_rooms: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_private: boolean | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_private?: boolean | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_private?: boolean | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       codebase_dependency_graph: {
         Row: {
@@ -771,6 +901,185 @@ export type Database = {
           },
         ]
       }
+      course_enrollments: {
+        Row: {
+          completed_at: string | null
+          course_id: string
+          enrolled_at: string | null
+          id: string
+          progress_percentage: number | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          course_id: string
+          enrolled_at?: string | null
+          id?: string
+          progress_percentage?: number | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          course_id?: string
+          enrolled_at?: string | null
+          id?: string
+          progress_percentage?: number | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_enrollments_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_lessons: {
+        Row: {
+          content_type: string | null
+          created_at: string | null
+          duration_minutes: number | null
+          id: string
+          interactive_video_id: string | null
+          is_preview: boolean | null
+          module_id: string
+          order_index: number
+          title: string
+          video_id: string | null
+        }
+        Insert: {
+          content_type?: string | null
+          created_at?: string | null
+          duration_minutes?: number | null
+          id?: string
+          interactive_video_id?: string | null
+          is_preview?: boolean | null
+          module_id: string
+          order_index: number
+          title: string
+          video_id?: string | null
+        }
+        Update: {
+          content_type?: string | null
+          created_at?: string | null
+          duration_minutes?: number | null
+          id?: string
+          interactive_video_id?: string | null
+          is_preview?: boolean | null
+          module_id?: string
+          order_index?: number
+          title?: string
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_lessons_interactive_video_id_fkey"
+            columns: ["interactive_video_id"]
+            isOneToOne: false
+            referencedRelation: "interactive_videos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_lessons_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "course_modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_lessons_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_modules: {
+        Row: {
+          course_id: string
+          created_at: string | null
+          description: string | null
+          id: string
+          order_index: number
+          title: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          order_index: number
+          title: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          order_index?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_modules_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courses: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          duration_minutes: number | null
+          id: string
+          instructor_id: string
+          level: string | null
+          price: number | null
+          status: string | null
+          thumbnail_url: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          instructor_id: string
+          level?: string | null
+          price?: number | null
+          status?: string | null
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          instructor_id?: string
+          level?: string | null
+          price?: number | null
+          status?: string | null
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       event_chains: {
         Row: {
           actions: Json
@@ -1248,6 +1557,86 @@ export type Database = {
         }
         Relationships: []
       }
+      interactive_videos: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          settings: Json | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          settings?: Json | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          settings?: Json | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: []
+      }
+      lesson_progress: {
+        Row: {
+          completed: boolean | null
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          last_position_seconds: number | null
+          lesson_id: string
+          updated_at: string | null
+          user_id: string
+          watch_time_seconds: number | null
+        }
+        Insert: {
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          last_position_seconds?: number | null
+          lesson_id: string
+          updated_at?: string | null
+          user_id: string
+          watch_time_seconds?: number | null
+        }
+        Update: {
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          last_position_seconds?: number | null
+          lesson_id?: string
+          updated_at?: string | null
+          user_id?: string
+          watch_time_seconds?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_progress_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       live_desktop_configs: {
         Row: {
           category: string | null
@@ -1656,6 +2045,105 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string
+          id: string
+          status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name: string
+          id?: string
+          status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string
+          id?: string
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      quiz_analytics: {
+        Row: {
+          average_time_seconds: number | null
+          correct_attempts: number | null
+          created_at: string
+          id: string
+          interactive_video_id: string
+          question_id: string
+          total_attempts: number | null
+          updated_at: string
+        }
+        Insert: {
+          average_time_seconds?: number | null
+          correct_attempts?: number | null
+          created_at?: string
+          id?: string
+          interactive_video_id: string
+          question_id: string
+          total_attempts?: number | null
+          updated_at?: string
+        }
+        Update: {
+          average_time_seconds?: number | null
+          correct_attempts?: number | null
+          created_at?: string
+          id?: string
+          interactive_video_id?: string
+          question_id?: string
+          total_attempts?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quiz_questions: {
+        Row: {
+          correct_answer: Json
+          created_at: string
+          explanation: string | null
+          id: string
+          interaction_id: string
+          options: Json
+          points: number | null
+          question_text: string
+          question_type: string
+        }
+        Insert: {
+          correct_answer: Json
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          interaction_id: string
+          options?: Json
+          points?: number | null
+          question_text: string
+          question_type?: string
+        }
+        Update: {
+          correct_answer?: Json
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          interaction_id?: string
+          options?: Json
+          points?: number | null
+          question_text?: string
+          question_type?: string
+        }
+        Relationships: []
+      }
       service_logs: {
         Row: {
           created_at: string | null
@@ -1688,6 +2176,54 @@ export type Database = {
           timestamp?: string | null
         }
         Relationships: []
+      }
+      summaries: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          language: string
+          model_used: string | null
+          summary_type: string
+          transcript_id: string | null
+          video_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          language?: string
+          model_used?: string | null
+          summary_type?: string
+          transcript_id?: string | null
+          video_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          language?: string
+          model_used?: string | null
+          summary_type?: string
+          transcript_id?: string | null
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "summaries_transcript_id_fkey"
+            columns: ["transcript_id"]
+            isOneToOne: false
+            referencedRelation: "transcripts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "summaries_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trae_activity_log: {
         Row: {
@@ -1746,6 +2282,166 @@ export type Database = {
         }
         Relationships: []
       }
+      transcripts: {
+        Row: {
+          confidence_score: number | null
+          content: string
+          created_at: string
+          id: string
+          language: string
+          processing_duration_ms: number | null
+          segments: Json | null
+          video_id: string
+        }
+        Insert: {
+          confidence_score?: number | null
+          content: string
+          created_at?: string
+          id?: string
+          language?: string
+          processing_duration_ms?: number | null
+          segments?: Json | null
+          video_id: string
+        }
+        Update: {
+          confidence_score?: number | null
+          content?: string
+          created_at?: string
+          id?: string
+          language?: string
+          processing_duration_ms?: number | null
+          segments?: Json | null
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transcripts_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      translations: {
+        Row: {
+          confidence_score: number | null
+          content: string
+          created_at: string
+          id: string
+          target_language: string
+          transcript_id: string
+        }
+        Insert: {
+          confidence_score?: number | null
+          content: string
+          created_at?: string
+          id?: string
+          target_language: string
+          transcript_id: string
+        }
+        Update: {
+          confidence_score?: number | null
+          content?: string
+          created_at?: string
+          id?: string
+          target_language?: string
+          transcript_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "translations_transcript_id_fkey"
+            columns: ["transcript_id"]
+            isOneToOne: false
+            referencedRelation: "transcripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      upload_sessions: {
+        Row: {
+          chunk_size: number | null
+          chunks_uploaded: number | null
+          created_at: string | null
+          expires_at: string | null
+          file_size: number
+          filename: string
+          id: string
+          last_chunk_at: string | null
+          mime_type: string
+          r2_object_key: string | null
+          status: string | null
+          total_chunks: number
+          user_id: string
+        }
+        Insert: {
+          chunk_size?: number | null
+          chunks_uploaded?: number | null
+          created_at?: string | null
+          expires_at?: string | null
+          file_size: number
+          filename: string
+          id: string
+          last_chunk_at?: string | null
+          mime_type: string
+          r2_object_key?: string | null
+          status?: string | null
+          total_chunks: number
+          user_id: string
+        }
+        Update: {
+          chunk_size?: number | null
+          chunks_uploaded?: number | null
+          created_at?: string | null
+          expires_at?: string | null
+          file_size?: number
+          filename?: string
+          id?: string
+          last_chunk_at?: string | null
+          mime_type?: string
+          r2_object_key?: string | null
+          status?: string | null
+          total_chunks?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_quiz_sessions: {
+        Row: {
+          answers: Json | null
+          completed_at: string | null
+          current_position: number | null
+          id: string
+          interactive_video_id: string
+          score: number | null
+          started_at: string
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          answers?: Json | null
+          completed_at?: string | null
+          current_position?: number | null
+          id?: string
+          interactive_video_id: string
+          score?: number | null
+          started_at?: string
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          answers?: Json | null
+          completed_at?: string | null
+          current_position?: number | null
+          id?: string
+          interactive_video_id?: string
+          score?: number | null
+          started_at?: string
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -1794,6 +2490,99 @@ export type Database = {
           relationship_type?: string
           source_vector_id?: string
           target_vector_id?: string
+        }
+        Relationships: []
+      }
+      video_interactions: {
+        Row: {
+          content: Json
+          created_at: string
+          id: string
+          interaction_type: string
+          interactive_video_id: string
+          settings: Json | null
+          timestamp_seconds: number
+          title: string
+        }
+        Insert: {
+          content?: Json
+          created_at?: string
+          id?: string
+          interaction_type?: string
+          interactive_video_id: string
+          settings?: Json | null
+          timestamp_seconds: number
+          title: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          id?: string
+          interaction_type?: string
+          interactive_video_id?: string
+          settings?: Json | null
+          timestamp_seconds?: number
+          title?: string
+        }
+        Relationships: []
+      }
+      videos: {
+        Row: {
+          chunks_uploaded: number | null
+          cloudflare_url: string | null
+          created_at: string
+          duration_seconds: number | null
+          file_path: string
+          file_size: number
+          filename: string
+          id: string
+          mime_type: string
+          original_filename: string
+          r2_object_key: string | null
+          status: string
+          thumbnail_url: string | null
+          total_chunks: number | null
+          updated_at: string
+          upload_session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          chunks_uploaded?: number | null
+          cloudflare_url?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          file_path: string
+          file_size: number
+          filename: string
+          id?: string
+          mime_type: string
+          original_filename: string
+          r2_object_key?: string | null
+          status?: string
+          thumbnail_url?: string | null
+          total_chunks?: number | null
+          updated_at?: string
+          upload_session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          chunks_uploaded?: number | null
+          cloudflare_url?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          file_path?: string
+          file_size?: number
+          filename?: string
+          id?: string
+          mime_type?: string
+          original_filename?: string
+          r2_object_key?: string | null
+          status?: string
+          thumbnail_url?: string | null
+          total_chunks?: number | null
+          updated_at?: string
+          upload_session_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -1968,17 +2757,21 @@ export type Database = {
         Args: { "": string } | { "": unknown }
         Returns: unknown
       }
+      cleanup_expired_upload_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       find_related_vectors: {
         Args: {
-          source_vector_id: string
-          relationship_types?: string[]
           max_depth?: number
+          relationship_types?: string[]
+          source_vector_id: string
         }
         Returns: {
-          vector_id: string
-          relationship_type: string
           depth: number
           path: string[]
+          relationship_type: string
+          vector_id: string
         }[]
       }
       halfvec_avg: {
@@ -1999,8 +2792,8 @@ export type Database = {
       }
       has_role: {
         Args: {
-          _user_id: string
           _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
         }
         Returns: boolean
       }
@@ -2047,26 +2840,24 @@ export type Database = {
       search_all_vectors: {
         Args:
           | {
-              query_embedding: string
-              match_threshold?: number
-              match_count?: number
+              filter_project_id?: string
               filter_types?: string[]
+              match_count?: number
+              match_threshold?: number
+              query_embedding: string
             }
           | {
-              query_embedding: string
-              match_threshold?: number
-              match_count?: number
               filter_types?: string[]
-              filter_project_id?: string
+              match_count?: number
+              match_threshold?: number
+              query_embedding: string
             }
         Returns: {
+          metadata: Json
+          project_id: string
+          similarity: number
           vector_id: string
           vector_type: string
-          title: string
-          content: string
-          file_path: string
-          similarity: number
-          metadata: Json
         }[]
       }
       sparsevec_out: {
