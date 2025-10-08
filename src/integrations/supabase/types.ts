@@ -1080,6 +1080,39 @@ export type Database = {
         }
         Relationships: []
       }
+      desktop_commands: {
+        Row: {
+          command_data: Json | null
+          command_type: string
+          created_at: string | null
+          desktop_client_id: string
+          error_message: string | null
+          id: string
+          processed_at: string | null
+          status: string | null
+        }
+        Insert: {
+          command_data?: Json | null
+          command_type: string
+          created_at?: string | null
+          desktop_client_id: string
+          error_message?: string | null
+          id?: string
+          processed_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          command_data?: Json | null
+          command_type?: string
+          created_at?: string | null
+          desktop_client_id?: string
+          error_message?: string | null
+          id?: string
+          processed_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       event_chains: {
         Row: {
           actions: Json
