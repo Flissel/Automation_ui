@@ -103,15 +103,23 @@ export const createWebSocketConnection = (
   capabilities: string[] = [],
   endpoint: string = WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP
 ): WebSocket => {
-  const fullUrl = `${WEBSOCKET_CONFIG.BASE_URL}${endpoint}`;
+  // Add query parameters required by Edge Function
+  const params = new URLSearchParams({
+    client_type: clientType,
+    client_id: clientId
+  });
+
+  const fullUrl = `${WEBSOCKET_CONFIG.BASE_URL}${endpoint}?${params.toString()}`;
+  console.log('🔗 Creating WebSocket connection:', fullUrl);
+
   const ws = new WebSocket(fullUrl);
-  
+
   // Set standard connection properties
   (ws as any).clientType = clientType;
   (ws as any).clientId = clientId;
   (ws as any).capabilities = capabilities;
   (ws as any).endpoint = endpoint;
-  
+
   return ws;
 };
 
@@ -326,6 +334,76 @@ export const logWebSocketConfig = () => {
     console.log('Capabilities:', WEBSOCKET_CONFIG.CAPABILITIES);
     console.groupEnd();
   }
+};
+
+// ============================================================================
+// RECONNECTION HELPERS
+// ============================================================================
+
+/**
+ * Create WebSocket URL for reconnection hook
+ * @param clientType - Type of client connecting
+ * @param clientId - Unique client identifier
+ * @param endpoint - WebSocket endpoint path (optional, defaults to live desktop)
+ * @returns Full WebSocket URL with query parameters
+ */
+export const createWebSocketUrl = (
+  clientType: string,
+  clientId: string,
+  endpoint: string = WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP
+): string => {
+  const params = new URLSearchParams({
+    client_type: clientType,
+    client_id: clientId
+  });
+
+  return `${WEBSOCKET_CONFIG.BASE_URL}${endpoint}?${params.toString()}`;
+};
+
+/**
+ * Create WebSocket URL for web client
+ * @param componentName - Name of the component creating the connection
+ * @param endpoint - Optional WebSocket endpoint (defaults to live desktop)
+ */
+export const createWebClientUrl = (
+  componentName: string,
+  endpoint: string = WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP
+): { url: string; clientId: string; handshakeMessage: any } => {
+  const clientId = `web_${componentName}_${Date.now()}`;
+  const url = createWebSocketUrl(
+    WEBSOCKET_CONFIG.CLIENT_TYPES.WEB,
+    clientId,
+    endpoint
+  );
+  const handshakeMessage = createHandshakeMessage(
+    WEBSOCKET_CONFIG.CLIENT_TYPES.WEB,
+    clientId,
+    [WEBSOCKET_CONFIG.CAPABILITIES.MULTI_STREAM_VIEWING]
+  );
+
+  return { url, clientId, handshakeMessage };
+};
+
+/**
+ * Create WebSocket URL for multi-desktop client
+ * @param componentName - Name of the component creating the connection
+ */
+export const createMultiDesktopClientUrl = (
+  componentName: string
+): { url: string; clientId: string; handshakeMessage: any } => {
+  const clientId = `multi_desktop_${componentName}_${Date.now()}`;
+  const url = createWebSocketUrl(
+    WEBSOCKET_CONFIG.CLIENT_TYPES.WEB,
+    clientId,
+    WEBSOCKET_CONFIG.ENDPOINTS.MULTI_DESKTOP
+  );
+  const handshakeMessage = createHandshakeMessage(
+    WEBSOCKET_CONFIG.CLIENT_TYPES.WEB,
+    clientId,
+    [WEBSOCKET_CONFIG.CAPABILITIES.MULTI_STREAM_VIEWING]
+  );
+
+  return { url, clientId, handshakeMessage };
 };
 
 // Log configuration on import in development

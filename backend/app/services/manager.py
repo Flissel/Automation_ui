@@ -31,11 +31,10 @@ class ServiceManager:
             await self.services["live_desktop"].initialize()
             logger.info("✅ LiveDesktopService initialized")
             
-            # Initialize other services as needed
-            # Note: Add other services here when they become available
-            # from .ocr_service import OCRService
-            # self.services["ocr"] = OCRService()
-            # await self.services["ocr"].initialize()
+            # Initialize OCR service (initializes itself in __init__)
+            from .ocr_service import OCRService
+            self.services["ocr"] = OCRService()
+            logger.info("✅ OCRService initialized")
             
             self.initialized = True
             logger.info(f"✅ Service manager initialized with services: {list(self.services.keys())}")

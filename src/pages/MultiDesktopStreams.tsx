@@ -36,7 +36,7 @@ const MultiDesktopStreams: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
-  // Stream control state - Explizite Kontrolle über Live-Streaming
+  // Stream control state - Explicit control over live streaming
   const [isStreamingActive, setIsStreamingActive] = useState(false);
   
   // Real desktop clients state - fetched from WebSocket server
@@ -86,18 +86,24 @@ const MultiDesktopStreams: React.FC = () => {
       setIsLoading(false);
       setConnectionError(null);
       setReconnectAttempts(0);
-      
+
       // Register as web client (standardized handshake)
       console.log('📤 [DEBUG] Sending handshake message:', handshakeMessage);
-      sendWebSocketMessage(websocket, handshakeMessage);
 
-      // Request available desktop clients
-      setTimeout(() => {
-        sendWebSocketMessage(websocket, {
-          type: 'get_desktop_clients',
-          timestamp: new Date().toISOString()
-        });
-      }, 1000);
+      // Ensure connection is ready before sending messages
+      if (websocket.readyState === WebSocket.OPEN) {
+        sendWebSocketMessage(websocket, handshakeMessage);
+
+        // Request available desktop clients after handshake
+        setTimeout(() => {
+          if (websocket.readyState === WebSocket.OPEN) {
+            sendWebSocketMessage(websocket, {
+              type: 'get_desktop_clients',
+              timestamp: new Date().toISOString()
+            });
+          }
+        }, 500); // Reduced from 1000ms to 500ms
+      }
     };
 
       websocket.onmessage = (event) => {
@@ -126,53 +132,66 @@ const MultiDesktopStreams: React.FC = () => {
             setDesktopClients(mappedClients);
             
             // ============================================================================
-            // AUTOMATISCHES STREAMING ALLER VERFÜGBAREN DESKTOPS
+            // AUTOMATIC STREAMING FOR ALL AVAILABLE DESKTOPS
             // ============================================================================
-            
-            // Auto-select ALL connected clients for streaming (nicht nur 4)
+
+            // Auto-select ALL connected clients for streaming (no limit)
             const connectedClients = mappedClients.filter((client: any) => client.connected);
             console.log('🔍 [DEBUG] All clients from message:', message.clients);
             console.log('🔍 [DEBUG] Connected clients filtered:', connectedClients);
-            console.log(`🖥️ Automatisches Streaming für ${connectedClients.length} verfügbare Desktop-Clients wird gestartet...`);
+            console.log(`🖥️ Starting automatic streaming for ${connectedClients.length} available desktop clients...`);
             
             if (connectedClients.length > 0) {
-              // Alle verfügbaren Clients auswählen (nicht auf 4 begrenzen)
+              // Select all available clients (no limit)
               const clientIds = connectedClients.map((client: any) => client.id);
               setSelectedClients(clientIds);
-              
-              // Auto-start streaming für ALLE verfügbaren Clients mit dynamischer Monitor-Unterstützung
+
+              // Auto-start streaming for ALL available clients with dynamic monitor support
               setTimeout(() => {
                 console.log('🔍 [DEBUG] setTimeout executed - starting auto streaming for clients:', clientIds);
                 clientIds.forEach((clientId, index) => {
-                  console.log(`🚀 Starte automatisches Streaming für Client ${index + 1}/${clientIds.length}: ${clientId}`);
-                  
-                  // Finde den entsprechenden Client in der Response, um verfügbare Monitore zu ermitteln
+                  console.log(`🚀 Starting automatic streaming for client ${index + 1}/${clientIds.length}: ${clientId}`);
+
+                  // Find the corresponding client in the response to determine available monitors
                   const clientData = connectedClients.find((c: any) => c.id === clientId);
-                  const availableMonitors = clientData?.monitors || clientData?.availableMonitors || ['monitor_0', 'monitor_1'];
-                  
-                  console.log(`📺 Client ${clientId} hat ${availableMonitors.length} verfügbare Monitore:`, availableMonitors);
-                  
-                  // Start streaming nur für verfügbare Monitore
-                  availableMonitors.forEach((monitorId: string) => {
+                  const availableMonitors = clientData?.monitors || clientData?.availableMonitors || [];
+
+                  // Convert monitor objects to monitor IDs
+                  const monitorIds = availableMonitors.length > 0
+                    ? availableMonitors.map((m: any, index: number) => {
+                        if (typeof m === 'object' && m !== null && 'index' in m) {
+                          return `monitor_${m.index}`;
+                        }
+                        if (typeof m === 'string') {
+                          return m;
+                        }
+                        return `monitor_${index}`;
+                      })
+                    : ['monitor_0', 'monitor_1']; // Default fallback
+
+                  console.log(`📺 Client ${clientId} has ${monitorIds.length} available monitors:`, monitorIds);
+
+                  // Start streaming only for available monitors
+                  monitorIds.forEach((monitorId: string) => {
                     const streamMessage = {
                       type: 'start_stream', // Changed from start_desktop_stream
                       desktopClientId: clientId,
                       monitorId: monitorId,
                       timestamp: new Date().toISOString(),
-                      autoStart: true // Flag für automatischen Start
+                      autoStart: true // Flag for automatic start
                     };
                     console.log('🔍 [DEBUG] Sending WebSocket message:', streamMessage);
                     sendWebSocketMessage(websocket, streamMessage);
                   });
                 });
-                
-                console.log(`✅ Automatisches Streaming für alle ${clientIds.length} Desktop-Clients initialisiert`);
+
+                console.log(`✅ Automatic streaming initialized for all ${clientIds.length} desktop clients`);
               }, 1000);
             } else {
-              console.log('⚠️ Keine verbundenen Desktop-Clients für automatisches Streaming gefunden');
+              console.log('⚠️ No connected desktop clients found for automatic streaming');
             }
             
-            // Request screenshots von allen verbundenen Clients
+            // Request screenshots from all connected clients
             (message.clients || []).forEach((client: any) => {
               if (client.connected) {
                 requestScreenshot(client.id);
@@ -181,22 +200,34 @@ const MultiDesktopStreams: React.FC = () => {
             break;
             
           case 'desktop_connected':
-            console.log('🔗 Neuer Desktop-Client verbunden:', message.desktopClientId);
-            
-            // Automatisch den neuen Client zur Auswahl hinzufügen
+            console.log('🔗 New desktop client connected:', message.desktopClientId);
+
+            // Automatically add the new client to selection
             setSelectedClients(prev => {
               if (!prev.includes(message.desktopClientId)) {
                 const newSelection = [...prev, message.desktopClientId];
-                
-                // Automatisches Streaming für den neuen Client starten
+
+                // Start automatic streaming for the new client
                 setTimeout(() => {
-                  console.log(`🚀 Starte automatisches Streaming für neuen Client: ${message.desktopClientId}`);
-                  
-                  // Verwende verfügbare Monitore aus der Nachricht oder Standard-Fallback
+                  console.log(`🚀 Starting automatic streaming for new client: ${message.desktopClientId}`);
+
+                  // Convert monitor objects to monitor IDs
                   const availableMonitors = message.availableMonitors || message.monitors || ['monitor_0', 'monitor_1'];
-                  console.log(`📺 Neuer Client ${message.desktopClientId} hat ${availableMonitors.length} verfügbare Monitore:`, availableMonitors);
-                  
-                  availableMonitors.forEach((monitorId: string) => {
+                  const monitorIds = availableMonitors.map((m: any, index: number) => {
+                    // If monitor is an object with index field, use monitor_<index>
+                    if (typeof m === 'object' && m !== null && 'index' in m) {
+                      return `monitor_${m.index}`;
+                    }
+                    // If monitor is already a string, use it as-is
+                    if (typeof m === 'string') {
+                      return m;
+                    }
+                    // Fallback: use array index
+                    return `monitor_${index}`;
+                  });
+                  console.log(`📺 New client ${message.desktopClientId} has ${monitorIds.length} available monitors:`, monitorIds);
+
+                  monitorIds.forEach((monitorId: string) => {
                     sendWebSocketMessage(websocket, {
                       type: 'start_stream', // Changed from start_desktop_stream
                       desktopClientId: message.desktopClientId,
@@ -205,8 +236,8 @@ const MultiDesktopStreams: React.FC = () => {
                       autoStart: true
                     });
                   });
-                  
-                  console.log(`✅ Automatisches Streaming für neuen Client ${message.desktopClientId} gestartet`);
+
+                  console.log(`✅ Automatic streaming started for new client ${message.desktopClientId}`);
                 }, 500);
                 
                 return newSelection;
@@ -456,10 +487,53 @@ const MultiDesktopStreams: React.FC = () => {
             }
             break;
             
+          case 'stream_started':
+            console.log('✅ Stream started acknowledgment:', message);
+            console.log(`✅ Desktop client ${message.desktopClientId} started streaming ${message.monitorId ? 'monitor: ' + JSON.stringify(message.monitorId) : ''}`);
+            console.log(`📡 Stream initiated via: ${message.viaDatabase ? 'Database Command' : message.viaBroadcast ? 'Realtime Broadcast' : 'Direct Message'}`);
+            // Stream has started, frames should start arriving via frame_data or dual_screen_frame messages
+            break;
+
+          case 'error':
+            console.error('❌ Server error:', message.error);
+            if (message.desktopClientId) {
+              console.error(`❌ Error for desktop client: ${message.desktopClientId}`);
+
+              // If error is "Desktop client not found", remove it from state
+              if (message.error && message.error.includes('not found')) {
+                console.log(`🧹 Removing non-existent client from state: ${message.desktopClientId}`);
+
+                // Remove from selected clients
+                setSelectedClients(prev => prev.filter(id => id !== message.desktopClientId));
+
+                // Remove from available clients
+                setAvailableClients(prev => prev.filter(client => client.id !== message.desktopClientId));
+
+                // Remove from desktop clients
+                setDesktopClients(prev => prev.filter(client => client.id !== message.desktopClientId));
+
+                // Remove desktop screens for this client
+                setDesktopScreens(prev => prev.filter(screen => !screen.id.startsWith(message.desktopClientId)));
+
+                // Remove screenshots for this client
+                setLatestScreenshots(prev => {
+                  const updated = { ...prev };
+                  Object.keys(updated).forEach(key => {
+                    if (key.startsWith(message.desktopClientId)) {
+                      delete updated[key];
+                    }
+                  });
+                  return updated;
+                });
+              }
+            }
+            // Handle error appropriately - could show toast notification to user
+            break;
+
           case 'ping':
             // Handle ping messages silently - these are keep-alive messages
             break;
-            
+
           default:
             console.log('Unhandled message type:', message.type);
         }
@@ -622,42 +696,55 @@ const MultiDesktopStreams: React.FC = () => {
   const toggleClientSelection = (clientId: string) => {
     setSelectedClients(prev => {
       const isCurrentlySelected = prev.includes(clientId);
-      const newSelection = isCurrentlySelected 
+      const newSelection = isCurrentlySelected
         ? prev.filter(id => id !== clientId)
-        : [...prev, clientId]; // Keine Begrenzung auf 4 Clients
-      
-      console.log(`🖥️ Client ${clientId} ${newSelection.includes(clientId) ? 'ausgewählt' : 'abgewählt'}`);
-      
-      // Keine automatische Stream-Kontrolle mehr - nur Client-Auswahl
-      // Streaming wird jetzt über die expliziten Start/Stop-Buttons gesteuert
-      
+        : [...prev, clientId]; // No client limit
+
+      console.log(`🖥️ Client ${clientId} ${newSelection.includes(clientId) ? 'selected' : 'deselected'}`);
+
+      // No automatic stream control anymore - only client selection
+      // Streaming is now controlled via explicit Start/Stop buttons
+
       return newSelection;
     });
   };
 
   const selectAllClients = () => {
-    // Alle verfügbaren verbundenen Clients auswählen (keine Begrenzung auf 4)
+    // Select all available connected clients (no limit)
     const connectableClients = availableClients
       .filter(client => client.connected)
       .map(client => client.id);
-    
-    console.log(`🖥️ Alle verfügbaren Desktop-Clients auswählen: ${connectableClients.length} Clients`);
+
+    console.log(`🖥️ Selecting all available desktop clients: ${connectableClients.length} clients`);
     setSelectedClients(connectableClients);
-    
-    // Auto-start streaming für ALLE ausgewählten Clients mit dynamischer Monitor-Support
+
+    // Auto-start streaming for ALL selected clients with dynamic monitor support
     if (wsRef.current && connectableClients.length > 0) {
       setTimeout(() => {
         connectableClients.forEach((clientId, index) => {
-          console.log(`🚀 Starte Streaming für Client ${index + 1}/${connectableClients.length}: ${clientId}`);
-          
-          // Finde verfügbare Monitore für diesen Client
+          console.log(`🚀 Starting streaming for client ${index + 1}/${connectableClients.length}: ${clientId}`);
+
+          // Find available monitors for this client
           const clientData = availableClients.find(client => client.id === clientId);
-          const availableMonitors = clientData?.monitors || clientData?.availableMonitors || ['monitor_0', 'monitor_1'];
-          
-          console.log(`📺 Client ${clientId} hat ${availableMonitors.length} verfügbare Monitore:`, availableMonitors);
-          
-          // Start streaming nur für verfügbare Monitore
-          availableMonitors.forEach((monitorId: string) => {
+          const availableMonitors = clientData?.monitors || clientData?.availableMonitors || [];
+
+          // Convert monitor objects to monitor IDs
+          const monitorIds = availableMonitors.length > 0
+            ? availableMonitors.map((m: any, index: number) => {
+                if (typeof m === 'object' && m !== null && 'index' in m) {
+                  return `monitor_${m.index}`;
+                }
+                if (typeof m === 'string') {
+                  return m;
+                }
+                return `monitor_${index}`;
+              })
+            : ['monitor_0', 'monitor_1'];
+
+          console.log(`📺 Client ${clientId} has ${monitorIds.length} available monitors:`, monitorIds);
+
+          // Start streaming only for available monitors
+          monitorIds.forEach((monitorId: string) => {
             wsRef.current?.send(JSON.stringify({
               type: 'start_desktop_stream',
               desktopClientId: clientId,
@@ -667,27 +754,40 @@ const MultiDesktopStreams: React.FC = () => {
             }));
           });
         });
-        
-        console.log(`✅ Streaming für alle ${connectableClients.length} Desktop-Clients gestartet`);
+
+        console.log(`✅ Streaming started for all ${connectableClients.length} desktop clients`);
       }, 500);
     } else {
-      console.log('⚠️ Keine verbundenen Desktop-Clients zum Streamen verfügbar');
+      console.log('⚠️ No connected desktop clients available for streaming');
     }
   };
 
   const clearSelection = () => {
-    // Stop streaming für alle aktuell ausgewählten Clients
+    // Stop streaming for all currently selected clients
     if (wsRef.current && selectedClients.length > 0) {
-      console.log(`🛑 Stoppe Streaming für alle ${selectedClients.length} ausgewählten Clients`);
-      
+      console.log(`🛑 Stopping streaming for all ${selectedClients.length} selected clients`);
+
       selectedClients.forEach((clientId, index) => {
-        console.log(`🛑 Stoppe Streaming für Client ${index + 1}/${selectedClients.length}: ${clientId}`);
-        
-        // Finde verfügbare Monitore für diesen Client
+        console.log(`🛑 Stopping streaming for client ${index + 1}/${selectedClients.length}: ${clientId}`);
+
+        // Find available monitors for this client
         const clientData = availableClients.find(client => client.id === clientId);
-        const availableMonitors = clientData?.monitors || clientData?.availableMonitors || ['monitor_0', 'monitor_1'];
-        
-        availableMonitors.forEach((monitorId: string) => {
+        const availableMonitors = clientData?.monitors || clientData?.availableMonitors || [];
+
+        // Convert monitor objects to monitor IDs
+        const monitorIds = availableMonitors.length > 0
+          ? availableMonitors.map((m: any, index: number) => {
+              if (typeof m === 'object' && m !== null && 'index' in m) {
+                return `monitor_${m.index}`;
+              }
+              if (typeof m === 'string') {
+                return m;
+              }
+              return `monitor_${index}`;
+            })
+          : ['monitor_0', 'monitor_1'];
+
+        monitorIds.forEach((monitorId: string) => {
           wsRef.current?.send(JSON.stringify({
             type: 'stop_desktop_stream',
             desktopClientId: clientId,
@@ -696,10 +796,10 @@ const MultiDesktopStreams: React.FC = () => {
           }));
         });
       });
-      
-      console.log('✅ Streaming für alle Clients gestoppt');
+
+      console.log('✅ Streaming stopped for all clients');
     }
-    
+
     setSelectedClients([]);
   };
 
@@ -708,79 +808,123 @@ const MultiDesktopStreams: React.FC = () => {
   // ============================================================================
 
   /**
-   * Startet das Live-Streaming für alle ausgewählten Clients
-   * Sendet start_desktop_stream Nachrichten für alle verfügbaren Monitore
+   * Starts live streaming for all selected clients
+   * Sends start_desktop_stream messages for all available monitors
    */
   const startLiveStream = () => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.error('❌ WebSocket nicht verbunden - kann Streaming nicht starten');
+      console.error('❌ WebSocket not connected - cannot start streaming');
       return;
     }
 
     if (selectedClients.length === 0) {
-      console.warn('⚠️ Keine Clients ausgewählt - kann Streaming nicht starten');
+      console.warn('⚠️ No clients selected - cannot start streaming');
       return;
     }
 
-    console.log(`🚀 Starte Live-Streaming für ${selectedClients.length} ausgewählte Clients`);
+    console.log(`🚀 Starting live streaming for ${selectedClients.length} selected clients`);
     setIsStreamingActive(true);
 
     selectedClients.forEach((clientId, index) => {
-      console.log(`🚀 Starte Streaming für Client ${index + 1}/${selectedClients.length}: ${clientId}`);
-      
-      // Finde verfügbare Monitore für diesen Client
+      console.log(`🚀 Starting streaming for client ${index + 1}/${selectedClients.length}: ${clientId}`);
+
+      // Find available monitors for this client
       const clientData = availableClients.find(client => client.id === clientId);
-      const availableMonitors = clientData?.monitors || clientData?.availableMonitors || ['monitor_0', 'monitor_1'];
-      
-      console.log(`📺 Client ${clientId} hat ${availableMonitors.length} verfügbare Monitore:`, availableMonitors);
-      
-      // Start streaming für alle verfügbaren Monitore
-      availableMonitors.forEach((monitorId: string) => {
-        wsRef.current?.send(JSON.stringify({
-          type: 'start_desktop_stream',
+
+      // Skip if client not found in available clients
+      if (!clientData) {
+        console.warn(`⚠️ Client ${clientId} not found in available clients, skipping`);
+        return;
+      }
+
+      const availableMonitors = clientData?.monitors || clientData?.availableMonitors || [];
+
+      // Convert monitor objects to monitor IDs
+      const monitorIds = availableMonitors.length > 0
+        ? availableMonitors.map((m: any, index: number) => {
+            if (typeof m === 'object' && m !== null && 'index' in m) {
+              return `monitor_${m.index}`;
+            }
+            if (typeof m === 'string') {
+              return m;
+            }
+            return `monitor_${index}`;
+          })
+        : ['monitor_0', 'monitor_1'];
+
+      console.log(`📺 Client ${clientId} has ${monitorIds.length} available monitors:`, monitorIds);
+
+      // Start streaming for all available monitors
+      monitorIds.forEach((monitorId: string) => {
+        const startMessage = {
+          type: 'start_stream',
           desktopClientId: clientId,
           monitorId: monitorId,
           timestamp: new Date().toISOString(),
-          manualStart: true // Kennzeichnung für manuellen Start
-        }));
+          manualStart: true // Flag for manual start
+        };
+        console.log('📤 Sending start_stream message:', startMessage);
+        sendWebSocketMessage(wsRef.current!, startMessage);
       });
     });
-    
-    console.log(`✅ Live-Streaming für alle ${selectedClients.length} Clients gestartet`);
+
+    console.log(`✅ Live streaming started for all ${selectedClients.length} clients`);
   };
 
   /**
-   * Stoppt das Live-Streaming für alle ausgewählten Clients
-   * Sendet stop_desktop_stream Nachrichten für alle verfügbaren Monitore
+   * Stops live streaming for all selected clients
+   * Sends stop_stream messages for all available monitors
    */
   const stopLiveStream = () => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.error('❌ WebSocket nicht verbunden - kann Streaming nicht stoppen');
+      console.error('❌ WebSocket not connected - cannot stop streaming');
       return;
     }
 
-    console.log(`🛑 Stoppe Live-Streaming für ${selectedClients.length} ausgewählte Clients`);
+    console.log(`🛑 Stopping live streaming for ${selectedClients.length} selected clients`);
     setIsStreamingActive(false);
 
     selectedClients.forEach((clientId, index) => {
-      console.log(`🛑 Stoppe Streaming für Client ${index + 1}/${selectedClients.length}: ${clientId}`);
-      
-      // Finde verfügbare Monitore für diesen Client
+      console.log(`🛑 Stopping streaming for client ${index + 1}/${selectedClients.length}: ${clientId}`);
+
+      // Find available monitors for this client
       const clientData = availableClients.find(client => client.id === clientId);
-      const availableMonitors = clientData?.monitors || clientData?.availableMonitors || ['monitor_0', 'monitor_1'];
-      
-      availableMonitors.forEach((monitorId: string) => {
-        wsRef.current?.send(JSON.stringify({
-          type: 'stop_desktop_stream',
+
+      // Skip if client not found in available clients
+      if (!clientData) {
+        console.warn(`⚠️ Client ${clientId} not found in available clients, skipping`);
+        return;
+      }
+
+      const availableMonitors = clientData?.monitors || clientData?.availableMonitors || [];
+
+      // Convert monitor objects to monitor IDs
+      const monitorIds = availableMonitors.length > 0
+        ? availableMonitors.map((m: any, index: number) => {
+            if (typeof m === 'object' && m !== null && 'index' in m) {
+              return `monitor_${m.index}`;
+            }
+            if (typeof m === 'string') {
+              return m;
+            }
+            return `monitor_${index}`;
+          })
+        : ['monitor_0', 'monitor_1'];
+
+      monitorIds.forEach((monitorId: string) => {
+        const stopMessage = {
+          type: 'stop_stream',
           desktopClientId: clientId,
           monitorId: monitorId,
           timestamp: new Date().toISOString(),
-          manualStop: true // Kennzeichnung für manuellen Stopp
-        }));
+          manualStop: true // Flag for manual stop
+        };
+        console.log('📤 Sending stop_stream message:', stopMessage);
+        sendWebSocketMessage(wsRef.current!, stopMessage);
       });
     });
-    
-    console.log(`✅ Live-Streaming für alle ${selectedClients.length} Clients gestoppt`);
+
+    console.log(`✅ Live streaming stopped for all ${selectedClients.length} clients`);
   };
 
   // ============================================================================
@@ -912,17 +1056,17 @@ const MultiDesktopStreams: React.FC = () => {
                 <div className="relative aspect-video bg-muted/30 flex items-center justify-center">
                   <div className="text-center">
                     <Plus className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">Neuer Desktop</p>
+                    <p className="text-sm text-muted-foreground">New Desktop</p>
                   </div>
                 </div>
-                
+
                 {/* New Desktop Info */}
                 <div className="p-3">
                   <h3 className="font-medium text-sm text-center text-muted-foreground">
-                    Neuen Desktop erstellen
+                    Create New Desktop
                   </h3>
                   <p className="text-xs text-muted-foreground text-center mt-1">
-                    Klicken zum Hinzufügen
+                    Click to add
                   </p>
                 </div>
               </CardContent>
@@ -1022,27 +1166,27 @@ const MultiDesktopStreams: React.FC = () => {
   );
 
   /**
-   * Rendert die Stream-Kontrollen mit Start/Stop-Button
-   * Button ist nur aktiv wenn Clients ausgewählt sind und WebSocket verbunden ist
+   * Renders the stream controls with Start/Stop button
+   * Button is only active when clients are selected and WebSocket is connected
    */
   const renderStreamControls = () => {
     const hasSelectedClients = selectedClients.length > 0;
     const canControl = isConnected && hasSelectedClients;
-    
+
     return (
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Play className="w-6 h-6" />
-            <span>Live Stream Kontrolle</span>
+            <span>Live Stream Control</span>
           </CardTitle>
           <CardDescription>
-            Starten und stoppen Sie das Live-Streaming für ausgewählte Clients
+            Start and stop live streaming for selected clients
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {/* Stream Status Anzeige */}
+            {/* Stream Status Display */}
             <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
               <div className="flex items-center space-x-3">
                 <div className={`w-3 h-3 rounded-full ${
@@ -1050,52 +1194,52 @@ const MultiDesktopStreams: React.FC = () => {
                 }`} />
                 <div>
                   <p className="text-sm font-medium">
-                    {isStreamingActive ? 'Live-Streaming aktiv' : 'Live-Streaming inaktiv'}
+                    {isStreamingActive ? 'Live streaming active' : 'Live streaming inactive'}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {selectedClients.length} Client(s) ausgewählt
+                    {selectedClients.length} client(s) selected
                   </p>
                 </div>
               </div>
-              
-              {/* Stream Kontrollen */}
+
+              {/* Stream Controls */}
               <div className="flex space-x-2">
                 {!isStreamingActive ? (
-                  <Button 
+                  <Button
                     onClick={startLiveStream}
                     disabled={!canControl}
                     className="bg-green-600 hover:bg-green-700 text-white"
                     size="lg"
                   >
                     <Play className="w-4 h-4 mr-2" />
-                    Stream starten
+                    Start Stream
                   </Button>
                 ) : (
-                  <Button 
+                  <Button
                     onClick={stopLiveStream}
                     disabled={!isConnected}
                     variant="destructive"
                     size="lg"
                   >
                     <Square className="w-4 h-4 mr-2" />
-                    Stream stoppen
+                    Stop Stream
                   </Button>
                 )}
               </div>
             </div>
-            
-            {/* Hilfetext */}
+
+            {/* Help Text */}
             {!hasSelectedClients && (
               <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                 <AlertCircle className="w-4 h-4" />
-                <span>Wählen Sie mindestens einen Client aus, um das Streaming zu starten</span>
+                <span>Select at least one client to start streaming</span>
               </div>
             )}
-            
+
             {!isConnected && (
               <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                 <AlertCircle className="w-4 h-4" />
-                <span>WebSocket-Verbindung erforderlich für Stream-Kontrolle</span>
+                <span>WebSocket connection required for stream control</span>
               </div>
             )}
           </div>
@@ -1118,7 +1262,7 @@ const MultiDesktopStreams: React.FC = () => {
           </Button>
         </CardTitle>
         <CardDescription>
-          Select up to 4 desktop clients for simultaneous streaming (Selected: {selectedClients.length}/4)
+          Select desktop clients for simultaneous streaming (Selected: {selectedClients.length})
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -1132,7 +1276,7 @@ const MultiDesktopStreams: React.FC = () => {
           <div className="space-y-4">
             <div className="flex space-x-2 mb-4">
               <Button onClick={selectAllClients} variant="outline" size="sm">
-                Select All (Max 4)
+                Select All
               </Button>
               <Button onClick={clearSelection} variant="outline" size="sm">
                 Clear Selection
@@ -1240,14 +1384,22 @@ const MultiDesktopStreams: React.FC = () => {
 
   const renderDualCanvasOCRDesigner = () => {
     // Get primary and secondary monitor streams from selected clients
-    const primaryStreamUrl = selectedClients.length > 0 
+    const primaryStreamUrl = selectedClients.length > 0
       ? latestScreenshots[`${selectedClients[0]}_monitor_0`] || latestScreenshots[selectedClients[0]]
       : null;
-    
-    const secondaryStreamUrl = selectedClients.length > 0 
-      ? latestScreenshots[`${selectedClients[0]}_monitor_1`] || 
+
+    const secondaryStreamUrl = selectedClients.length > 0
+      ? latestScreenshots[`${selectedClients[0]}_monitor_1`] ||
         (selectedClients.length > 1 ? latestScreenshots[`${selectedClients[1]}_monitor_0`] || latestScreenshots[selectedClients[1]] : null)
       : null;
+
+    // Debug logging for OCR Designer streams
+    console.log('[MultiDesktopStreams] OCR Designer stream URLs:', {
+      selectedClients,
+      primaryStreamUrl: primaryStreamUrl ? `${primaryStreamUrl.substring(0, 50)}...` : 'NULL',
+      secondaryStreamUrl: secondaryStreamUrl ? `${secondaryStreamUrl.substring(0, 50)}...` : 'NULL',
+      latestScreenshotsKeys: Object.keys(latestScreenshots)
+    });
 
     // Workflow execution handlers
     const handleWorkflowExecute = (nodeConfig: any) => {
@@ -1313,26 +1465,26 @@ const MultiDesktopStreams: React.FC = () => {
   // ============================================================================
   // AUTOMATIC CONNECTION ON COMPONENT MOUNT
   // ============================================================================
-  
-  // Automatische Verbindung beim Laden der Komponente
+
+  // Automatic connection when component loads
   useEffect(() => {
     console.log('🔄 MultiDesktopStreams component mounted - starting automatic connection...');
-    
-    // Automatische Verbindung nach kurzer Verzögerung
+
+    // Automatic connection after short delay
     const autoConnectTimer = setTimeout(() => {
       if (!isConnected && !isLoading) {
         console.log('🚀 Starting automatic WebSocket connection for streaming...');
         connectWebSocket();
       }
-    }, 1000); // 1 Sekunde Verzögerung für bessere UX
-    
+    }, 1000); // 1 second delay for better UX
+
     // Cleanup function
     return () => {
       clearTimeout(autoConnectTimer);
       console.log('🧹 MultiDesktopStreams component unmounting - cleaning up connection...');
       disconnectWebSocket();
     };
-  }, []); // Nur beim ersten Mount ausführen
+  }, []); // Only run on first mount
 
   // ============================================================================
   // MAIN RENDER

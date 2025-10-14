@@ -494,14 +494,66 @@ class OCRService:
             logger.error(f"PaddleOCR failed: {e}")
             return "", 0.0, []
     
+    async def process_region(self, image_data: str, region: Any, language: str = "eng+deu", confidence_threshold: float = 0.7) -> Dict[str, Any]:
+        """Process OCR on a region (convenience method for simple API calls).
+
+        Args:
+            image_data: Base64 encoded image data (with or without data URL prefix)
+            region: Region object or dict with x, y, width, height
+            language: OCR language code
+            confidence_threshold: Confidence threshold
+
+        Returns:
+            OCR result dict
+        """
+        # Convert base64 to bytes
+        if image_data.startswith('data:'):
+            # Remove data URL prefix
+            image_data = image_data.split(',', 1)[1]
+
+        image_bytes = base64.b64decode(image_data)
+
+        # Extract region coordinates (handle both dict and Pydantic model)
+        if hasattr(region, 'x'):
+            # Pydantic model
+            x, y, width, height = region.x, region.y, region.width, region.height
+        else:
+            # Dict
+            x, y, width, height = region['x'], region['y'], region['width'], region['height']
+
+        # Create OCRZoneConfig from simple region dict
+        zone_config = OCRZoneConfig(
+            id="region",
+            x=int(x),
+            y=int(y),
+            width=int(width),
+            height=int(height),
+            label="extracted_region",
+            language=language,
+            confidence_threshold=confidence_threshold
+        )
+
+        # Process the zone
+        result = await self.process_zone(image_bytes, zone_config, return_image=False)
+
+        # Convert to simple dict format
+        return {
+            "text": result.text,
+            "confidence": result.confidence,
+            "processing_time": result.processing_time_ms,
+            "engine": result.engine_used,
+            "language": language,
+            "error": result.error
+        }
+
     async def process_zone(self, image_data: bytes, zone_config: OCRZoneConfig, return_image: bool = False) -> OCRZoneResult:
         """Process OCR on a single zone.
-        
+
         Args:
             image_data: Image data as bytes
             zone_config: Zone configuration
             return_image: Whether to return processed image
-            
+
         Returns:
             OCR zone result
         """

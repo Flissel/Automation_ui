@@ -515,8 +515,13 @@ async def take_automation_screenshot(request: Request, screenshot_data: Dict[str
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
-# OCR PROCESSING ENDPOINTS
+# OCR PROCESSING ENDPOINTS - Removed to avoid routing conflicts
+# OCR endpoints are now handled by the dedicated OCR router at /api/v1/ocr/*
 # ============================================================================
+
+# NOTE: The following endpoints were removed because they conflict with the
+# dedicated OCR router. Use /api/v1/ocr/status, /api/v1/ocr/extract-region, etc.
+# from the OCR router instead.
 
 @router.post("/ocr/process")
 @log_api_request(logger)

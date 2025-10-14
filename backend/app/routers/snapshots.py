@@ -22,7 +22,7 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, Field, field_validator
 from PIL import Image, ImageGrab
 
-from ..services.enhanced_ocr_service import EnhancedOCRService
+from ..services.ocr_service import OCRService as EnhancedOCRService
 from ..services.desktop_service import DesktopService
 from ..services.manager import get_service_manager
 from ..config import get_settings

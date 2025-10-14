@@ -18,7 +18,7 @@ from ..services.graph_execution_service import GraphExecutionService
 from ..services.node_service import get_node_service
 from ..services.click_automation_service import ClickAutomationService
 from ..services.desktop_automation_service import DesktopAutomationService
-from ..services.enhanced_ocr_service import EnhancedOCRService
+from ..services.ocr_service import OCRService as EnhancedOCRService
 from ..websocket.manager import WebSocketManager
 
 logger = get_logger("workflows")
