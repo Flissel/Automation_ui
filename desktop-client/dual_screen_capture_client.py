@@ -19,6 +19,9 @@ import logging
 import argparse
 import uuid
 import threading
+import platform
+import hashlib
+from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 from PIL import Image, ImageGrab
 import io
@@ -32,6 +35,49 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+def get_stable_machine_id() -> str:
+    """
+    Generate or retrieve a stable machine-specific client ID.
+    Uses hostname + stored UUID to ensure consistency across restarts.
+    Stores the ID in a local file for persistence.
+    """
+    config_dir = Path.home() / '.trae_desktop_client'
+    config_file = config_dir / 'machine_id.txt'
+
+    # Try to load existing ID
+    if config_file.exists():
+        try:
+            stored_id = config_file.read_text().strip()
+            if stored_id:
+                logger.info(f"Using stored machine ID: {stored_id}")
+                return stored_id
+        except Exception as e:
+            logger.warning(f"Could not read stored machine ID: {e}")
+
+    # Generate new stable ID based on hostname
+    hostname = platform.node() or 'unknown_machine'
+    # Sanitize hostname for use in ID
+    hostname = ''.join(c for c in hostname if c.isalnum() or c in '-_').lower()
+    hostname = hostname[:20]  # Limit length
+
+    # Generate a unique suffix based on machine characteristics
+    # This creates a stable ID even if hostname changes
+    machine_hash = hashlib.sha256(
+        f"{platform.machine()}{platform.processor()}".encode()
+    ).hexdigest()[:8]
+
+    machine_id = f"desktop_{hostname}_{machine_hash}"
+
+    # Store for future use
+    try:
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_file.write_text(machine_id)
+        logger.info(f"Generated and stored new machine ID: {machine_id}")
+    except Exception as e:
+        logger.warning(f"Could not store machine ID: {e}")
+
+    return machine_id
 
 class PermissionHandler:
     """
@@ -70,16 +116,21 @@ class DualScreenCaptureClient:
     Implementiert robuste Fehlerbehandlung und automatische Wiederverbindung.
     """
     
-    def __init__(self, server_url: str, client_id: Optional[str] = None):
+    def __init__(self, server_url: str, client_id: Optional[str] = None, user_id: Optional[str] = None, friendly_name: Optional[str] = None):
         """
         Initialisiert den Dual-Screen-Capture-Client.
-        
+
         Args:
             server_url: WebSocket-Server-URL für die Verbindung
             client_id: Optionale Client-Kennung (automatisch generiert falls nicht angegeben)
+            user_id: Optionale User-ID des Benutzers
+            friendly_name: Optionaler freundlicher Name für diesen Computer
         """
         self.server_url = server_url
-        self.client_id = client_id or f"dual_screen_client_{str(uuid.uuid4())[:8]}"
+        # Use stable machine-specific ID instead of random UUID
+        self.client_id = client_id or get_stable_machine_id()
+        self.user_id = user_id
+        self.friendly_name = friendly_name
         self.websocket: Optional[websockets.WebSocketServerProtocol] = None
         
         # Initialize permission handler
@@ -130,7 +181,10 @@ class DualScreenCaptureClient:
         
         # Zusätzliche Stats für Kompatibilität
         self.stats = self.frame_stats
-        
+
+        # Frame counter for tracking
+        self.frame_counter = 0
+
         # Client-Fähigkeiten
         self.capabilities = {
             'dual_screen_capture': True,
@@ -238,19 +292,23 @@ class DualScreenCaptureClient:
         """
         while self.reconnect_attempts < self.max_reconnect_attempts:
             try:
-                logger.info(f"Verbindungsversuch {self.reconnect_attempts + 1}/{self.max_reconnect_attempts} zu: {self.server_url}")
-                
+                # Add client_type and client_id query parameters for Supabase Edge Function
+                separator = '&' if '?' in self.server_url else '?'
+                connection_url = f"{self.server_url}{separator}client_type=desktop&client_id={self.client_id}"
+
+                logger.info(f"Verbindungsversuch {self.reconnect_attempts + 1}/{self.max_reconnect_attempts} zu: {connection_url}")
+
                 # Verbindung mit Timeout herstellen
                 self.websocket = await asyncio.wait_for(
                     websockets.connect(
-                        self.server_url,
+                        connection_url,
                         ping_interval=self.ping_interval,
                         ping_timeout=10,
                         close_timeout=10
                     ),
                     timeout=self.connection_timeout
                 )
-                
+
                 logger.info("WebSocket-Verbindung hergestellt")
                 
                 # Handshake durchführen
@@ -304,12 +362,15 @@ class DualScreenCaptureClient:
                         'height': self.total_height
                     },
                     'split_position': self.screen_split_position,
-                    'reconnect_attempt': self.reconnect_attempts
+                    'reconnect_attempt': self.reconnect_attempts,
+                    'userId': getattr(self, 'user_id', None),
+                    'friendlyName': getattr(self, 'friendly_name', None),
+                    'hostname': platform.node()
                 },
                 'capabilities': self.capabilities,
                 'timestamp': time.time()
             }
-            
+
             await self.websocket.send(json.dumps(handshake_message))
             logger.info("📤 Handshake gesendet")
             
@@ -658,7 +719,7 @@ class DualScreenCaptureClient:
     async def _send_single_frame(self, frame_data: str, screen_id: str, timestamp: float):
         """
         Sendet einen einzelnen Frame an den Server.
-        
+
         Args:
             frame_data: Base64-kodierte Frame-Daten
             screen_id: Bildschirm-ID ('screen1' oder 'screen2')
@@ -667,29 +728,37 @@ class DualScreenCaptureClient:
         try:
             screen_index = 0 if screen_id == 'screen1' else 1
             monitor_id = f'monitor_{screen_index}'
-            
+
+            # Increment frame counter
+            self.frame_counter += 1
+
             # Berechne Frame-Größe für Statistiken
             frame_size = len(frame_data)
             self.stats['avg_frame_size'] = (
-                (self.stats['avg_frame_size'] * self.stats['frames_sent'] + frame_size) / 
+                (self.stats['avg_frame_size'] * self.stats['frames_sent'] + frame_size) /
                 (self.stats['frames_sent'] + 1)
             ) if self.stats['frames_sent'] > 0 else frame_size
-            
+
             frame_message = {
                 'type': 'frame_data',
                 'frameData': frame_data,
+                'frameNumber': self.frame_counter,  # Add frame number for tracking
+                'timestamp': timestamp,
+                'monitorId': monitor_id,
+                'width': self.screen_split_position if screen_id == 'screen1' else (self.total_width - self.screen_split_position),
+                'height': self.total_height,
                 'metadata': {
                     'clientId': self.client_id,
                     'screenId': screen_id,
+                    'monitorId': monitor_id,
                     'timestamp': timestamp,
                     'format': self.capture_config['format'],
                     'quality': self.capture_config['quality'],
                     'frameSize': frame_size,
-                    'adaptiveQuality': True
+                    'adaptiveQuality': True,
+                    'width': self.screen_split_position if screen_id == 'screen1' else (self.total_width - self.screen_split_position),
+                    'height': self.total_height
                 },
-                'monitorId': monitor_id,
-                'width': self.screen_split_position if screen_id == 'screen1' else (self.total_width - self.screen_split_position),
-                'height': self.total_height,
                 'routingInfo': {
                     'isDualScreen': True,
                     'screenIndex': screen_index,
@@ -697,10 +766,10 @@ class DualScreenCaptureClient:
                     'connectionQuality': self._get_connection_quality()
                 }
             }
-            
+
             await self.websocket.send(json.dumps(frame_message))
-            logger.debug(f"✅ Frame für {screen_id} gesendet ({frame_size} Bytes)")
-            
+            logger.debug(f"✅ Frame #{self.frame_counter} für {screen_id} gesendet ({frame_size} Bytes)")
+
         except websockets.exceptions.ConnectionClosed:
             logger.error(f"🔌 Verbindung geschlossen beim Senden von {screen_id}")
             self.is_connected = False
@@ -1099,10 +1168,18 @@ class DualScreenCaptureClient:
                 try:
                     data = json.loads(message)
                     message_type = data.get('type')
-                    
-                    logger.info(f"Nachricht empfangen: {message_type}")
-                    
+
+                    # Log ALL messages for debugging (except pings)
+                    if message_type != 'ping':
+                        logger.info(f"📨 [DESKTOP CLIENT] Received message type: {message_type}")
+                        logger.info(f"📨 [DESKTOP CLIENT] Full message: {json.dumps(data, indent=2)}")
+
+                    # Print full handshake_ack for debugging
+                    if message_type == 'handshake_ack':
+                        logger.info(f"📋 Full handshake_ack: {json.dumps(data, indent=2)}")
+
                     if message_type == 'start_capture' or message_type == 'start_dual_screen_capture':
+                        logger.info(f"🎬 [DESKTOP CLIENT] START_CAPTURE received! Starting screen capture...")
                         # Aktualisiere Capture-Konfiguration
                         config = data.get('config', {})
                         self.capture_config.update(config)
@@ -1143,6 +1220,72 @@ class DualScreenCaptureClient:
                         # Handle permission revocation
                         await self.handle_permission_revocation(data)
                         
+                    elif message_type == 'commands':
+                        # Received pending commands from server polling
+                        commands = data.get('commands', [])
+                        logger.info(f"📥 [COMMAND POLL] Received {len(commands)} pending commands")
+
+                        for command in commands:
+                            try:
+                                command_id = command.get('id')
+                                command_type = command.get('command_type')
+                                command_data = command.get('command_data', {})
+
+                                logger.info(f"⚡ [EXECUTE COMMAND] Executing {command_type} (ID: {command_id})")
+
+                                # Execute command based on type
+                                if command_type == 'start_capture':
+                                    config = command_data.get('config', {})
+                                    self.capture_config.update(config)
+
+                                    if not self.is_capturing:
+                                        self.is_capturing = True
+                                        asyncio.create_task(self.capture_loop())
+                                        logger.info(f"✅ [EXECUTE COMMAND] Capture started")
+
+                                    # Report success
+                                    await self.websocket.send(json.dumps({
+                                        'type': 'command_result',
+                                        'commandId': command_id,
+                                        'status': 'completed',
+                                        'timestamp': time.time()
+                                    }))
+
+                                elif command_type == 'stop_capture':
+                                    self.is_capturing = False
+                                    logger.info(f"✅ [EXECUTE COMMAND] Capture stopped")
+
+                                    # Report success
+                                    await self.websocket.send(json.dumps({
+                                        'type': 'command_result',
+                                        'commandId': command_id,
+                                        'status': 'completed',
+                                        'timestamp': time.time()
+                                    }))
+
+                                else:
+                                    logger.warning(f"⚠️ [EXECUTE COMMAND] Unknown command type: {command_type}")
+                                    await self.websocket.send(json.dumps({
+                                        'type': 'command_result',
+                                        'commandId': command_id,
+                                        'status': 'failed',
+                                        'error': f'Unknown command type: {command_type}',
+                                        'timestamp': time.time()
+                                    }))
+
+                            except Exception as e:
+                                logger.error(f"❌ [EXECUTE COMMAND] Error executing command: {e}")
+                                try:
+                                    await self.websocket.send(json.dumps({
+                                        'type': 'command_result',
+                                        'commandId': command.get('id'),
+                                        'status': 'failed',
+                                        'error': str(e),
+                                        'timestamp': time.time()
+                                    }))
+                                except:
+                                    pass
+
                     elif message_type == 'mouse_click':
                         # Handle incoming mouse click from web UI
                         monitor_id = data.get('monitorId') or data.get('monitor_id') or 'monitor_0'
@@ -1182,43 +1325,117 @@ class DualScreenCaptureClient:
                     
         except websockets.exceptions.ConnectionClosed:
             logger.info("WebSocket-Verbindung geschlossen")
+            self.is_connected = False  # Mark as disconnected for poll_commands to exit
         except Exception as e:
             logger.error(f"Fehler in Nachrichtenbehandlung: {e}")
+            self.is_connected = False  # Mark as disconnected for poll_commands to exit
+
+    async def poll_commands(self):
+        """
+        Polls server for pending commands every 500ms.
+        Exits gracefully when connection is lost to allow reconnection.
+        """
+        poll_count = 0
+        try:
+            logger.info("🎯 [COMMAND POLL] Poll loop starting...")
+            while self.websocket and self.is_connected:
+                try:
+                    poll_count += 1
+                    logger.debug(f"📤 [COMMAND POLL #{poll_count}] Sending get_commands request...")
+
+                    # Send get_commands request
+                    await self.websocket.send(json.dumps({
+                        'type': 'get_commands',
+                        'timestamp': time.time()
+                    }))
+
+                    logger.debug(f"✅ [COMMAND POLL #{poll_count}] Request sent, waiting 500ms...")
+
+                    # Wait 500ms before next poll
+                    await asyncio.sleep(0.5)
+
+                except websockets.exceptions.ConnectionClosed:
+                    logger.warning("🔌 [COMMAND POLL] Connection closed, exiting poll loop")
+                    break
+                except Exception as e:
+                    logger.error(f"❌ [COMMAND POLL] Error in command polling: {e}")
+                    await asyncio.sleep(1.0)  # Back off on error
+
+            logger.info(f"🛑 [COMMAND POLL] Polling loop terminated after {poll_count} polls")
+
+        except Exception as e:
+            logger.error(f"💥 Command polling loop error: {e}")
 
     async def run(self):
         """
-        Hauptausführungsmethode für den Dual-Screen-Capture-Client.
+        Hauptausführungsmethode für den Dual-Screen-Capture-Client mit automatischer Wiederverbindung.
         """
         try:
-            # Verbinde zum Server
-            if not await self.connect():
-                logger.error("Verbindung zum Server fehlgeschlagen")
-                return
-            
-            logger.info("Dual-Screen-Capture-Client läuft...")
-            
-            # Starte Nachrichtenbehandlung
-            await self.handle_messages()
-            
+            logger.info("🚀 Dual-Screen-Capture-Client startet mit Auto-Reconnect...")
+
+            # Infinite reconnection loop
+            while True:
+                try:
+                    # Verbinde zum Server
+                    if not await self.connect():
+                        logger.error("❌ Verbindung zum Server fehlgeschlagen, warte 10s...")
+                        await asyncio.sleep(10)
+                        continue
+
+                    logger.info("✅ Dual-Screen-Capture-Client läuft...")
+                    logger.info("🔄 [COMMAND POLL] Starting command polling loop...")
+
+                    # Starte Nachrichtenbehandlung UND Command-Polling parallel
+                    await asyncio.gather(
+                        self.handle_messages(),
+                        self.poll_commands(),
+                        return_exceptions=True
+                    )
+
+                    logger.warning("⚠️ WebSocket-Verbindung getrennt, versuche Reconnect in 5s...")
+
+                except websockets.exceptions.ConnectionClosed:
+                    logger.warning("🔌 Verbindung geschlossen, reconnecte in 5s...")
+                except Exception as e:
+                    logger.error(f"💥 Fehler in Hauptschleife: {e}, reconnecte in 5s...")
+                finally:
+                    # Cleanup before reconnect
+                    self.is_connected = False
+                    if self.websocket:
+                        try:
+                            await self.websocket.close()
+                        except:
+                            pass
+                    self.websocket = None
+
+                # Wait before reconnecting
+                await asyncio.sleep(5)
+                logger.info("🔄 Versuche Wiederverbindung...")
+
         except KeyboardInterrupt:
-            logger.info("Client durch Benutzer gestoppt")
+            logger.info("⛔ Client durch Benutzer gestoppt")
         except Exception as e:
-            logger.error(f"Unerwarteter Fehler: {e}")
+            logger.error(f"💥 Kritischer Fehler: {e}")
         finally:
-            # Cleanup
+            # Final cleanup
             self.is_capturing = False
             if self.websocket:
-                await self.websocket.close()
-            logger.info("Dual-Screen-Capture-Client beendet")
+                try:
+                    await self.websocket.close()
+                except:
+                    pass
+            logger.info("👋 Dual-Screen-Capture-Client beendet")
 
 def main():
     """
     Hauptfunktion für den Dual-Screen-Capture-Client.
     """
     parser = argparse.ArgumentParser(description='Dual Screen Capture Client für TRAE Unity AI Platform')
-    parser.add_argument('--server-url', default='ws://localhost:8084', 
-                       help='WebSocket-Server-URL (Standard: ws://localhost:8084)')
+    parser.add_argument('--server-url', default='wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream',
+                       help='WebSocket-Server-URL (Standard: Supabase Edge Function)')
     parser.add_argument('--client-id', help='Client-ID (automatisch generiert falls nicht angegeben)')
+    parser.add_argument('--user-id', help='User-ID des Benutzers (z.B. "user_123")')
+    parser.add_argument('--friendly-name', help='Freundlicher Name für diesen Computer (z.B. "Johns Workstation")')
     parser.add_argument('--fps', type=int, default=10, help='Frames pro Sekunde (Standard: 10)')
     parser.add_argument('--quality', type=int, default=80, help='JPEG-Qualität 1-100 (Standard: 80)')
     parser.add_argument('--scale', type=float, default=1.0, help='Skalierungsfaktor (Standard: 1.0)')
@@ -1232,7 +1449,9 @@ def main():
     # Erstelle Client-Instanz
     client = DualScreenCaptureClient(
         server_url=args.server_url,
-        client_id=args.client_id
+        client_id=args.client_id,
+        user_id=args.user_id,
+        friendly_name=args.friendly_name
     )
     
     # Setze initiale Konfiguration
@@ -1261,16 +1480,21 @@ class DualScreenCaptureClient_DuplicateIgnore:
     Implementiert robuste Fehlerbehandlung und automatische Wiederverbindung.
     """
     
-    def __init__(self, server_url: str, client_id: Optional[str] = None):
+    def __init__(self, server_url: str, client_id: Optional[str] = None, user_id: Optional[str] = None, friendly_name: Optional[str] = None):
         """
         Initialisiert den Dual-Screen-Capture-Client.
-        
+
         Args:
             server_url: WebSocket-Server-URL für die Verbindung
             client_id: Optionale Client-Kennung (automatisch generiert falls nicht angegeben)
+            user_id: Optionale User-ID des Benutzers
+            friendly_name: Optionaler freundlicher Name für diesen Computer
         """
         self.server_url = server_url
-        self.client_id = client_id or f"dual_screen_client_{str(uuid.uuid4())[:8]}"
+        # Use stable machine-specific ID instead of random UUID
+        self.client_id = client_id or get_stable_machine_id()
+        self.user_id = user_id
+        self.friendly_name = friendly_name
         self.websocket: Optional[websockets.WebSocketServerProtocol] = None
         
         # Initialize permission handler
@@ -1321,7 +1545,10 @@ class DualScreenCaptureClient_DuplicateIgnore:
         
         # Zusätzliche Stats für Kompatibilität
         self.stats = self.frame_stats
-        
+
+        # Frame counter for tracking
+        self.frame_counter = 0
+
         # Client-Fähigkeiten
         self.capabilities = {
             'dual_screen_capture': True,
@@ -1429,19 +1656,23 @@ class DualScreenCaptureClient_DuplicateIgnore:
         """
         while self.reconnect_attempts < self.max_reconnect_attempts:
             try:
-                logger.info(f"Verbindungsversuch {self.reconnect_attempts + 1}/{self.max_reconnect_attempts} zu: {self.server_url}")
-                
+                # Add client_type and client_id query parameters for Supabase Edge Function
+                separator = '&' if '?' in self.server_url else '?'
+                connection_url = f"{self.server_url}{separator}client_type=desktop&client_id={self.client_id}"
+
+                logger.info(f"Verbindungsversuch {self.reconnect_attempts + 1}/{self.max_reconnect_attempts} zu: {connection_url}")
+
                 # Verbindung mit Timeout herstellen
                 self.websocket = await asyncio.wait_for(
                     websockets.connect(
-                        self.server_url,
+                        connection_url,
                         ping_interval=self.ping_interval,
                         ping_timeout=10,
                         close_timeout=10
                     ),
                     timeout=self.connection_timeout
                 )
-                
+
                 logger.info("WebSocket-Verbindung hergestellt")
                 
                 # Handshake durchführen
@@ -1495,12 +1726,15 @@ class DualScreenCaptureClient_DuplicateIgnore:
                         'height': self.total_height
                     },
                     'split_position': self.screen_split_position,
-                    'reconnect_attempt': self.reconnect_attempts
+                    'reconnect_attempt': self.reconnect_attempts,
+                    'userId': getattr(self, 'user_id', None),
+                    'friendlyName': getattr(self, 'friendly_name', None),
+                    'hostname': platform.node()
                 },
                 'capabilities': self.capabilities,
                 'timestamp': time.time()
             }
-            
+
             await self.websocket.send(json.dumps(handshake_message))
             logger.info("📤 Handshake gesendet")
             

@@ -12,7 +12,7 @@ from .shell import router as shell_router
 
 # Temporarily disabled routers - missing services
 # from .node_system import router as node_system_router
-# from .ocr import router as ocr_router
+from .ocr import router as ocr_router
 # from .ocr_monitoring import router as ocr_monitoring_router
 # from .automation import router as automation_router
 # from .filesystem import router as filesystem_router
@@ -32,9 +32,9 @@ __all__ = [
     "shell_router",
     "workflows_router",
     "api_v1_router",
+    "ocr_router",
     # Temporarily disabled routers
     # "node_system_router",
-    # "ocr_router",
     # "ocr_monitoring_router",
     # "automation_router",
     # "filesystem_router",

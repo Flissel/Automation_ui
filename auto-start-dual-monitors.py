@@ -30,10 +30,10 @@ class AutoDualMonitorStarter:
     Folgt den gleichen Naming Conventions wie andere Agents
     """
     
-    def __init__(self, server_url: str = "ws://192.168.178.117:8084"):
+    def __init__(self, server_url: str = "wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream"):
         """
         Initialisierung des Auto-Starters
-        
+
         Args:
             server_url: WebSocket Server URL für Verbindung
         """
@@ -149,16 +149,21 @@ class AutoDualMonitorStarter:
         """
         Verbindet sich mit dem WebSocket Server
         Folgt gleichen Code Practices wie andere Agents
-        
+
         Returns:
             True wenn Verbindung erfolgreich, False sonst
         """
         try:
-            logger.info(f"Verbinde mit WebSocket Server: {self.server_url}")
-            
+            # Add client_type and client_id query parameters for Supabase Edge Function
+            client_id = f'auto_starter_{int(time.time())}'
+            separator = '&' if '?' in self.server_url else '?'
+            connection_url = f"{self.server_url}{separator}client_type=desktop&client_id={client_id}"
+
+            logger.info(f"Verbinde mit WebSocket Server: {connection_url}")
+
             # Verbindung mit Timeout
             self.websocket = await asyncio.wait_for(
-                websockets.connect(self.server_url),
+                websockets.connect(connection_url),
                 timeout=10.0
             )
             
@@ -416,9 +421,9 @@ async def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Auto Dual Monitor Starter für TRAE Unity AI Platform')
-    parser.add_argument('--server-url', default='ws://192.168.178.117:8084',
-                       help='WebSocket Server URL')
-    
+    parser.add_argument('--server-url', default='wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream',
+                       help='WebSocket Server URL (Standard: Supabase Edge Function)')
+
     args = parser.parse_args()
     
     # Erstelle und starte Auto-Starter

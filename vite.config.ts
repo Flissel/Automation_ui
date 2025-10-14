@@ -9,8 +9,8 @@ export default defineConfig(() => ({
   plugins: [react(), componentTagger()],
   server: {
     host: "0.0.0.0",
-    port: 8080,
-    strictPort: true,
+    port: 5173,
+    strictPort: false,
   },
   resolve: {
     alias: {

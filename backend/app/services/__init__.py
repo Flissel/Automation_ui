@@ -8,7 +8,7 @@ from .desktop_automation_service import DesktopAutomationService
 from .click_automation_service import ClickAutomationService
 from .shell_service import ShellService
 from .graph_execution_service import GraphExecutionService, get_graph_execution_service
-from ._ocr_service import OCRService
+from .ocr_service import OCRService
 from ..core.websocket_manager import WebSocketManager
 
 # Export services
@@ -27,23 +27,28 @@ __all__ = [
 # Service getter functions
 def get_desktop_automation_service() -> DesktopAutomationService:
     """Get DesktopAutomationService instance"""
-    return ServiceManager.get_service('desktop_automation')
+    manager = get_service_manager()
+    return manager.get_service('desktop_automation')
 
 def get_click_automation_service() -> ClickAutomationService:
     """Get ClickAutomationService instance"""
-    return ServiceManager.get_service('click_automation')
+    manager = get_service_manager()
+    return manager.get_service('click_automation')
 
 def get_shell_service() -> ShellService:
     """Get ShellService instance"""
-    return ServiceManager.get_service('shell')
+    manager = get_service_manager()
+    return manager.get_service('shell')
 
 def get_websocket_manager() -> WebSocketManager:
     """Get WebSocketManager instance"""
-    return ServiceManager.get_service('websocket_manager')
+    manager = get_service_manager()
+    return manager.get_service('websocket_manager')
 
 def get_ocr_service() -> OCRService:
     """Get OCRService instance"""
-    return ServiceManager.get_service('ocr')
+    manager = get_service_manager()
+    return manager.get_service('ocr')
 
 def get_service_manager() -> ServiceManager:
     """Get ServiceManager instance from FastAPI app state"""

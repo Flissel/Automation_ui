@@ -37,7 +37,7 @@ from ..websocket.manager import WebSocketManager
 from .node_service import get_node_service, NodeService
 from .click_automation_service import ClickAutomationService
 from .desktop_automation_service import DesktopAutomationService
-from ._ocr_service import OCRService
+from .ocr_service import OCRService
 
 # Configure logging
 logger = logging.getLogger(__name__)
