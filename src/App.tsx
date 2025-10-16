@@ -9,9 +9,8 @@ import MultiDesktopStreams from "./pages/MultiDesktopStreams";
 import VirtualDesktops from "./pages/VirtualDesktops";
 import Workflow from "./pages/Workflow";
 import ManualTriggerTest from "./pages/ManualTriggerTest";
-import DesktopClientSetup from "./pages/DesktopClientSetup";
-
 import Auth from "./pages/Auth";
+import DesktopClientSetup from "./pages/DesktopClientSetup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,9 +30,8 @@ const App = () => (
             <Route path="/virtual-desktops" element={<VirtualDesktops />} />
             <Route path="/workflow" element={<Workflow />} />
             <Route path="/manual-trigger-test" element={<ManualTriggerTest />} />
-            <Route path="/desktop-setup" element={<DesktopClientSetup />} />
-
             <Route path="/auth" element={<Auth />} />
+            <Route path="/desktop-setup" element={<DesktopClientSetup />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -17,27 +17,33 @@ The Trusted Login System is a modern authentication and desktop automation platf
 
 ### Frontend
 - **React 18** with TypeScript
-- **Vite** (dev server on port 8080)
+- **Vite** (dev server on port 5173)
 - **Tailwind CSS** + shadcn/ui components
 - **Zustand** for state management
 - **React Query** (@tanstack/react-query) for API/data fetching
 - **React Router** for navigation
 - **Playwright** for E2E testing
 
-### Backend/Infrastructure
+### Backend
+- **FastAPI** (Python 3.9+) on port 8007
+  - Integrated WebSocket support
+  - RESTful API endpoints (`/api/v1`, `/api/automation`, `/api/workflows`, etc.)
+  - Desktop automation services (PyAutoGUI, OCR with Tesseract/EasyOCR/PaddleOCR)
+  - Service Manager for lifecycle management
+  - Live desktop streaming and control
 - **Supabase** Edge Functions (Deno runtime)
-  - `live-desktop-stream`: Main WebSocket relay for desktop streaming
+  - `live-desktop-stream`: WebSocket relay for desktop streaming
   - `desktop-actions`: Desktop control commands
   - `ocr-processor`: OCR text extraction
   - `filesystem-bridge`: File operations
 - **PostgreSQL** (via Supabase)
-- **WebSockets** for real-time communication
+- **WebSockets** for real-time communication (both FastAPI and Supabase)
 
 ## Development Commands
 
-### Core Commands
+### Frontend Commands
 ```bash
-# Start development server (runs on http://0.0.0.0:8080)
+# Start frontend development server (runs on http://localhost:5173)
 npm run dev
 
 # Build for production
@@ -51,6 +57,25 @@ npm run lint
 
 # Preview production build
 npm run preview
+```
+
+### Backend Commands
+```bash
+# Start FastAPI backend server (runs on http://localhost:8007)
+cd backend
+python server.py
+# OR with uvicorn directly
+uvicorn server:app --host 0.0.0.0 --port 8007 --reload
+
+# Run backend tests
+cd backend
+pytest
+
+# Run specific test file
+pytest tests/test_name.py
+
+# Run tests with coverage
+pytest --cov=app tests/
 ```
 
 ### External Repository Management
@@ -83,7 +108,7 @@ npm run branch:update
 
 ### Testing
 ```bash
-# Run Playwright E2E tests (default baseURL: http://localhost:5174)
+# Run Playwright E2E tests (uses http://localhost:5173 - auto-starts dev server)
 npx playwright test
 
 # Run tests in UI mode
@@ -91,13 +116,37 @@ npx playwright test --ui
 
 # Run tests in specific browser
 npx playwright test --project=chromium
+
+# Run tests without starting dev server (if already running)
+npx playwright test --headed
 ```
 
 ## Architecture
 
+### Dual Backend Architecture
+
+The system uses **two complementary backend services**:
+
+1. **FastAPI Backend** (Port 8007)
+   - Primary API server for desktop automation
+   - Direct WebSocket connections at `ws://localhost:8007/ws/live-desktop`
+   - RESTful API endpoints for automation, workflows, OCR, and shell commands
+   - Python-based desktop control (PyAutoGUI, Tesseract OCR, etc.)
+   - Service Manager coordinates all backend services
+
+2. **Supabase Edge Functions** (Deno runtime)
+   - Cloud-based WebSocket relay at `wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream`
+   - Acts as intermediary between desktop clients and web clients
+   - Serverless functions for processing and routing
+   - PostgreSQL database integration
+
+**Usage Decision**:
+- Use **FastAPI backend** when running locally with direct desktop access
+- Use **Supabase Edge Functions** for cloud-based relay or when desktop clients are remote
+
 ### WebSocket Communication Pattern
 
-The system uses a **relay architecture** for desktop streaming:
+The system supports **both direct and relay architectures** for desktop streaming:
 
 1. **Desktop Clients** (Python/external agents) connect to Supabase Edge Function with `client_type=desktop`
 2. **Web Clients** (React frontend) connect with `client_type=web`
@@ -126,43 +175,75 @@ Web Client → Edge Function → Desktop Client (for commands)
 ### Directory Structure
 
 ```
-src/
-├── components/          # React components (shadcn/ui based)
-│   └── layout/         # Navigation and layout components
-├── config/             # Configuration files
-│   └── websocketConfig.ts  # CENTRALIZED WebSocket config (MUST use this!)
-├── hooks/              # React custom hooks
+src/                    # Frontend source code
+├── components/         # React components (shadcn/ui based)
+│   ├── layout/        # Navigation and layout components
+│   ├── trae/          # TRAE-specific components
+│   │   ├── liveDesktop/          # Live desktop streaming components
+│   │   ├── virtualDesktop/       # Virtual desktop management
+│   │   ├── workflow/             # Workflow execution and visualization
+│   │   └── nodes/                # Custom workflow node components
+│   └── ui/            # shadcn/ui components (Button, Dialog, etc.)
+├── config/            # Configuration files
+│   ├── websocketConfig.ts        # CENTRALIZED WebSocket config (MUST use this!)
+│   └── nodes/                    # Node type definitions for workflows
+├── hooks/             # React custom hooks
+│   ├── useWebSocketReconnect.ts  # Auto-reconnection hook (RECOMMENDED)
+│   └── useWebSocketConnection.ts # Basic WebSocket hook
 ├── integrations/
-│   └── supabase/       # Supabase client and types
-├── lib/                # Utility libraries
-├── pages/              # Route pages
+│   └── supabase/      # Supabase client and types
+├── lib/               # Utility libraries
+├── pages/             # Route pages
 │   ├── Dashboard.tsx
-│   ├── LiveDesktop.tsx         # Single desktop stream viewer
-│   ├── MultiDesktopStreams.tsx # Multiple desktop streams grid
-│   ├── VirtualDesktops.tsx     # Virtual desktop management
-│   ├── Workflow.tsx            # Workflow automation UI
+│   ├── MultiDesktopStreams.tsx   # Multiple desktop streams grid
+│   ├── VirtualDesktops.tsx       # Virtual desktop management
+│   ├── Workflow.tsx              # Workflow automation UI
 │   └── Auth.tsx
-├── services/           # Service layer for API/WebSocket communication
-│   ├── desktopStreamService.ts     # Desktop streaming commands
-│   ├── liveDesktopService.ts       # Live desktop integration
-│   ├── desktopControlService.ts    # Remote control actions
-│   ├── virtualDesktopManager.ts    # Virtual desktop management
-│   └── filesystemBridge.ts         # File operations
-├── stores/             # Zustand state management
+├── services/          # Service layer for API/WebSocket communication
+│   ├── desktopStreamService.ts   # Desktop streaming commands
+│   ├── liveDesktopService.ts     # Live desktop integration
+│   ├── desktopControlService.ts  # Remote control actions
+│   ├── virtualDesktopManager.ts  # Virtual desktop management
+│   ├── ocrBackendService.ts      # OCR operations
+│   └── filesystemBridge.ts       # File operations
+├── stores/            # Zustand state management
 │   └── workflowStore.ts
-├── types/              # TypeScript type definitions
-├── utils/              # Utility functions
-├── workflows/          # Workflow system (see workflows/README.md)
-│   └── README.md       # Comprehensive workflow documentation
-└── App.tsx             # Main app component with routing
+├── types/             # TypeScript type definitions
+├── utils/             # Utility functions
+├── workflows/         # Workflow system (see workflows/README.md)
+│   └── README.md      # Comprehensive workflow documentation
+└── App.tsx            # Main app component with routing
 
-supabase/
-├── functions/          # Edge Functions (Deno)
+backend/               # FastAPI Python backend
+├── app/
+│   ├── main.py        # FastAPI application factory
+│   ├── config.py      # Configuration management
+│   ├── routers/       # API route handlers
+│   │   ├── automation.py     # Desktop automation endpoints
+│   │   ├── workflows.py      # Workflow execution
+│   │   ├── desktop.py        # Desktop control
+│   │   ├── ocr.py            # OCR processing
+│   │   ├── websocket.py      # WebSocket handlers
+│   │   └── health.py         # Health check endpoints
+│   ├── services/      # Business logic services
+│   │   ├── manager.py                    # Service lifecycle manager
+│   │   ├── click_automation_service.py   # Click automation
+│   │   ├── desktop_service.py            # Desktop operations
+│   │   └── node_service.py               # Node execution
+│   ├── models/        # Data models
+│   ├── schemas/       # Pydantic schemas
+│   └── websocket/     # WebSocket connection management
+├── tests/             # Backend tests
+├── server.py          # Server entry point
+└── requirements.txt   # Python dependencies
+
+supabase/              # Supabase Edge Functions
+├── functions/         # Edge Functions (Deno)
 │   ├── live-desktop-stream/    # Main WebSocket relay
 │   ├── desktop-actions/
 │   ├── ocr-processor/
 │   └── filesystem-bridge/
-└── config.toml         # Supabase configuration (project: dgzreelowtzquljhxskq)
+└── config.toml        # Supabase configuration (project: dgzreelowtzquljhxskq)
 
 scripts/
 ├── update-external-repos.js    # External repo management
@@ -355,8 +436,18 @@ The project uses shadcn/ui components. When adding new UI components:
 - Current project ID: `dgzreelowtzquljhxskq`
 
 ### Environment Variables
-- Vite environment variables use `VITE_` prefix
-- Main variables: `VITE_BACKEND_URL`, `VITE_WS_URL`, `VITE_ENV`
+
+**Frontend (.env)**:
+```bash
+VITE_BACKEND_URL=http://localhost:8007          # FastAPI backend URL
+VITE_WS_URL=ws://localhost:8007/ws              # WebSocket URL (optional)
+VITE_ENV=development                            # Environment mode
+VITE_SUPABASE_PROJECT_ID=dgzreelowtzquljhxskq   # Supabase project ID (optional)
+```
+
+**Backend**:
+- Environment variables can be set in backend/.env or via system environment
+- Main variables: `HOST`, `PORT`, `WS_PORT`, `LOG_LEVEL`, `ENVIRONMENT`, `DEBUG`
 - See `.env.example` for reference
 
 ### Git Pre-commit Hooks
@@ -368,9 +459,10 @@ The project uses Husky for git hooks with lint-staged:
 The project can pull code from external repositories defined in `config/external-repos.json`. This supports selective file copying with include/exclude patterns.
 
 ### Testing Considerations
-- Playwright tests expect dev server on `http://localhost:5174` (note: different from Vite default port 8080)
+- Playwright tests expect dev server on `http://localhost:5173` (Vite default port)
+- Tests automatically start dev server via `webServer` config in `playwright.config.ts`
 - Tests run against Chromium, Firefox, and WebKit
-- Update `playwright.config.ts` if changing ports
+- Update `playwright.config.ts` if changing ports or test configuration
 
 ## Common Tasks
 
@@ -390,9 +482,40 @@ The project can pull code from external repositories defined in `config/external
 3. Validate workflows with `WorkflowValidator` before execution
 4. Reference node compatibility matrix for valid connections
 
+### Adding a New Backend API Endpoint
+1. Create route handler in `backend/app/routers/` (e.g., `my_feature.py`)
+2. Define Pydantic schemas in `backend/app/schemas/` if needed
+3. Implement business logic in `backend/app/services/`
+4. Register router in `backend/app/main.py` using `app.include_router()`
+5. Add tests in `backend/tests/test_my_feature.py`
+
+### Adding a New Service to Backend
+1. Create service class in `backend/app/services/`
+2. Implement service lifecycle methods (`initialize()`, `cleanup()`)
+3. Register service in `backend/app/services/manager.py` (ServiceManager)
+4. Access via `app.state.service_manager` in route handlers
+
 ### Debugging WebSocket Issues
+
+**Frontend WebSocket Debugging**:
 1. Check `websocketConfig.ts` for correct base URL
-2. Verify Edge Function is deployed and accessible
+2. Verify Edge Function is deployed and accessible (for Supabase)
 3. Check browser console for WebSocket connection errors
 4. Use mock desktop clients for testing frontend without real desktop agents
 5. Monitor Edge Function logs in Supabase dashboard
+6. Check if `VITE_WS_URL` environment variable is set correctly
+
+**Backend WebSocket Debugging**:
+1. Verify FastAPI server is running on port 8007
+2. Check WebSocket endpoint at `ws://localhost:8007/ws/live-desktop`
+3. Review backend logs for connection errors
+4. Test WebSocket connection with tools like wscat: `wscat -c ws://localhost:8007/ws/live-desktop`
+5. Ensure CORS is properly configured in `backend/app/main.py`
+
+**Debugging Backend API Issues**:
+1. Check FastAPI interactive docs at `http://localhost:8007/docs`
+2. Review backend logs for errors (logged via loguru)
+3. Verify service initialization in ServiceManager
+4. Check CORS configuration for frontend origin
+5. Test endpoints with curl or Postman
+6. Run backend tests: `cd backend && pytest -v`
