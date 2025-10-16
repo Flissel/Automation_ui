@@ -28,19 +28,19 @@ def main():
     environment = os.getenv("ENVIRONMENT", "development")
     debug = os.getenv("DEBUG", "True").lower() == "true"
     
-    print(f"🚀 Starting TRAE Backend v2.0.0")
-    print(f"📍 Environment: {environment}")
-    print(f"🐛 Debug mode: {debug}")
-    print(f"🌐 API Server: {host}:{port}")
-    print(f"🔌 WebSocket Server: Integrated on same port (FastAPI WebSocket support)")
-    print(f"⚡ Workers: 1")
-    print(f"📡 Live Desktop Integration: Enabled")
-    print(f"🔧 Service Manager: Enabled")
+    print(f"Starting TRAE Backend v2.0.0")
+    print(f"Environment: {environment}")
+    print(f"Debug mode: {debug}")
+    print(f"API Server: {host}:{port}")
+    print(f"WebSocket Server: Integrated on same port (FastAPI WebSocket support)")
+    print(f"Workers: 1")
+    print(f"Live Desktop Integration: Enabled")
+    print(f"Service Manager: Enabled")
     print("")
-    print(f"📋 Available endpoints:")
-    print(f"   • API: http://{host}:{port}/docs")
-    print(f"   • WebSocket: ws://{host}:{port}/ws/live-desktop")
-    print(f"   • Health: http://{host}:{port}/api/health")
+    print(f"Available endpoints:")
+    print(f"   - API: http://{host}:{port}/docs")
+    print(f"   - WebSocket: ws://{host}:{port}/ws/live-desktop")
+    print(f"   - Health: http://{host}:{port}/api/health")
     print("")
     
     # Create FastAPI app with integrated WebSocket support
@@ -73,9 +73,9 @@ def main():
                 ws_ping_timeout=20
             )
     except KeyboardInterrupt:
-        print("\n🛑 Server stopped by user")
+        print("\nServer stopped by user")
     except Exception as e:
-        print(f"❌ Server error: {e}")
+        print(f"Server error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -32,29 +32,29 @@ logger = get_logger("main")
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Startup
-    logger.info("🚀 Starting TRAE Backend services...")
-    
+    logger.info("Starting TRAE Backend services...")
+
     try:
         # Initialize service manager
         service_manager = ServiceManager()
         await service_manager.initialize()
-        
+
         # Store in app state for router access
         app.state.service_manager = service_manager
-        
-        logger.info("✅ All services initialized successfully")
-        
+
+        logger.info("All services initialized successfully")
+
         yield
-        
+
     except Exception as e:
-        logger.error(f"❌ Service initialization failed: {e}")
+        logger.error(f"Service initialization failed: {e}")
         raise
     finally:
         # Shutdown
-        logger.info("🛑 Shutting down TRAE Backend services...")
+        logger.info("Shutting down TRAE Backend services...")
         if hasattr(app.state, 'service_manager'):
             await app.state.service_manager.cleanup()
-        logger.info("✅ Cleanup completed")
+        logger.info("Cleanup completed")
 
 def create_app() -> FastAPI:
     """Create and configure FastAPI application"""
@@ -109,7 +109,7 @@ def create_app() -> FastAPI:
     # app.include_router(filesystem_router, prefix="/api/filesystem", tags=["Filesystem"])
     # app.include_router(windows_desktop_router, prefix="/api/windows-desktop", tags=["Windows Desktop"])
     
-    logger.info("🏗️ FastAPI application created with all routers")
+    logger.info("FastAPI application created with all routers")
 
     return app
 
