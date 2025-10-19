@@ -276,30 +276,48 @@ const MultiDesktopStreams: React.FC = () => {
               desktopClientId: message.desktopClientId,
               monitorId: message.monitorId,
               dimensions: message.metadata ? `${message.metadata.width}x${message.metadata.height}` : 'N/A',
-              format: message.metadata?.format
+              format: message.metadata?.format,
+              frameNumber: message.frameNumber
             });
-            
+
             // Handle multi-monitor frame data using desktopClientId
             if (message.desktopClientId && message.frameData) {
               // Determine image format from metadata
               const format = message.metadata?.format || 'jpeg';
               const isSvg = format.toLowerCase().includes('svg');
-              const imageUrl = isSvg 
+              const imageUrl = isSvg
                 ? `data:image/svg+xml;base64,${message.frameData}`
                 : `data:image/${format};base64,${message.frameData}`;
-              
+
               const clientId = message.desktopClientId;
               const monitorId = message.monitorId || 'monitor_0';
-              
+
               // Create a unique key for this monitor stream
               const streamKey = `${clientId}_${monitorId}`;
-              
+
               // Update screenshot cache with monitor-specific key
               setLatestScreenshots(prev => ({
                 ...prev,
                 [streamKey]: imageUrl,
                 [clientId]: imageUrl // Also update the main client key for backward compatibility
               }));
+
+              // Send frame acknowledgment for backpressure control
+              if (message.frameNumber !== undefined && websocket.readyState === WebSocket.OPEN) {
+                const now = Date.now();
+                const frameTimestamp = message.timestamp ? new Date(message.timestamp).getTime() : now;
+                const latency = now - frameTimestamp;
+
+                sendWebSocketMessage(websocket, {
+                  type: 'frame_ack',
+                  desktopClientId: clientId,
+                  frameNumber: message.frameNumber,
+                  latency: latency,
+                  timestamp: new Date().toISOString()
+                });
+
+                console.log(`📥 Sent frame_ack for frame #${message.frameNumber} (latency: ${latency}ms)`);
+              }
               
               // Update or create desktop screen entries for each monitor
               setDesktopScreens(prev => {
@@ -346,10 +364,11 @@ const MultiDesktopStreams: React.FC = () => {
               dimensions: `${message.width}x${message.height}`,
               format: message.format,
               timestamp: message.timestamp,
+              frameNumber: message.frame_number,
               routingInfo: message.routingInfo,
               imageDataLength: message.image_data ? message.image_data.length : 0
             });
-            
+
             // Process dual-screen frame data with enhanced client identification
             if (message.client_id && message.image_data) {
               console.log('🔄 [DEBUG] Processing dual-screen frame data...');
@@ -358,7 +377,7 @@ const MultiDesktopStreams: React.FC = () => {
               const screenId = message.screen_id || 'screen1';
               console.log('🔄 [DEBUG] Created imageUrl:', imageUrl.substring(0, 100) + '...');
               console.log('🔄 [DEBUG] ClientId:', clientId, 'ScreenId:', screenId);
-              
+
               // Map screen_id to monitor_id for consistency with existing structure
               // screen_id: 'screen1'/'screen2' or 0/1 -> monitor_id: 'monitor_0'/'monitor_1'
               let monitorId;
@@ -372,13 +391,13 @@ const MultiDesktopStreams: React.FC = () => {
                 // Default mapping for unknown screen IDs
                 monitorId = 'monitor_0';
               }
-              
+
               // Create stream key using dual screen client format for compatibility
               const streamKey = `${clientId}_${monitorId}`;
-              
+
               console.log(`🖥️ [DEBUG] Processing dual-screen frame: ${streamKey} (Screen: ${screenId}, Monitor: ${monitorId})`);
               console.log('🖥️ [DEBUG] Generated streamKey:', streamKey);
-              
+
               // Update screenshot cache with dual-screen specific key
               console.log('🖥️ [DEBUG] Updating latestScreenshots with streamKey:', streamKey);
               setLatestScreenshots(prev => {
@@ -391,6 +410,23 @@ const MultiDesktopStreams: React.FC = () => {
                 console.log('🖥️ [DEBUG] Updated latestScreenshots for streamKey:', streamKey, 'exists:', !!updated[streamKey]);
                 return updated;
               });
+
+              // Send frame acknowledgment for backpressure control
+              if (message.frame_number !== undefined && websocket.readyState === WebSocket.OPEN) {
+                const now = Date.now();
+                const frameTimestamp = message.timestamp ? new Date(message.timestamp).getTime() : now;
+                const latency = now - frameTimestamp;
+
+                sendWebSocketMessage(websocket, {
+                  type: 'frame_ack',
+                  desktopClientId: clientId,
+                  frameNumber: message.frame_number,
+                  latency: latency,
+                  timestamp: new Date().toISOString()
+                });
+
+                console.log(`📥 Sent frame_ack for dual-screen frame #${message.frame_number} (latency: ${latency}ms)`);
+              }
               
               // Update or create desktop screen entries for dual-screen monitors
               setDesktopScreens(prev => {

@@ -76,6 +76,12 @@ export const useWebSocketReconnect = (
   const reconnectAttemptRef = useRef<number>(0);
   const manualDisconnectRef = useRef<boolean>(false);
 
+  // Heartbeat refs for detecting dead connections
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pongTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastPongRef = useRef<number>(Date.now());
+  const missedPongsRef = useRef<number>(0);
+
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -94,6 +100,80 @@ export const useWebSocketReconnect = (
     console.log(`🔄 Reconnect attempt ${attempt + 1}: delay ${calculatedDelay}ms`);
     return calculatedDelay;
   }, [reconnectDelay, exponentialBackoff, maxReconnectDelay]);
+
+  // Stop heartbeat mechanism
+  const stopHeartbeat = useCallback(() => {
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = null;
+    }
+    if (pongTimeoutRef.current) {
+      clearTimeout(pongTimeoutRef.current);
+      pongTimeoutRef.current = null;
+    }
+    missedPongsRef.current = 0;
+  }, []);
+
+  // Start heartbeat mechanism
+  const startHeartbeat = useCallback((ws: WebSocket) => {
+    // Clear any existing heartbeat
+    stopHeartbeat();
+
+    console.log('💓 Starting heartbeat mechanism');
+    lastPongRef.current = Date.now();
+    missedPongsRef.current = 0;
+
+    // Send ping every 30 seconds (half of PING_INTERVAL for safety)
+    pingIntervalRef.current = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        const now = Date.now();
+        const timeSinceLastPong = now - lastPongRef.current;
+
+        // Check if we've exceeded the timeout
+        if (timeSinceLastPong > WEBSOCKET_CONFIG.CONNECTION.PING_TIMEOUT + 30000) {
+          missedPongsRef.current += 1;
+          console.warn(`⚠️ Missed pong ${missedPongsRef.current}/3 (${timeSinceLastPong}ms since last pong)`);
+
+          // After 3 missed pongs, consider connection dead
+          if (missedPongsRef.current >= 3) {
+            console.error('❌ Connection appears dead (3 missed pongs), forcing reconnection');
+            setLastError('Connection timeout - no heartbeat response');
+            stopHeartbeat();
+            ws.close(1000, 'Heartbeat timeout');
+            return;
+          }
+        }
+
+        // Send ping
+        try {
+          sendWebSocketMessage(ws, {
+            type: 'ping',
+            timestamp: now,
+            clientId: (ws as any).clientId
+          });
+          console.log('📤 Ping sent');
+        } catch (error) {
+          console.error('Failed to send ping:', error);
+          missedPongsRef.current += 1;
+        }
+      } else {
+        console.warn('⚠️ WebSocket not open, stopping heartbeat');
+        stopHeartbeat();
+      }
+    }, 30000); // 30 seconds
+
+  }, [stopHeartbeat]);
+
+  // Handle pong message
+  const handlePongMessage = useCallback((message: any) => {
+    if (message.type === 'pong') {
+      const now = Date.now();
+      const latency = message.timestamp ? now - message.timestamp : 0;
+      lastPongRef.current = now;
+      missedPongsRef.current = 0; // Reset missed pong counter
+      console.log(`📥 Pong received (latency: ${latency}ms)`);
+    }
+  }, []);
 
   const connect = useCallback(() => {
     // Clear any pending reconnection timeouts
@@ -133,11 +213,23 @@ export const useWebSocketReconnect = (
           sendWebSocketMessage(ws, handshakeMessage);
         }
 
+        // Start heartbeat mechanism
+        startHeartbeat(ws);
+
         // Call user-provided onOpen callback
         onOpen?.(ws);
       };
 
       ws.onmessage = (event) => {
+        // Try to parse message to check for pong
+        try {
+          const message = JSON.parse(event.data);
+          handlePongMessage(message);
+        } catch (error) {
+          // Not JSON or parsing error, ignore for heartbeat purposes
+        }
+
+        // Call user-provided onMessage callback
         onMessage?.(event, ws);
       };
 
@@ -212,6 +304,9 @@ export const useWebSocketReconnect = (
     manualDisconnectRef.current = true;
     shouldReconnectRef.current = false;
 
+    // Stop heartbeat
+    stopHeartbeat();
+
     // Clear reconnection timeout
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -231,7 +326,7 @@ export const useWebSocketReconnect = (
     setStatus('disconnected');
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
-  }, []);
+  }, [stopHeartbeat]);
 
   const reconnect = useCallback(() => {
     console.log('🔄 Manual reconnect triggered');
@@ -260,6 +355,9 @@ export const useWebSocketReconnect = (
       shouldReconnectRef.current = false;
       manualDisconnectRef.current = true;
 
+      // Stop heartbeat
+      stopHeartbeat();
+
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
@@ -274,7 +372,7 @@ export const useWebSocketReconnect = (
         wsRef.current = null;
       }
     };
-  }, [connect]);
+  }, [connect, stopHeartbeat]);
 
   return {
     websocket: wsRef.current,
