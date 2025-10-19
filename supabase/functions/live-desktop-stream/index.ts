@@ -11,6 +11,10 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 );
 
+// Generate unique instance ID for this Edge Function instance
+const INSTANCE_ID = crypto.randomUUID();
+console.log(`🆔 [EDGE FUNCTION INIT] Instance ID: ${INSTANCE_ID}`);
+
 // Supabase Realtime channel for cross-instance communication
 const controlChannel = supabase.channel('desktop-control-messages', {
   config: {
@@ -20,6 +24,9 @@ const controlChannel = supabase.channel('desktop-control-messages', {
 });
 
 console.log('🔔 [EDGE FUNCTION INIT] Creating Realtime channel: desktop-control-messages');
+
+// Track processed command idempotency keys to prevent duplicates
+const processedCommands = new Set<string>();
 
 // Subscribe to control messages
 const channelSubscription = controlChannel
@@ -44,6 +51,46 @@ const channelSubscription = controlChannel
       console.log(`❌ [BROADCAST SKIP] Desktop client ${desktopClientId} not connected to this instance`);
       if (desktopClient) {
         console.log(`❌ [BROADCAST SKIP] Socket state: ${desktopClient.socket.readyState}`);
+      }
+    }
+  })
+  .on('broadcast', { event: 'command' }, async (payload: any) => {
+    console.log('📢 [COMMAND BROADCAST] Received command broadcast');
+
+    const { targetInstanceId, desktopClientId, commandId, command, idempotencyKey } = payload.payload || payload;
+
+    // Only process if targeted at this instance
+    if (targetInstanceId !== INSTANCE_ID) {
+      console.log(`⏭️ [COMMAND BROADCAST] Skipping - targeted at instance ${targetInstanceId}, we are ${INSTANCE_ID}`);
+      return;
+    }
+
+    // Check idempotency - prevent duplicate execution
+    if (processedCommands.has(idempotencyKey)) {
+      console.log(`⏭️ [COMMAND BROADCAST] Skipping - already processed command ${idempotencyKey}`);
+      return;
+    }
+
+    console.log(`🎯 [COMMAND BROADCAST] Command targeted at this instance for client ${desktopClientId}`);
+
+    const desktopClient = desktopClients.get(desktopClientId);
+    if (desktopClient && desktopClient.socket.readyState === 1) {
+      console.log(`📤 [COMMAND BROADCAST] Forwarding command to desktop client ${desktopClientId}`);
+      desktopClient.socket.send(JSON.stringify(command));
+
+      // Mark as processed
+      processedCommands.add(idempotencyKey);
+
+      // Mark command as completed in database
+      if (commandId) {
+        await markCommandProcessed(commandId, 'completed');
+      }
+
+      console.log(`✅ [COMMAND BROADCAST] Command delivered and marked complete`);
+    } else {
+      console.warn(`⚠️ [COMMAND BROADCAST] Desktop client ${desktopClientId} not found or not connected on this instance`);
+      if (commandId) {
+        await markCommandProcessed(commandId, 'failed', 'Desktop client not connected to target instance');
       }
     }
   })
@@ -118,7 +165,7 @@ initDesktopCommandsTable();
 // Database helper functions for managing active desktop clients
 async function registerDesktopClient(clientId: string, name: string, monitors: any[], capabilities: any, userId?: string, friendlyName?: string, hostname?: string): Promise<boolean> {
   try {
-    console.log(`Attempting to register desktop client ${clientId} in database...`);
+    console.log(`Attempting to register desktop client ${clientId} in database with instance ${INSTANCE_ID}...`);
 
     const clientData = {
       client_id: clientId,
@@ -131,7 +178,8 @@ async function registerDesktopClient(clientId: string, name: string, monitors: a
       is_streaming: false,
       last_ping: new Date().toISOString(),
       connected_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      edge_function_instance_id: INSTANCE_ID  // Track which instance manages this client
     };
 
     console.log('Client data to insert:', JSON.stringify(clientData));
@@ -242,13 +290,33 @@ async function insertDesktopCommand(desktopClientId: string, commandType: string
   try {
     console.log(`💾 [COMMAND INSERT] Inserting command for ${desktopClientId}: ${commandType}`);
 
+    // First, find which instance has the client
+    const { data: clientInfo, error: clientError } = await supabase
+      .from('active_desktop_clients')
+      .select('edge_function_instance_id')
+      .eq('client_id', desktopClientId)
+      .single();
+
+    if (clientError || !clientInfo) {
+      console.error('❌ [COMMAND INSERT] Client not found in database:', clientError);
+      return null;
+    }
+
+    const targetInstanceId = clientInfo.edge_function_instance_id;
+    console.log(`🎯 [COMMAND INSERT] Target instance: ${targetInstanceId}, Current instance: ${INSTANCE_ID}`);
+
+    // Generate idempotency key to prevent duplicate execution
+    const idempotencyKey = `${desktopClientId}_${commandType}_${Date.now()}_${crypto.randomUUID().substring(0, 8)}`;
+
     const { data, error } = await supabase
       .from('desktop_commands')
       .insert({
         desktop_client_id: desktopClientId,
         command_type: commandType,
         command_data: commandData,
-        status: 'pending'
+        status: 'pending',
+        target_instance_id: targetInstanceId,
+        idempotency_key: idempotencyKey
       })
       .select();
 
@@ -257,7 +325,36 @@ async function insertDesktopCommand(desktopClientId: string, commandType: string
       return null;
     }
 
-    console.log(`✅ [COMMAND INSERT] Command inserted with ID:`, data?.[0]?.id);
+    console.log(`✅ [COMMAND INSERT] Command inserted with ID: ${data?.[0]?.id}, idempotency key: ${idempotencyKey}`);
+
+    // If client is on THIS instance, send directly via WebSocket
+    if (targetInstanceId === INSTANCE_ID) {
+      const desktopClient = desktopClients.get(desktopClientId);
+      if (desktopClient && desktopClient.socket.readyState === 1) {
+        console.log(`📤 [DIRECT SEND] Client on this instance, sending command directly`);
+        desktopClient.socket.send(JSON.stringify(commandData));
+        // Mark as completed immediately since we sent it directly
+        await markCommandProcessed(data[0].id, 'completed');
+      } else {
+        console.warn(`⚠️ [COMMAND INSERT] Client ${desktopClientId} should be on this instance but not found in local map`);
+      }
+    }
+    // Otherwise, broadcast via Realtime for other instances to pick up
+    else {
+      console.log(`📡 [BROADCAST] Broadcasting command to target instance ${targetInstanceId}`);
+      await controlChannel.send({
+        type: 'broadcast',
+        event: 'command',
+        payload: {
+          targetInstanceId,
+          desktopClientId,
+          commandId: data[0].id,
+          command: commandData,
+          idempotencyKey
+        }
+      });
+    }
+
     return data?.[0];
   } catch (error) {
     console.error('❌ [COMMAND INSERT] Exception:', error);
@@ -448,14 +545,37 @@ function handleDesktopClient(socket: WebSocket, clientId: string) {
             dbRegistered = false;
           }
 
-          // Send handshake acknowledgment to desktop client
+          // CRITICAL: If registration failed, reject the connection
+          if (!dbRegistered) {
+            console.error(`❌ REJECTING connection for ${clientId} - database registration failed`);
+
+            // Send error message to desktop client
+            socket.send(JSON.stringify({
+              type: 'registration_failed',
+              clientId,
+              error: dbError || 'Failed to register in database',
+              timestamp: new Date().toISOString(),
+              debug: {
+                supabaseUrl: Deno.env.get('SUPABASE_URL') ? 'SET' : 'NOT_SET',
+                serviceRoleKey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ? 'SET' : 'NOT_SET'
+              }
+            }));
+
+            // Close the connection after sending error
+            setTimeout(() => {
+              socket.close(1008, 'Database registration failed');
+              desktopClients.delete(clientId);
+            }, 100);
+            break;
+          }
+
+          // Send handshake acknowledgment to desktop client (only if registered successfully)
           socket.send(JSON.stringify({
             type: 'handshake_ack',
             clientId,
             timestamp: new Date().toISOString(),
-            dbRegistered,  // Include database registration status
+            dbRegistered: true,  // Always true at this point
             dbClientCount,  // Number of clients in database after registration
-            dbError,  // Any error that occurred
             debug: {
               supabaseUrl: Deno.env.get('SUPABASE_URL') ? 'SET' : 'NOT_SET',
               serviceRoleKey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ? 'SET' : 'NOT_SET'
@@ -782,7 +902,32 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
             availableDesktopClients: Array.from(desktopClients.keys())
           }));
           break;
-          
+
+        case 'frame_ack':
+          // Forward frame acknowledgment to desktop client for backpressure control
+          console.log(`📥 [FRAME_ACK] Received frame_ack for frame #${message.frameNumber} from web client`);
+
+          const targetDesktopClientId = message.desktopClientId;
+          if (!targetDesktopClientId) {
+            console.warn('⚠️ [FRAME_ACK] No desktopClientId in frame_ack message');
+            break;
+          }
+
+          const targetDesktopClient = desktopClients.get(targetDesktopClientId);
+          if (targetDesktopClient && targetDesktopClient.socket.readyState === 1) {
+            // Forward ack to desktop client
+            targetDesktopClient.socket.send(JSON.stringify({
+              type: 'frame_ack',
+              frameNumber: message.frameNumber,
+              latency: message.latency,
+              timestamp: new Date().toISOString()
+            }));
+            console.log(`✅ [FRAME_ACK] Forwarded frame_ack #${message.frameNumber} to desktop client ${targetDesktopClientId}`);
+          } else {
+            console.log(`⚠️ [FRAME_ACK] Desktop client ${targetDesktopClientId} not connected to forward ack`);
+          }
+          break;
+
         default:
           console.log(`Unknown web message type: ${message.type}`);
       }

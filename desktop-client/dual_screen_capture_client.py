@@ -185,6 +185,11 @@ class DualScreenCaptureClient:
         # Frame counter for tracking
         self.frame_counter = 0
 
+        # Frame acknowledgment protocol with backpressure
+        self.in_flight_frames = {}  # {frame_number: timestamp}
+        self.max_in_flight = 10  # Maximum frames waiting for ack before dropping
+        self.stats['frames_dropped'] = 0  # Track dropped frames due to backpressure
+
         # Client-Fähigkeiten
         self.capabilities = {
             'dual_screen_capture': True,
@@ -384,8 +389,26 @@ class DualScreenCaptureClient:
                     logger.info(f"📥 Server-Antwort {attempt + 1}: {response_type}")
                     
                     if response_type == 'handshake_ack':
-                        logger.info("✅ Handshake bestätigt")
-                        return True
+                        # Check if registration was successful
+                        db_registered = response_data.get('dbRegistered', True)
+                        if db_registered:
+                            logger.info("✅ Handshake bestätigt und in Datenbank registriert")
+                            return True
+                        else:
+                            logger.error("❌ Datenbank-Registrierung fehlgeschlagen!")
+                            logger.error(f"Fehlerdetails: {response_data.get('dbError', 'Unbekannter Fehler')}")
+                            return False
+                    elif response_type == 'registration_failed':
+                        # Server rejected our connection due to registration failure
+                        error_msg = response_data.get('error', 'Unbekannter Fehler')
+                        logger.error(f"❌ REGISTRIERUNG FEHLGESCHLAGEN: {error_msg}")
+                        logger.error("Server hat Verbindung abgelehnt. Bitte prüfen Sie:")
+                        logger.error("  1. Supabase-Datenbank-Verbindung")
+                        logger.error("  2. Row Level Security (RLS) Richtlinien")
+                        logger.error("  3. Service Role Schlüssel")
+                        logger.error(f"Debug-Info: {response_data.get('debug', {})}")
+                        # Exit the program - registration is mandatory
+                        raise SystemExit("Desktop-Client kann nicht ohne Datenbank-Registrierung betrieben werden")
                     elif response_type == 'connection_established':
                         logger.info("✅ Verbindung hergestellt bestätigt")
                         return True
@@ -726,11 +749,21 @@ class DualScreenCaptureClient:
             timestamp: Zeitstempel des Frames
         """
         try:
+            # Check if frame queue is full (backpressure)
+            if len(self.in_flight_frames) >= self.max_in_flight:
+                logger.warning(f"⚠️ Frame queue full ({len(self.in_flight_frames)}/{self.max_in_flight}), dropping frame for {screen_id}")
+                self.stats['frames_dropped'] += 1
+                return
+
             screen_index = 0 if screen_id == 'screen1' else 1
             monitor_id = f'monitor_{screen_index}'
 
             # Increment frame counter
             self.frame_counter += 1
+            current_frame_number = self.frame_counter
+
+            # Track frame as in-flight
+            self.in_flight_frames[current_frame_number] = time.time()
 
             # Berechne Frame-Größe für Statistiken
             frame_size = len(frame_data)
@@ -990,6 +1023,8 @@ class DualScreenCaptureClient:
             logger.info(f"📊 Performance-Statistiken:")
             logger.info(f"   📤 Frames gesendet: {self.stats['frames_sent']}")
             logger.info(f"   ❌ Frames fehlgeschlagen: {self.stats['frames_failed']}")
+            logger.info(f"   🗑️ Frames gedroppt (Backpressure): {self.stats['frames_dropped']}")
+            logger.info(f"   ⏳ In-flight Frames: {len(self.in_flight_frames)}/{self.max_in_flight}")
             logger.info(f"   📏 Durchschnittliche Frame-Größe: {self.stats['avg_frame_size']:.0f} Bytes")
             logger.info(f"   🎯 Aktuelle Qualität: {self.capture_config['quality']}%")
             logger.info(f"   🎬 Aktuelle FPS: {self.capture_config['fps']}")
@@ -1159,6 +1194,54 @@ class DualScreenCaptureClient:
             logger.error(f"Error performing mouse click: {e}")
             return False
 
+    async def handle_frame_ack(self, data: Dict[str, Any]):
+        """
+        Handles frame acknowledgment from web client.
+        Removes frame from in-flight queue and adjusts quality based on latency.
+
+        Args:
+            data: Frame acknowledgment message containing frameNumber and latency
+        """
+        try:
+            frame_number = data.get('frameNumber')
+            latency = data.get('latency', 0)  # Latency in milliseconds
+
+            if frame_number is None:
+                logger.warning("⚠️ Received frame_ack without frameNumber")
+                return
+
+            # Remove from in-flight frames
+            if frame_number in self.in_flight_frames:
+                send_time = self.in_flight_frames[frame_number]
+                actual_latency = (time.time() - send_time) * 1000  # Convert to ms
+                del self.in_flight_frames[frame_number]
+
+                logger.debug(f"✅ Frame #{frame_number} acknowledged (latency: {actual_latency:.0f}ms, in-flight: {len(self.in_flight_frames)})")
+
+                # Adaptive quality adjustment based on latency
+                if actual_latency > 500:  # 500ms is considered high latency
+                    # Reduce quality to improve performance
+                    if self.capture_config['quality'] > self.capture_config['min_quality']:
+                        self.capture_config['quality'] = max(
+                            self.capture_config['quality'] - 5,
+                            self.capture_config['min_quality']
+                        )
+                        logger.info(f"🔽 High latency ({actual_latency:.0f}ms) - reduced quality to {self.capture_config['quality']}%")
+
+                elif actual_latency < 100 and len(self.in_flight_frames) < 3:
+                    # Low latency and low queue - can increase quality
+                    if self.capture_config['quality'] < self.capture_config['max_quality']:
+                        self.capture_config['quality'] = min(
+                            self.capture_config['quality'] + 2,
+                            self.capture_config['max_quality']
+                        )
+                        logger.info(f"🔼 Low latency ({actual_latency:.0f}ms) - increased quality to {self.capture_config['quality']}%")
+            else:
+                logger.debug(f"⚠️ Frame #{frame_number} ack received but not in in-flight queue (may have been already acked)")
+
+        except Exception as e:
+            logger.error(f"💥 Error handling frame_ack: {e}")
+
     async def handle_messages(self):
         """
         Behandelt eingehende WebSocket-Nachrichten.
@@ -1285,6 +1368,10 @@ class DualScreenCaptureClient:
                                     }))
                                 except:
                                     pass
+
+                    elif message_type == 'frame_ack':
+                        # Handle frame acknowledgment for backpressure control
+                        await self.handle_frame_ack(data)
 
                     elif message_type == 'mouse_click':
                         # Handle incoming mouse click from web UI
@@ -1549,6 +1636,11 @@ class DualScreenCaptureClient_DuplicateIgnore:
         # Frame counter for tracking
         self.frame_counter = 0
 
+        # Frame acknowledgment protocol with backpressure
+        self.in_flight_frames = {}  # {frame_number: timestamp}
+        self.max_in_flight = 10  # Maximum frames waiting for ack before dropping
+        self.stats['frames_dropped'] = 0  # Track dropped frames due to backpressure
+
         # Client-Fähigkeiten
         self.capabilities = {
             'dual_screen_capture': True,
@@ -1748,8 +1840,26 @@ class DualScreenCaptureClient_DuplicateIgnore:
                     logger.info(f"📥 Server-Antwort {attempt + 1}: {response_type}")
                     
                     if response_type == 'handshake_ack':
-                        logger.info("✅ Handshake bestätigt")
-                        return True
+                        # Check if registration was successful
+                        db_registered = response_data.get('dbRegistered', True)
+                        if db_registered:
+                            logger.info("✅ Handshake bestätigt und in Datenbank registriert")
+                            return True
+                        else:
+                            logger.error("❌ Datenbank-Registrierung fehlgeschlagen!")
+                            logger.error(f"Fehlerdetails: {response_data.get('dbError', 'Unbekannter Fehler')}")
+                            return False
+                    elif response_type == 'registration_failed':
+                        # Server rejected our connection due to registration failure
+                        error_msg = response_data.get('error', 'Unbekannter Fehler')
+                        logger.error(f"❌ REGISTRIERUNG FEHLGESCHLAGEN: {error_msg}")
+                        logger.error("Server hat Verbindung abgelehnt. Bitte prüfen Sie:")
+                        logger.error("  1. Supabase-Datenbank-Verbindung")
+                        logger.error("  2. Row Level Security (RLS) Richtlinien")
+                        logger.error("  3. Service Role Schlüssel")
+                        logger.error(f"Debug-Info: {response_data.get('debug', {})}")
+                        # Exit the program - registration is mandatory
+                        raise SystemExit("Desktop-Client kann nicht ohne Datenbank-Registrierung betrieben werden")
                     elif response_type == 'connection_established':
                         logger.info("✅ Verbindung hergestellt bestätigt")
                         return True
