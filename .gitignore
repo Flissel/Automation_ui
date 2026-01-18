@@ -88,3 +88,15 @@ nul
 # External repositories (auto-managed)
 # These are maintained by other teams and updated automatically
 external/
+
+# Test artifacts
+test_*.png
+**/test_*.png
+
+# Linter outputs
+eslint-*.txt
+eslint-*.json
+
+# Test reports
+playwright-report/
+test-results/
