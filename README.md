@@ -51,11 +51,22 @@ npm run dev        # Frontend
 npm run dev:backend # Backend
 ```
 
+### Vector Database (Qdrant)
+
+```
+docker compose -f docker-compose.qdrant.yml up -d
+```
+
+- Exposes the HTTP API on `http://localhost:6333`
+- Persists data inside the `qdrant_storage` Docker volume
+- Stop it with `docker compose -f docker-compose.qdrant.yml down`
+
 ### Additional Information
 
 - 📚 **[Startup Guide](STARTUP_GUIDE.md)** - Detaillierte Installationsanleitung
 - 🔧 **[Development Setup](docs/en/development/developer_onboarding.md)** - Entwicklungsumgebung einrichten
 - 🐳 **[Deployment Guide](docs/en/operations/deployment_guide.md)** - Container-basierte Entwicklung
+- 🖥️ **[Live Desktop OCR + AutoGen](docs/LIVE_DESKTOP_OCR_QUICKSTART.md)** - 🆕 Screen-Capture mit KI-Analyse
 
 ---
 

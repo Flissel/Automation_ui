@@ -3,10 +3,7 @@
 Provides WebSocket connection management and real-time communication.
 """
 
-from .manager import WebSocketManager
 from .handlers import WebSocketHandler
+from .manager import WebSocketManager
 
-__all__ = [
-    'WebSocketManager',
-    'WebSocketHandler'
-]
+__all__ = ["WebSocketManager", "WebSocketHandler"]

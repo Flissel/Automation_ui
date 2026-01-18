@@ -22,23 +22,25 @@
 import { WEBSOCKET_CONFIG, createFilesystemBridgeClient, createHandshakeMessage } from '@/config/websocketConfig';
 
 // Browser-compatible event emitter implementation
-class SimpleEventEmitter {
-  private events: { [key: string]: Function[] } = {};
+type EventCallback = (...args: unknown[]) => void;
 
-  on(event: string, callback: Function) {
+class SimpleEventEmitter {
+  private events: { [key: string]: EventCallback[] } = {};
+
+  on(event: string, callback: EventCallback) {
     if (!this.events[event]) {
       this.events[event] = [];
     }
     this.events[event].push(callback);
   }
 
-  emit(event: string, ...args: any[]) {
+  emit(event: string, ...args: unknown[]) {
     if (this.events[event]) {
       this.events[event].forEach(callback => callback(...args));
     }
   }
 
-  off(event: string, callback: Function) {
+  off(event: string, callback: EventCallback) {
     if (this.events[event]) {
       this.events[event] = this.events[event].filter(cb => cb !== callback);
     }
@@ -587,20 +589,18 @@ export class FilesystemBridge extends SimpleEventEmitter {
   public async readWorkflowData(nodeId: string, dataType?: string): Promise<WorkflowData[]> {
     // In a real implementation, you would read from the actual filesystem
     // For now, we'll emit events and return mock data
-    const mockData: WorkflowData[] = [
-      {
-        id: `${nodeId}_${Date.now()}`,
-        timestamp: Date.now(),
-        nodeId: nodeId,
-        nodeType: dataType || 'unknown',
-        data: { mock: true, nodeId },
-        metadata: {
-          executionId: `exec_${Date.now()}`,
-          workflowId: `workflow_${nodeId}`,
-          status: 'completed'
-        }
+    const mockData: WorkflowData[] = [{
+      id: `${nodeId}_${Date.now()}`,
+      timestamp: Date.now(),
+      nodeId: nodeId,
+      nodeType: dataType || 'unknown',
+      data: { mock: true, nodeId },
+      metadata: {
+        executionId: `exec_${Date.now()}`,
+        workflowId: `workflow_${nodeId}`,
+        status: 'completed'
       }
-    ];
+    }];
 
     this.emit('dataRead', { nodeId, dataType, results: mockData });
     return mockData;

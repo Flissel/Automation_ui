@@ -7,8 +7,9 @@ Main server entry point that starts the FastAPI server with integrated WebSocket
 
 import os
 import sys
-import uvicorn
 from pathlib import Path
+
+import uvicorn
 
 # Add current directory to path for proper imports
 sys.path.append(str(Path(__file__).parent))
@@ -17,6 +18,7 @@ from app.main import create_app
 
 # Create app instance for uvicorn to import
 app = create_app()
+
 
 def main():
     """Main function to start the server"""
@@ -27,7 +29,7 @@ def main():
     log_level = os.getenv("LOG_LEVEL", "info").lower()
     environment = os.getenv("ENVIRONMENT", "development")
     debug = os.getenv("DEBUG", "True").lower() == "true"
-    
+
     print(f"Starting TRAE Backend v2.0.0")
     print(f"Environment: {environment}")
     print(f"Debug mode: {debug}")
@@ -42,10 +44,10 @@ def main():
     print(f"   - WebSocket: ws://{host}:{port}/ws/live-desktop")
     print(f"   - Health: http://{host}:{port}/api/health")
     print("")
-    
+
     # Create FastAPI app with integrated WebSocket support
     app = create_app()
-    
+
     # Start FastAPI server with WebSocket support
     try:
         if debug and environment == "development":
@@ -59,7 +61,7 @@ def main():
                 reload_dirs=["app"],
                 access_log=True,
                 ws_ping_interval=20,
-                ws_ping_timeout=20
+                ws_ping_timeout=20,
             )
         else:
             # Use app instance for production
@@ -70,13 +72,14 @@ def main():
                 log_level=log_level,
                 access_log=True,
                 ws_ping_interval=20,
-                ws_ping_timeout=20
+                ws_ping_timeout=20,
             )
     except KeyboardInterrupt:
         print("\nServer stopped by user")
     except Exception as e:
         print(f"Server error: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

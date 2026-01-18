@@ -127,9 +127,9 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
   onError,
   className = ''
 }) => {
-  // ============================================================================
+  // ========================================================================
   // STATE MANAGEMENT
-  // ============================================================================
+  // ========================================================================
 
   const [results, setResults] = useState<WorkflowData[]>([]);
   const [filteredResults, setFilteredResults] = useState<WorkflowData[]>([]);
@@ -154,9 +154,9 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
-  // ============================================================================
+  // ========================================================================
   // DATA COLLECTION AND FILTERING
-  // ============================================================================
+  // ========================================================================
 
   const collectResults = useCallback(async () => {
     try {
@@ -401,9 +401,9 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
     }
   }, [onResultUpdate]);
 
-  // ============================================================================
+  // ========================================================================
   // EXPORT FUNCTIONALITY
-  // ============================================================================
+  // ========================================================================
 
   const exportResults = useCallback(async () => {
     try {
@@ -462,7 +462,7 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
           fileName = `workflow-results-${Date.now()}.json`;
           break;
         
-        case 'csv':
+        case 'csv': {
           const headers = Object.keys(exportData[0] || {});
           const csvRows = [
             headers.join(','),
@@ -476,6 +476,7 @@ export const WorkflowResult: React.FC<WorkflowResultProps> = ({
           exportContent = csvRows.join('\n');
           fileName = `workflow-results-${Date.now()}.csv`;
           break;
+        }
         
         case 'xml':
           exportContent = `<?xml version="1.0" encoding="UTF-8"?>
@@ -489,7 +490,7 @@ ${exportData.map(result => `
     <status>${result.status}</status>
     <data>${JSON.stringify(result.data)}</data>
     ${exportConfig.includeMetadata ? `<metadata>${JSON.stringify((result as any).metadata)}</metadata>` : ''}
-  </result>`).join('')}
+  </result>`, '').join('')}
 </workflowResults>`;
           fileName = `workflow-results-${Date.now()}.xml`;
           break;
@@ -535,9 +536,9 @@ ${exportData.map(result => `
     }
   }, [filteredResults, exportConfig, onExportComplete, onError]);
 
-  // ============================================================================
+  // ========================================================================
   // LIFECYCLE EFFECTS
-  // ============================================================================
+  // ========================================================================
 
   // Apply filters when filter changes - using stable function to avoid loops
   useEffect(() => {
@@ -567,9 +568,9 @@ ${exportData.map(result => `
     collectResults();
   }, [filesystemBridge, workflowDataInput, actionResultsInput]);
 
-  // ============================================================================
+  // ========================================================================
   // RENDER COMPONENT
-  // ============================================================================
+  // ========================================================================
 
   return (
     <div className={`workflow-result ${className}`}>

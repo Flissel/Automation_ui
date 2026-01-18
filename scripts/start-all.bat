@@ -1,70 +1,67 @@
 @echo off
-setlocal ENABLEDELAYEDEXPANSION
+echo ============================================
+echo   Starting Automation_ui + MoireTracker
+echo ============================================
+echo.
 
-REM 🚀 Starting TRAE Unity AI Platform...
-echo 🚀 Starting TRAE Unity AI Platform...
+cd /d "%~dp0.."
+echo [INFO] Project root: %CD%
+echo.
 
-REM Resolve script directory to project root
-set SCRIPT_DIR=%~dp0
-pushd "%SCRIPT_DIR%..\"
-set PROJECT_ROOT=%CD%
-popd
+echo [1/5] Starting FastAPI Backend (Port 8007)...
+start "FastAPI Backend" cmd /k "cd /d %CD%\backend && python server.py"
+echo       Started in new window
+ping -n 3 127.0.0.1 > nul
 
-REM Check if Node.js is installed
-node --version >nul 2>&1
-if errorlevel 1 (
-    echo ❌ Node.js not found. Please install Node.js first.
-    pause
-    exit /b 1
-)
-
-REM Check FFmpeg availability
-if exist "%PROJECT_ROOT%\tools\ffmpeg\ffmpeg.exe" (
-    echo ✅ FFmpeg found
+echo [2/5] Starting MoireServer (Port 8766)...
+if exist "moire_server\package.json" (
+    start "MoireServer" cmd /k "cd /d %CD%\moire_server && npm run dev"
+    echo       Started in new window
 ) else (
-    echo ⚠️  FFmpeg not found - run scripts\setup\setup-ffmpeg.bat (or .ps1) for media processing
+    echo       [SKIP] moire_server not found
 )
+ping -n 3 127.0.0.1 > nul
 
-REM Install dependencies if needed
-if not exist "%PROJECT_ROOT%\node_modules" (
-    echo 📦 Installing dependencies...
-    call npm install
-)
-
-echo 🚀 Starting services...
-
-REM Start WebSocket Server
-echo 🌐 Starting WebSocket Server...
-if exist "%PROJECT_ROOT%\scripts\dev\local-websocket-server.js" (
-    start "WebSocket Server" node "%PROJECT_ROOT%\scripts\dev\local-websocket-server.js"
-    timeout /t 3 /nobreak >nul
-    echo ✅ WebSocket Server started!
+echo [3/5] Starting Moire Agents...
+if exist "backend\moire_agents\worker_bridge\__main__.py" (
+    start "Moire Agents" cmd /k "cd /d %CD%\backend\moire_agents && python -m worker_bridge"
+    echo       Started in new window
 ) else (
-    echo [WARN] WebSocket server script not found at %PROJECT_ROOT%\scripts\dev\local-websocket-server.js
+    echo       [SKIP] worker_bridge not found
 )
+ping -n 2 127.0.0.1 > nul
 
-REM Start Desktop Spawner (optional)
-if exist "%PROJECT_ROOT%\desktop-client\desktop_spawner.py" (
-    echo 🖥️  Starting Desktop Spawner...
-    start "Desktop Spawner" python "%PROJECT_ROOT%\desktop-client\desktop_spawner.py"
-    timeout /t 2 /nobreak >nul
-    echo ✅ Desktop Spawner started!
+echo [4/5] Starting Frontend (Port 3003)...
+start "Frontend" cmd /k "cd /d %CD% && npm run dev"
+echo       Started in new window
+ping -n 3 127.0.0.1 > nul
+
+echo [5/5] Starting Desktop Client...
+if exist "desktop-client\dual_screen_capture_client.py" (
+    start "Desktop Client" cmd /k "cd /d %CD%\desktop-client && python dual_screen_capture_client.py --server-url ws://localhost:8007/ws/live-desktop"
+    echo       Started in new window (connecting to local backend)
 ) else (
-    echo ⚠️  Desktop spawner not found, skipping...
+    echo       [SKIP] Desktop client not found
 )
-
-REM Start Frontend
-echo 🎨 Starting Frontend...
-start "Frontend Server" npm run dev
-timeout /t 5 /nobreak >nul
 
 echo.
-echo 🎉 TRAE Unity AI Platform is ready!
-echo 📊 Access points:
-echo   • Frontend: http://localhost:8081
-echo   • Multi-Desktop: http://localhost:8081/multi-desktop
-echo   • WebSocket: ws://localhost:8084
+echo ============================================
+echo   All services launched!
+echo ============================================
 echo.
-echo 💡 Close the opened windows to stop services
+echo Services:
+echo   - FastAPI Backend:  http://localhost:8007
+echo   - MoireServer:      ws://localhost:8766
+echo   - Frontend:         http://localhost:3003
+echo   - Desktop Client:   Streaming
+echo.
+echo Quick Links:
+echo   - Main Page:           http://localhost:3003/
+echo   - Electron Automation: http://localhost:3003/electron
+echo.
+echo Opening browser in 3 seconds...
+ping -n 4 127.0.0.1 > nul
+start http://localhost:3003/electron
+echo.
+echo Done! Close terminal windows to stop services.
 pause
-endlocal

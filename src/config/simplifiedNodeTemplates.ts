@@ -747,5 +747,337 @@ export const SIMPLIFIED_NODE_TEMPLATES: Record<string, SimplifiedNodeTemplate> =
       watchFiles: true,
       outputFormat: 'json'
     }
+  },
+
+  // ============= MCP HANDOFF NODES =============
+  // Integration with Moire MCP Tools via VibeMind Bridge
+
+  mcp_click: {
+    id: 'mcp_click',
+    type: 'mcp_click',
+    label: 'MCP Click',
+    description: 'Click action via MCP Handoff Tools',
+    category: 'actions',
+    icon: 'MousePointer2',
+    color: '#f97316',
+    input: {
+      id: 'mcp_click_input',
+      name: 'Trigger',
+      type: 'data',
+      required: true,
+      accepts: ['execution_start', 'mcp_result', 'delay_complete', 'condition_result'],
+      description: 'Connect trigger or previous MCP action',
+      placeholder: 'Connect trigger'
+    },
+    outputs: [
+      {
+        id: 'mcp_click_output',
+        name: 'Click Result',
+        type: 'data',
+        provides: 'mcp_result',
+        description: 'MCP click action result'
+      }
+    ],
+    dependencies: [],
+    configSchema: {
+      x: { type: 'number', required: true, label: 'X Position' },
+      y: { type: 'number', required: true, label: 'Y Position' },
+      button: { type: 'select', options: ['left', 'right', 'middle'], default: 'left', label: 'Mouse Button' },
+      use_element_finder: { type: 'boolean', default: false, label: 'Use Element Finder' },
+      element_text: { type: 'string', label: 'Element Text (if finder enabled)' }
+    },
+    defaultConfig: {
+      x: 0,
+      y: 0,
+      button: 'left',
+      use_element_finder: false,
+      element_text: ''
+    }
+  },
+
+  mcp_type: {
+    id: 'mcp_type',
+    type: 'mcp_type',
+    label: 'MCP Type',
+    description: 'Type text via MCP Handoff Tools',
+    category: 'actions',
+    icon: 'Keyboard',
+    color: '#8b5cf6',
+    input: {
+      id: 'mcp_type_input',
+      name: 'Trigger',
+      type: 'data',
+      required: true,
+      accepts: ['execution_start', 'mcp_result', 'delay_complete'],
+      description: 'Connect trigger or previous action',
+      placeholder: 'Connect trigger'
+    },
+    outputs: [
+      {
+        id: 'mcp_type_output',
+        name: 'Type Result',
+        type: 'data',
+        provides: 'mcp_result',
+        description: 'MCP type action result'
+      }
+    ],
+    dependencies: [],
+    configSchema: {
+      text: { type: 'string', required: true, label: 'Text to Type' },
+      interval: { type: 'number', default: 0, min: 0, label: 'Interval between chars (ms)' },
+      clear_first: { type: 'boolean', default: false, label: 'Clear field first' }
+    },
+    defaultConfig: {
+      text: '',
+      interval: 0,
+      clear_first: false
+    }
+  },
+
+  mcp_shell: {
+    id: 'mcp_shell',
+    type: 'mcp_shell',
+    label: 'MCP Shell',
+    description: 'Execute shell command via MCP Handoff',
+    category: 'actions',
+    icon: 'Terminal',
+    color: '#22c55e',
+    input: {
+      id: 'mcp_shell_input',
+      name: 'Trigger',
+      type: 'data',
+      required: true,
+      accepts: ['execution_start', 'mcp_result', 'delay_complete', 'condition_result'],
+      description: 'Connect trigger or previous action',
+      placeholder: 'Connect trigger'
+    },
+    outputs: [
+      {
+        id: 'mcp_shell_output',
+        name: 'Shell Result',
+        type: 'data',
+        provides: 'mcp_shell_result',
+        description: 'Shell command output (stdout, stderr, exit_code)'
+      }
+    ],
+    dependencies: [],
+    configSchema: {
+      command: { type: 'string', required: true, label: 'Command' },
+      timeout: { type: 'number', default: 30, min: 1, max: 600, label: 'Timeout (seconds)' },
+      shell: { type: 'select', options: ['auto', 'powershell', 'cmd', 'bash'], default: 'auto', label: 'Shell Type' }
+    },
+    defaultConfig: {
+      command: '',
+      timeout: 30,
+      shell: 'auto'
+    }
+  },
+
+  mcp_find_element: {
+    id: 'mcp_find_element',
+    type: 'mcp_find_element',
+    label: 'MCP Find Element',
+    description: 'Find UI element by text or type via OCR + CNN',
+    category: 'actions',
+    icon: 'Search',
+    color: '#3b82f6',
+    input: {
+      id: 'mcp_find_input',
+      name: 'Trigger',
+      type: 'data',
+      required: true,
+      accepts: ['execution_start', 'mcp_result', 'desktop_stream'],
+      description: 'Connect trigger',
+      placeholder: 'Connect trigger'
+    },
+    outputs: [
+      {
+        id: 'mcp_find_output',
+        name: 'Element Found',
+        type: 'data',
+        provides: 'mcp_element',
+        description: 'Found element with coordinates'
+      }
+    ],
+    dependencies: [],
+    configSchema: {
+      text: { type: 'string', label: 'Text to find' },
+      element_type: {
+        type: 'select',
+        options: ['any', 'button', 'input', 'link', 'checkbox', 'dropdown', 'icon', 'text', 'menu'],
+        default: 'any',
+        label: 'Element Type'
+      },
+      near_text: { type: 'string', label: 'Near text (optional)' },
+      click_if_found: { type: 'boolean', default: false, label: 'Click if found' }
+    },
+    defaultConfig: {
+      text: '',
+      element_type: 'any',
+      near_text: '',
+      click_if_found: false
+    }
+  },
+
+  mcp_scroll: {
+    id: 'mcp_scroll',
+    type: 'mcp_scroll',
+    label: 'MCP Scroll',
+    description: 'Scroll screen via MCP Handoff',
+    category: 'actions',
+    icon: 'ArrowUpDown',
+    color: '#06b6d4',
+    input: {
+      id: 'mcp_scroll_input',
+      name: 'Trigger',
+      type: 'data',
+      required: true,
+      accepts: ['execution_start', 'mcp_result', 'delay_complete'],
+      description: 'Connect trigger',
+      placeholder: 'Connect trigger'
+    },
+    outputs: [
+      {
+        id: 'mcp_scroll_output',
+        name: 'Scroll Result',
+        type: 'data',
+        provides: 'mcp_result',
+        description: 'Scroll action result'
+      }
+    ],
+    dependencies: [],
+    configSchema: {
+      direction: { type: 'select', options: ['down', 'up'], default: 'down', label: 'Direction' },
+      amount: { type: 'number', default: 3, min: 1, max: 20, label: 'Scroll Amount' },
+      x: { type: 'number', label: 'X Position (optional)' },
+      y: { type: 'number', label: 'Y Position (optional)' }
+    },
+    defaultConfig: {
+      direction: 'down',
+      amount: 3
+    }
+  },
+
+  mcp_read_screen: {
+    id: 'mcp_read_screen',
+    type: 'mcp_read_screen',
+    label: 'MCP Read Screen',
+    description: 'Capture screenshot and extract text via OCR',
+    category: 'actions',
+    icon: 'Camera',
+    color: '#ec4899',
+    input: {
+      id: 'mcp_read_input',
+      name: 'Trigger',
+      type: 'data',
+      required: true,
+      accepts: ['execution_start', 'mcp_result', 'delay_complete'],
+      description: 'Connect trigger',
+      placeholder: 'Connect trigger'
+    },
+    outputs: [
+      {
+        id: 'mcp_read_output',
+        name: 'Screen Content',
+        type: 'data',
+        provides: 'mcp_screen_text',
+        description: 'OCR extracted text from screen'
+      }
+    ],
+    dependencies: [],
+    configSchema: {
+      region: { type: 'object', label: 'Region (optional)' },
+      include_coordinates: { type: 'boolean', default: true, label: 'Include text coordinates' }
+    },
+    defaultConfig: {
+      include_coordinates: true
+    }
+  },
+
+  mcp_doc_scan: {
+    id: 'mcp_doc_scan',
+    type: 'mcp_doc_scan',
+    label: 'MCP Doc Scanner',
+    description: 'Scan multi-page document and extract structure',
+    category: 'actions',
+    icon: 'FileSearch',
+    color: '#a855f7',
+    input: {
+      id: 'mcp_doc_input',
+      name: 'Trigger',
+      type: 'data',
+      required: true,
+      accepts: ['execution_start', 'mcp_result'],
+      description: 'Connect trigger',
+      placeholder: 'Connect trigger'
+    },
+    outputs: [
+      {
+        id: 'mcp_doc_output',
+        name: 'Document Structure',
+        type: 'data',
+        provides: 'mcp_document',
+        description: 'Scanned document with sections and structure'
+      }
+    ],
+    dependencies: [],
+    configSchema: {
+      max_pages: { type: 'number', default: 20, min: 1, max: 100, label: 'Max Pages' },
+      scroll_amount: { type: 'number', default: 800, label: 'Scroll Amount (px)' },
+      detect_structure: { type: 'boolean', default: true, label: 'Detect headings/lists' }
+    },
+    defaultConfig: {
+      max_pages: 20,
+      scroll_amount: 800,
+      detect_structure: true
+    }
+  },
+
+  mcp_scroll_to: {
+    id: 'mcp_scroll_to',
+    type: 'mcp_scroll_to',
+    label: 'MCP Scroll To Element',
+    description: 'Scroll until element is found, optionally click',
+    category: 'actions',
+    icon: 'MousePointerClick',
+    color: '#14b8a6',
+    input: {
+      id: 'mcp_scrollto_input',
+      name: 'Trigger',
+      type: 'data',
+      required: true,
+      accepts: ['execution_start', 'mcp_result', 'delay_complete'],
+      description: 'Connect trigger',
+      placeholder: 'Connect trigger'
+    },
+    outputs: [
+      {
+        id: 'mcp_scrollto_output',
+        name: 'Element Result',
+        type: 'data',
+        provides: 'mcp_element',
+        description: 'Found element after scrolling'
+      }
+    ],
+    dependencies: [],
+    configSchema: {
+      target: { type: 'string', required: true, label: 'Target Text' },
+      element_type: {
+        type: 'select',
+        options: ['any', 'button', 'input', 'link', 'checkbox'],
+        default: 'any',
+        label: 'Element Type'
+      },
+      then_click: { type: 'boolean', default: false, label: 'Click when found' },
+      max_scrolls: { type: 'number', default: 10, min: 1, max: 50, label: 'Max Scroll Attempts' },
+      direction: { type: 'select', options: ['down', 'up'], default: 'down', label: 'Scroll Direction' }
+    },
+    defaultConfig: {
+      target: '',
+      element_type: 'any',
+      then_click: false,
+      max_scrolls: 10,
+      direction: 'down'
+    }
   }
 };

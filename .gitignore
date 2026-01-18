@@ -100,3 +100,11 @@ eslint-*.json
 # Test reports
 playwright-report/
 test-results/
+
+# External projects with their own node_modules
+moire_server/node_modules/
+desktop-agent/**/node_modules/
+electron-app/node_modules/
+
+# All nested node_modules
+**/node_modules/

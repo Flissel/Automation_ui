@@ -42,23 +42,42 @@ export const WEBSOCKET_CONFIG = {
   // Base WebSocket server URL
   BASE_URL: getWebSocketBaseUrl(),
   
-  // Supabase Edge Function endpoint paths
+  // Supabase Edge Function endpoint paths - match backend routes
   ENDPOINTS: {
-    LIVE_DESKTOP: '/live-desktop-stream',
-    MULTI_DESKTOP: '/live-desktop-stream',
-    FILESYSTEM_BRIDGE: '/live-desktop-stream',
-    WORKFLOW: '/live-desktop-stream',
-    DEFAULT: '/live-desktop-stream'
+    LIVE_DESKTOP: '/live-desktop',
+    MULTI_DESKTOP: '/live-desktop',
+    FILESYSTEM_BRIDGE: '/live-desktop',
+    WORKFLOW: '/live-desktop',
+    DEFAULT: '/live-desktop'
   },
   
-  // Connection settings
+  // Connection settings - UPDATED for consistency
   CONNECTION: {
-    PING_INTERVAL: 60000,        // 60 seconds - matches server heartbeat
-    PING_TIMEOUT: 10000,         // 10 seconds
+    PING_INTERVAL: 30000,        // 30 seconds - consistent ping interval
+    PING_TIMEOUT: 10000,         // 10 seconds - time to wait for pong
+    PONG_GRACE_PERIOD: 5000,     // 5 seconds - additional tolerance
     CLOSE_TIMEOUT: 10000,        // 10 seconds
-    RECONNECT_DELAY: 5000,       // 5 seconds initial delay
+    RECONNECT_DELAY: 1000,       // 1 second initial delay (was 5000)
     MAX_RECONNECT_ATTEMPTS: 10,  // Maximum reconnection attempts
     CONNECTION_TIMEOUT: 30000,   // 30 seconds connection timeout
+    MAX_MISSED_PONGS: 3,         // Number of missed pongs before disconnect
+  },
+  
+  // Reconnect settings - NEW centralized configuration
+  RECONNECT: {
+    INITIAL_DELAY: 1000,         // 1 second initial delay
+    MAX_DELAY: 30000,            // 30 seconds maximum delay
+    MAX_ATTEMPTS: 10,             // Maximum reconnection attempts
+    BACKOFF_MULTIPLIER: 2,       // Exponential backoff multiplier
+    JITTER: true,                 // Add random jitter to prevent thundering herd
+    JITTER_FACTOR: 0.3,           // 30% jitter
+  },
+  
+  // Circuit breaker settings - NEW
+  CIRCUIT_BREAKER: {
+    THRESHOLD: 5,                 // Failures before opening circuit
+    TIMEOUT: 30000,               // Time to wait before half-open (30s)
+    HEALTH_CHECK_INTERVAL: 10000, // Health check interval when circuit is open
   },
   
   // Client types for handshake identification

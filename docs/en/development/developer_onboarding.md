@@ -37,6 +37,7 @@ Das Trusted Login System automatisiert Login-Prozesse und Desktop-Interaktionen 
 #### Backend
 - **Framework**: FastAPI (Python 3.11+)
 - **Database**: Supabase (PostgreSQL)
+- **Vector Store**: Qdrant (Docker, Port 6333)
 - **Authentication**: Supabase Auth
 - **File Storage**: Supabase Storage
 - **Real-time**: WebSockets
@@ -190,6 +191,16 @@ pip install -r requirements.txt
 # Service starten
 python main.py
 ```
+
+#### 5. Vector Database Setup (Qdrant)
+```bash
+# From the repository root
+docker compose -f docker-compose.qdrant.yml up -d
+```
+
+- HTTP API: http://localhost:6333
+- gRPC API: grpc://localhost:6334
+- Stop & remove: `docker compose -f docker-compose.qdrant.yml down`
 
 ### Umgebungsvariablen
 
