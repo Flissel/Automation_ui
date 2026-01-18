@@ -5,3 +5,4 @@
 
 export * from './liveDesktopService';
 export * from './desktopStreamService';
+export * from './mcpBridgeService';

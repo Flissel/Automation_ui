@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
 
 const supabase = createClient(
@@ -112,6 +112,27 @@ const channelSubscription = controlChannel
       }
     }
   })
+  .on('broadcast', { event: 'frame_ack' }, (payload: any) => {
+    // NEW: Handle cross-instance frame_ack broadcasts
+    console.log('📥 [FRAME_ACK BROADCAST] Received frame_ack broadcast from another instance');
+
+    const { targetDesktopClientId, frameNumber, latency, fromWebClientId } = payload.payload || payload;
+    console.log(`📥 [FRAME_ACK BROADCAST] For desktop client: ${targetDesktopClientId}, frame #${frameNumber}`);
+
+    // Check if the target desktop client is connected to THIS instance
+    const localDesktopClient = desktopClients.get(targetDesktopClientId);
+    if (localDesktopClient && localDesktopClient.socket.readyState === 1) {
+      localDesktopClient.socket.send(JSON.stringify({
+        type: 'frame_ack',
+        frameNumber,
+        latency,
+        timestamp: new Date().toISOString()
+      }));
+      console.log(`✅ [FRAME_ACK BROADCAST->LOCAL] Delivered frame_ack #${frameNumber} to desktop client ${targetDesktopClientId}`);
+    } else {
+      console.log(`⏭️ [FRAME_ACK BROADCAST] Desktop client ${targetDesktopClientId} not on this instance, skipping`);
+    }
+  })
   .subscribe(async (status: string) => {
     console.log(`🔔 [REALTIME STATUS] Channel subscription status: ${status}`);
     if (status === 'SUBSCRIBED') {
@@ -163,7 +184,7 @@ async function initDesktopCommandsTable() {
 initDesktopCommandsTable();
 
 // Database helper functions for managing active desktop clients
-async function registerDesktopClient(clientId: string, name: string, monitors: any[], capabilities: any, userId?: string, friendlyName?: string, hostname?: string): Promise<boolean> {
+async function registerDesktopClient(clientId: string, name: string, monitors: any[], capabilities: any, userId?: string, friendlyName?: string, hostname?: string) {
   try {
     console.log(`Attempting to register desktop client ${clientId} in database with instance ${INSTANCE_ID}...`);
 
@@ -459,13 +480,14 @@ serve(async (req) => {
   const clientType = url.searchParams.get('client_type') || 'web'; // 'desktop' or 'web'
   const clientId = url.searchParams.get('client_id') || crypto.randomUUID();
   const configId = url.searchParams.get('config_id') || url.pathname.split('/').pop();
-  
+
   console.log(`New ${clientType} client connected: ${clientId}`);
 
   if (clientType === 'desktop') {
     handleDesktopClient(socket, clientId);
   } else {
     handleWebClient(socket, clientId, configId);
+    console.log(`Web client registered: ${clientId} for config: ${configId}`);
   }
 
   return response;
@@ -485,7 +507,7 @@ function handleDesktopClient(socket: WebSocket, clientId: string) {
 
   socket.onopen = () => {
     console.log(`Desktop client ${clientId} connected`);
-    
+
     // Send connection acknowledgment
     socket.send(JSON.stringify({
       type: 'connection_established',
@@ -537,7 +559,7 @@ function handleDesktopClient(socket: WebSocket, clientId: string) {
               console.log(`📊 Database now has ${dbClientCount} clients`);
             } else {
               console.error(`❌ Registration returned false for ${clientId}`);
-              dbError = 'Registration failed - check database permissions and RLS policies';
+              dbError = `Registration failed - check database permissions and RLS policies`;
             }
           } catch (error) {
             console.error(`❌ Failed to register ${clientId} in database:`, error);
@@ -591,35 +613,6 @@ function handleDesktopClient(socket: WebSocket, clientId: string) {
           console.log(`📺 [DESKTOP->SERVER] Frame received from ${clientId}, metadata:`, message.metadata);
           await relayFrameToWebClients(message, clientId);
           break;
-          
-        case 'capability_report':
-          // Store desktop client capabilities
-          client.lastPing = Date.now();
-          console.log(`Desktop client ${clientId} capabilities:`, message.capabilities);
-          break;
-          
-        case 'get_commands':
-          // Desktop client polling for pending commands
-          // Update timestamp to show this client is still active
-          await updateDesktopClientPing(clientId);
-
-          const pendingCommands = await getPendingCommands(clientId);
-          console.log(`📥 [COMMAND POLL] Desktop client ${clientId} polling, found ${pendingCommands.length} pending commands`);
-
-          socket.send(JSON.stringify({
-            type: 'commands',
-            commands: pendingCommands,
-            timestamp: new Date().toISOString()
-          }));
-          break;
-
-        case 'command_result':
-          // Desktop client reporting command execution result
-          const { commandId, status: commandStatus, error: commandError } = message;
-          console.log(`📊 [COMMAND RESULT] Command ${commandId} status: ${commandStatus}`);
-
-          await markCommandProcessed(commandId, commandStatus, commandError);
-          break;
 
         case 'ping':
           client.lastPing = Date.now();
@@ -629,12 +622,12 @@ function handleDesktopClient(socket: WebSocket, clientId: string) {
             timestamp: new Date().toISOString()
           }));
           break;
-          
+
         case 'stream_status':
           client.isStreaming = message.streaming;
           broadcastDesktopStatus(clientId);
           break;
-          
+
         default:
           console.log(`Unknown desktop message type: ${message.type}`);
       }
@@ -667,7 +660,7 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
 
   socket.onopen = async () => {
     console.log(`Web client ${clientId} connected`);
-    
+
     // Send connection acknowledgment
     socket.send(JSON.stringify({
       type: 'connection_established',
@@ -733,7 +726,6 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
         case 'start_stream':
         case 'start_desktop_stream': // Accept alias for compatibility
           console.log(`🎬 [START_STREAM] Received start_stream request`);
-          console.log(`🎬 [START_STREAM] Full message:`, JSON.stringify(message));
 
           const desktopClientId = message.desktopClientId;
           console.log(`🎬 [START_STREAM] Target desktop client: ${desktopClientId}`);
@@ -811,7 +803,7 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
             console.log(`✅ [START_STREAM DB] Sent acknowledgment to web client`);
           }
           break;
-          
+
         case 'stop_stream':
         case 'stop_desktop_stream': // Accept alias for compatibility
           console.log(`Stop stream request for ${message.desktopClientId || 'unknown'}`);
@@ -863,38 +855,7 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
             }));
           }
           break;
-          
-        case 'request_screenshot':
-          console.log(`Screenshot request for ${message.desktopClientId}`);
 
-          if (!message.desktopClientId) {
-            socket.send(JSON.stringify({
-              type: 'error',
-              error: 'desktopClientId is required',
-              timestamp: new Date().toISOString()
-            }));
-            break;
-          }
-
-          const desktopClientForScreenshot = desktopClients.get(message.desktopClientId);
-
-          if (desktopClientForScreenshot) {
-            // Request screenshot from real desktop client
-            desktopClientForScreenshot.socket.send(JSON.stringify({
-              type: 'capture_screenshot',
-              timestamp: new Date().toISOString()
-            }));
-          } else {
-            // Desktop client not found - send error
-            console.log(`Desktop client ${message.desktopClientId} not found for screenshot`);
-            socket.send(JSON.stringify({
-              type: 'error',
-              error: `Desktop client ${message.desktopClientId} not found`,
-              timestamp: new Date().toISOString()
-            }));
-          }
-          break;
-          
         case 'ping':
           socket.send(JSON.stringify({
             type: 'pong',
@@ -903,30 +864,99 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
           }));
           break;
 
-        case 'frame_ack':
-          // Forward frame acknowledgment to desktop client for backpressure control
-          console.log(`📥 [FRAME_ACK] Received frame_ack for frame #${message.frameNumber} from web client`);
-
-          const targetDesktopClientId = message.desktopClientId;
-          if (!targetDesktopClientId) {
-            console.warn('⚠️ [FRAME_ACK] No desktopClientId in frame_ack message');
-            break;
-          }
-
-          const targetDesktopClient = desktopClients.get(targetDesktopClientId);
-          if (targetDesktopClient && targetDesktopClient.socket.readyState === 1) {
-            // Forward ack to desktop client
-            targetDesktopClient.socket.send(JSON.stringify({
-              type: 'frame_ack',
-              frameNumber: message.frameNumber,
-              latency: message.latency,
-              timestamp: new Date().toISOString()
-            }));
-            console.log(`✅ [FRAME_ACK] Forwarded frame_ack #${message.frameNumber} to desktop client ${targetDesktopClientId}`);
-          } else {
-            console.log(`⚠️ [FRAME_ACK] Desktop client ${targetDesktopClientId} not connected to forward ack`);
-          }
+        // ==================== UI AUTOMATION COMMANDS ====================
+        case 'mouse_click':
+        case 'execute_click':
+          console.log(`🖱️ [MOUSE_CLICK] Request for ${message.desktopClientId}`);
+          await handleAutomationCommand(socket, message.desktopClientId, 'mouse_click', {
+            monitorId: message.monitorId || 'monitor_0',
+            x: message.x,
+            y: message.y,
+            button: message.button || 'left',
+            double: message.double || false
+          });
           break;
+
+        case 'mouse_move':
+        case 'execute_move':
+          console.log(`🖱️ [MOUSE_MOVE] Request for ${message.desktopClientId}`);
+          await handleAutomationCommand(socket, message.desktopClientId, 'mouse_move', {
+            monitorId: message.monitorId || 'monitor_0',
+            x: message.x,
+            y: message.y,
+            duration: message.duration || 0.2
+          });
+          break;
+
+        case 'mouse_drag':
+        case 'execute_drag':
+          console.log(`🖱️ [MOUSE_DRAG] Request for ${message.desktopClientId}`);
+          await handleAutomationCommand(socket, message.desktopClientId, 'mouse_drag', {
+            monitorId: message.monitorId || 'monitor_0',
+            startX: message.startX,
+            startY: message.startY,
+            endX: message.endX,
+            endY: message.endY,
+            button: message.button || 'left',
+            duration: message.duration || 0.5
+          });
+          break;
+
+        case 'scroll':
+        case 'execute_scroll':
+          console.log(`🖱️ [SCROLL] Request for ${message.desktopClientId}`);
+          await handleAutomationCommand(socket, message.desktopClientId, 'scroll', {
+            monitorId: message.monitorId || 'monitor_0',
+            x: message.x,
+            y: message.y,
+            scrollAmount: message.scrollAmount || 3,
+            direction: message.direction || 'vertical'
+          });
+          break;
+
+        case 'type_text':
+        case 'execute_type':
+          console.log(`⌨️ [TYPE_TEXT] Request for ${message.desktopClientId}`);
+          await handleAutomationCommand(socket, message.desktopClientId, 'type_text', {
+            text: message.text,
+            interval: message.interval || 0.02
+          });
+          break;
+
+        case 'key_press':
+        case 'execute_key':
+          console.log(`⌨️ [KEY_PRESS] Request for ${message.desktopClientId}`);
+          await handleAutomationCommand(socket, message.desktopClientId, 'key_press', {
+            key: message.key,
+            modifiers: message.modifiers || []
+          });
+          break;
+
+        case 'hotkey':
+        case 'execute_hotkey':
+          console.log(`⌨️ [HOTKEY] Request for ${message.desktopClientId}`);
+          await handleAutomationCommand(socket, message.desktopClientId, 'hotkey', {
+            keys: message.keys
+          });
+          break;
+
+        case 'capture_region':
+        case 'execute_capture_region':
+          console.log(`📸 [CAPTURE_REGION] Request for ${message.desktopClientId}`);
+          await handleAutomationCommand(socket, message.desktopClientId, 'capture_region', {
+            monitorId: message.monitorId || 'monitor_0',
+            x: message.x,
+            y: message.y,
+            width: message.width,
+            height: message.height
+          });
+          break;
+
+        case 'get_mouse_position':
+          console.log(`🖱️ [GET_MOUSE_POSITION] Request for ${message.desktopClientId}`);
+          await handleAutomationCommand(socket, message.desktopClientId, 'get_mouse_position', {});
+          break;
+
 
         default:
           console.log(`Unknown web message type: ${message.type}`);
@@ -949,6 +979,80 @@ function handleWebClient(socket: WebSocket, clientId: string, configId: string) 
     console.log(`Web client ${clientId} disconnected`);
     webClients.delete(clientId);
   };
+}
+
+// ==================== UI AUTOMATION HELPER ====================
+async function handleAutomationCommand(
+  webSocket: WebSocket,
+  desktopClientId: string,
+  commandType: string,
+  commandData: Record<string, unknown>
+): Promise<void> {
+  if (!desktopClientId) {
+    webSocket.send(JSON.stringify({
+      type: 'error',
+      error: 'desktopClientId is required for automation commands',
+      commandType,
+      timestamp: new Date().toISOString()
+    }));
+    return;
+  }
+
+  console.log(`🤖 [AUTOMATION] Processing ${commandType} for ${desktopClientId}`);
+  console.log(`🤖 [AUTOMATION] Command data:`, JSON.stringify(commandData));
+
+  // Build the full command message
+  const fullCommandData = {
+    type: commandType,
+    ...commandData,
+    timestamp: new Date().toISOString()
+  };
+
+  // Try local delivery first
+  const localDesktopClient = desktopClients.get(desktopClientId);
+  
+  if (localDesktopClient && localDesktopClient.socket.readyState === 1) {
+    // Desktop client is on THIS instance - send directly
+    console.log(`✅ [AUTOMATION LOCAL] Sending ${commandType} directly to ${desktopClientId}`);
+    localDesktopClient.socket.send(JSON.stringify(fullCommandData));
+    
+    webSocket.send(JSON.stringify({
+      type: 'automation_command_sent',
+      commandType,
+      desktopClientId,
+      status: 'sent_direct',
+      timestamp: new Date().toISOString()
+    }));
+  } else {
+    // Desktop client not on this instance - insert into command queue
+    console.log(`💾 [AUTOMATION DB] Inserting ${commandType} command into database for ${desktopClientId}`);
+    
+    const commandInserted = await insertDesktopCommand(
+      desktopClientId,
+      commandType,
+      fullCommandData
+    );
+
+    if (commandInserted) {
+      console.log(`✅ [AUTOMATION DB] Command inserted, ID: ${commandInserted.id}`);
+      webSocket.send(JSON.stringify({
+        type: 'automation_command_sent',
+        commandType,
+        desktopClientId,
+        commandId: commandInserted.id,
+        status: 'queued',
+        timestamp: new Date().toISOString()
+      }));
+    } else {
+      console.error(`❌ [AUTOMATION DB] Failed to insert ${commandType} command`);
+      webSocket.send(JSON.stringify({
+        type: 'error',
+        error: `Failed to queue automation command: ${commandType}`,
+        desktopClientId,
+        timestamp: new Date().toISOString()
+      }));
+    }
+  }
 }
 
 async function relayFrameToWebClients(frameMessage: any, desktopClientId: string) {
@@ -1093,7 +1197,7 @@ async function startStreamForClient(desktopClientId: string, config: any) {
   }
 
   console.log(`Starting stream for desktop client ${desktopClientId}`);
-  
+
   try {
     desktopClient.socket.send(JSON.stringify({
       type: 'start_capture',
@@ -1118,7 +1222,7 @@ async function stopStreamForClient(desktopClientId: string) {
   }
 
   console.log(`Stopping stream for desktop client ${desktopClientId}`);
-  
+
   try {
     desktopClient.socket.send(JSON.stringify({
       type: 'stop_capture',
@@ -1146,44 +1250,25 @@ async function updateStreamConfig(config: any) {
   }
 }
 
-async function requestScreenshotFromDesktop(desktopClientId: string) {
-  const desktopClient = desktopClients.get(desktopClientId);
-  if (!desktopClient) return;
-
-  try {
-    desktopClient.socket.send(JSON.stringify({
-      type: 'capture_screenshot',
-      timestamp: new Date().toISOString()
-    }));
-  } catch (error) {
-    console.error(`Error requesting screenshot:`, error);
-  }
-}
-
-function getFirstAvailableDesktopClient(): string | null {
-  const clientIds = Array.from(desktopClients.keys());
-  return clientIds.length > 0 ? clientIds[0] : null;
-}
-
 // Mock stream management
 const activeStreams = new Map<WebSocket, NodeJS.Timer>();
 
 function startMockStream(socket: WebSocket, desktopClientId: string, monitorId: string = 'monitor_0') {
   // Stop existing stream if any
   stopMockStream(socket);
-  
+
   let frameNumber = 0;
   const interval = setInterval(() => {
     if (socket.readyState !== WebSocket.OPEN) {
       stopMockStream(socket);
       return;
     }
-    
+
     frameNumber++;
-    
+
     // Generate mock frame data (simulated base64 image)
     const mockFrameData = generateMockFrameData(frameNumber);
-    
+
     socket.send(JSON.stringify({
       type: 'frame_data',
       desktopClientId,
@@ -1199,7 +1284,7 @@ function startMockStream(socket: WebSocket, desktopClientId: string, monitorId: 
       }
     }));
   }, 100); // 10 FPS
-  
+
   activeStreams.set(socket, interval);
   console.log(`Started mock stream for ${desktopClientId}:${monitorId}`);
 }
@@ -1215,7 +1300,7 @@ function stopMockStream(socket: WebSocket) {
 
 function sendMockScreenshot(socket: WebSocket, desktopClientId: string) {
   const mockScreenshotData = generateMockFrameData(0);
-  
+
   socket.send(JSON.stringify({
     type: 'screenshot',
     desktopClientId,
@@ -1240,7 +1325,7 @@ function generateMockFrameData(frameNumber: number): string {
       ${new Date().toISOString()}
     </text>
   </svg>`;
-  
+
   return btoa(svg);
 }
 

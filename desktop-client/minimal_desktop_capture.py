@@ -27,17 +27,15 @@ import os
 import socket
 import threading
 import time
-from datetime import datetime, timezone
-from io import BytesIO
-from typing import Optional, Dict, Any
-
 # GUI (single-button)
 import tkinter as tk
+from datetime import datetime, timezone
+from io import BytesIO
+from typing import Any, Dict, Optional
 
 # Efficient screen capture
 from mss import mss
 from PIL import Image
-
 # WebSocket client (callback-based, lightweight)
 from websocket import WebSocketApp
 
@@ -102,7 +100,9 @@ class MinimalDesktopCaptureClient:
         self.start_button.configure(text="Connecting...", state=tk.DISABLED)
 
         # Launch WS connection in background to keep UI responsive
-        self.ws_thread = threading.Thread(target=self._connect_ws, name="ws-thread", daemon=True)
+        self.ws_thread = threading.Thread(
+            target=self._connect_ws, name="ws-thread", daemon=True
+        )
         self.ws_thread.start()
 
     def on_close(self) -> None:
@@ -122,6 +122,7 @@ class MinimalDesktopCaptureClient:
     # ---------------------------- WebSocket Handling ---------------------------
     def _connect_ws(self) -> None:
         """Establish WebSocket connection and register callbacks."""
+
         def on_open(ws: WebSocketApp) -> None:
             # Send handshake immediately on open
             handshake = {
@@ -153,10 +154,12 @@ class MinimalDesktopCaptureClient:
             elif msg_type == "start_capture":
                 # Merge provided config with defaults and start streaming
                 config = data.get("config") or {}
-                self.current_config.update({
-                    k: config.get(k, self.current_config.get(k))
-                    for k in ("fps", "quality", "scale", "format")
-                })
+                self.current_config.update(
+                    {
+                        k: config.get(k, self.current_config.get(k))
+                        for k in ("fps", "quality", "scale", "format")
+                    }
+                )
                 self._start_capture()
 
             elif msg_type in ("stop_capture", "stop_desktop_stream"):
@@ -164,11 +167,13 @@ class MinimalDesktopCaptureClient:
 
             elif msg_type == "ping":
                 # Optional: reply with a lightweight pong to keep-alive
-                self._safe_send_json({
-                    "type": "pong",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "clientId": self.client_id,
-                })
+                self._safe_send_json(
+                    {
+                        "type": "pong",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "clientId": self.client_id,
+                    }
+                )
 
             # Other message types can be safely ignored by this minimal client
 
@@ -176,10 +181,17 @@ class MinimalDesktopCaptureClient:
             # Keep silent UI; log to console for debugging
             print(f"[WS][ERROR] {error}")
 
-        def on_close(ws: WebSocketApp, status_code: Optional[int], msg: Optional[str]) -> None:
+        def on_close(
+            ws: WebSocketApp, status_code: Optional[int], msg: Optional[str]
+        ) -> None:
             print(f"[WS] Closed: code={status_code}, msg={msg}")
             # Reset UI to allow retry
-            self.root.after(0, lambda: self.start_button.configure(text="Start Stream", state=tk.NORMAL))
+            self.root.after(
+                0,
+                lambda: self.start_button.configure(
+                    text="Start Stream", state=tk.NORMAL
+                ),
+            )
             # Ensure capture loop is stopped
             self._stop_capture()
 
@@ -208,18 +220,25 @@ class MinimalDesktopCaptureClient:
         self.streaming_active = True
 
         # Notify stream status (use boolean for server compatibility)
-        self._safe_send_json({
-            "type": "stream_status",
-            "streaming": True,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "clientId": self.client_id,
-        })
+        self._safe_send_json(
+            {
+                "type": "stream_status",
+                "streaming": True,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "clientId": self.client_id,
+            }
+        )
 
-        self.capture_thread = threading.Thread(target=self._capture_loop, name="capture-thread", daemon=True)
+        self.capture_thread = threading.Thread(
+            target=self._capture_loop, name="capture-thread", daemon=True
+        )
         self.capture_thread.start()
 
         # Update UI silently
-        self.root.after(0, lambda: self.start_button.configure(text="Streaming...", state=tk.DISABLED))
+        self.root.after(
+            0,
+            lambda: self.start_button.configure(text="Streaming...", state=tk.DISABLED),
+        )
 
     def _stop_capture(self) -> None:
         """Signal the capture loop to stop and report status."""
@@ -229,15 +248,19 @@ class MinimalDesktopCaptureClient:
         self.streaming_active = False
 
         # Notify stream status
-        self._safe_send_json({
-            "type": "stream_status",
-            "streaming": False,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "clientId": self.client_id,
-        })
+        self._safe_send_json(
+            {
+                "type": "stream_status",
+                "streaming": False,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "clientId": self.client_id,
+            }
+        )
 
         # Reset UI to allow restart
-        self.root.after(0, lambda: self.start_button.configure(text="Start Stream", state=tk.NORMAL))
+        self.root.after(
+            0, lambda: self.start_button.configure(text="Start Stream", state=tk.NORMAL)
+        )
 
     def _capture_loop(self) -> None:
         """Efficient capture loop using mss + JPEG encode, throttled by desired FPS."""

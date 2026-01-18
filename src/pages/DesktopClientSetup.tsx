@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -28,21 +28,10 @@ export default function DesktopClientSetup() {
   const [setupLogs, setSetupLogs] = useState<SetupLog[]>([]);
   const [isRunningSetup, setIsRunningSetup] = useState(false);
   const [isCheckingPermissions, setIsCheckingPermissions] = useState(false);
+  const [apiAvailable, setApiAvailable] = useState<boolean | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    checkAdminStatus();
-    checkClientStatus();
-
-    // Poll client status every 5 seconds
-    const interval = setInterval(checkClientStatus, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    // Auto-scroll logs to bottom
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [setupLogs]);
+  const checkingRef = useRef(false); // Prevent concurrent checks
+  const apiAvailableRef = useRef<boolean | null>(null); // Track current state
 
   const addLog = (type: SetupLog['type'], message: string) => {
     setSetupLogs(prev => [...prev, {
@@ -52,27 +41,125 @@ export default function DesktopClientSetup() {
     }]);
   };
 
-  const checkAdminStatus = async () => {
+  const checkAdminStatus = useCallback(async () => {
+    // Skip if API is already marked as unavailable or if already checking
+    if (apiAvailableRef.current === false || checkingRef.current) {
+      return;
+    }
+    
+    checkingRef.current = true;
+    
     try {
-      const response = await fetch(`${SETUP_API_URL}/api/setup/check-admin`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5 second timeout
+      
+      const response = await fetch(`${SETUP_API_URL}/api/setup/check-admin`, {
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
       setIsAdmin(data.isAdmin);
+      setApiAvailable(true);
     } catch (error) {
-      console.error('Failed to check admin status:', error);
+      // Only log connection errors once on first attempt
+      if (apiAvailableRef.current === null) {
+        // First attempt - log once, then suppress
+        if (error instanceof TypeError && error.message === 'Failed to fetch') {
+          console.warn('Setup API server not available on port 3001. This is expected if the server is not running.');
+        }
+      }
+      // Suppress all subsequent errors
+      
       setIsAdmin(null);
+      setApiAvailable(false);
+    } finally {
+      checkingRef.current = false;
     }
-  };
+  }, []);
 
-  const checkClientStatus = async () => {
+  const checkClientStatus = useCallback(async () => {
+    // Skip if API is known to be unavailable or if already checking
+    if (apiAvailableRef.current === false || checkingRef.current) {
+      return;
+    }
+    
+    checkingRef.current = true;
+    
     try {
-      const response = await fetch(`${SETUP_API_URL}/api/setup/status`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5 second timeout
+      
+      const response = await fetch(`${SETUP_API_URL}/api/setup/status`, {
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
       setClientRunning(data.clientRunning);
+      setApiAvailable(true);
     } catch (error) {
-      console.error('Failed to check client status:', error);
+      // Suppress all errors silently
       setClientRunning(null);
+      
+      // Mark as unavailable if not already marked
+      if (apiAvailableRef.current !== false) {
+        setApiAvailable(false);
+      }
+    } finally {
+      checkingRef.current = false;
     }
-  };
+  }, []);
+
+  // Sync ref with state
+  useEffect(() => {
+    apiAvailableRef.current = apiAvailable;
+  }, [apiAvailable]);
+
+  useEffect(() => {
+    // Check once on mount
+    checkAdminStatus();
+    checkClientStatus();
+
+    // Simple interval - functions will skip if API is unavailable
+    // Check every 10 seconds normally, but functions skip if apiAvailable === false
+    const interval = setInterval(() => {
+      if (apiAvailableRef.current === false) {
+        // Only check admin status every 30 seconds if server is unavailable
+        // Use a counter to implement 30-second interval
+        return;
+      }
+      // Normal polling if API is available or unknown
+      checkClientStatus();
+    }, 10000);
+    
+    // Separate interval for reconnection checks (every 30 seconds)
+    const reconnectInterval = setInterval(() => {
+      if (apiAvailableRef.current === false) {
+        checkAdminStatus();
+      }
+    }, 30000);
+    
+    return () => {
+      clearInterval(interval);
+      clearInterval(reconnectInterval);
+    };
+  }, [checkAdminStatus, checkClientStatus]);
+
+  useEffect(() => {
+    // Auto-scroll logs to bottom
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [setupLogs]);
 
   const handleRunSetup = async () => {
     if (!isAdmin) {
@@ -232,14 +319,36 @@ export default function DesktopClientSetup() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Setup API Status</span>
-              {getStatusBadge(isAdmin)}
+              {apiAvailable === false ? (
+                <Badge variant="destructive">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Unavailable
+                </Badge>
+              ) : (
+                getStatusBadge(isAdmin)
+              )}
             </CardTitle>
             <CardDescription>
               Permission setup requires Administrator privileges
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isAdmin === false && (
+            {apiAvailable === false && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Setup API server is not running on port 3001. Please start the setup API server to use these features.
+                  <div className="mt-2 text-sm">
+                    <strong>To start the server:</strong>
+                    <ul className="list-disc list-inside mt-1 space-y-1">
+                      <li>Navigate to the <code>desktop-client</code> folder</li>
+                      <li>Run <code>node setup-api.js</code> or start it via the provided batch file</li>
+                    </ul>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+            {apiAvailable === true && isAdmin === false && (
               <Alert variant="destructive">
                 <Shield className="h-4 w-4" />
                 <AlertDescription>
@@ -247,7 +356,7 @@ export default function DesktopClientSetup() {
                 </AlertDescription>
               </Alert>
             )}
-            {isAdmin === true && (
+            {apiAvailable === true && isAdmin === true && (
               <Alert>
                 <Shield className="h-4 w-4" />
                 <AlertDescription>
@@ -293,7 +402,7 @@ export default function DesktopClientSetup() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Button
               onClick={handleRunSetup}
-              disabled={!isAdmin || isRunningSetup}
+              disabled={apiAvailable === false || !isAdmin || isRunningSetup}
               size="lg"
               className="w-full"
             >
@@ -303,7 +412,7 @@ export default function DesktopClientSetup() {
 
             <Button
               onClick={handleCheckPermissions}
-              disabled={isCheckingPermissions}
+              disabled={apiAvailable === false || isCheckingPermissions}
               variant="outline"
               size="lg"
               className="w-full"
@@ -312,6 +421,15 @@ export default function DesktopClientSetup() {
               {isCheckingPermissions ? 'Checking...' : 'Check Permissions'}
             </Button>
           </div>
+          
+          {apiAvailable === false && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Setup features are disabled because the Setup API server is not available. Please start the server on port 3001 to enable these features.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <Alert>
             <AlertTriangle className="h-4 w-4" />

@@ -41,9 +41,23 @@ The Trusted Login System is a modern authentication and desktop automation platf
 
 ## Development Commands
 
+### Quick Start (All Services)
+```bash
+# Start ALL services with one command (recommended)
+scripts\start-all.bat
+
+# This starts:
+# - FastAPI Backend (port 8007)
+# - MoireServer (port 8766)
+# - Moire Agents worker
+# - Frontend (port 3003)
+# - Desktop Client (dual-monitor streaming)
+# Opens http://localhost:3003/electron automatically
+```
+
 ### Frontend Commands
 ```bash
-# Start frontend development server (runs on http://localhost:5173)
+# Start frontend development server (runs on http://localhost:5173 or 3003)
 npm run dev
 
 # Build for production
@@ -426,6 +440,54 @@ The project uses shadcn/ui components. When adding new UI components:
 - **Zustand** for global state (currently minimal, mainly `workflowStore`)
 - **React Query** for server state and caching
 - Local component state for UI-specific state
+
+## MCP Server Integration
+
+The project includes an MCP (Model Context Protocol) server for desktop automation, configured in `.claude/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "desktop-automation": {
+      "command": "python",
+      "args": ["backend/moire_agents/mcp_server_handoff.py"]
+    }
+  }
+}
+```
+
+**Available MCP Tools (32 total)**:
+
+| Category | Tools |
+|----------|-------|
+| **Core Automation** | `handoff_plan`, `handoff_execute`, `handoff_validate`, `handoff_action`, `handoff_status` |
+| **Screen/OCR** | `handoff_read_screen`, `handoff_get_focus`, `handoff_scroll` |
+| **Event Queue** | `handoff_event_add`, `handoff_event_status`, `handoff_event_list`, `handoff_event_cancel`, `handoff_batch_execute` |
+| **User Interaction** | `handoff_clarify`, `handoff_clarify_check`, `handoff_notify` |
+| **File/System** | `handoff_shell`, `handoff_file_search`, `handoff_file_open`, `handoff_dir_list`, `handoff_file_read`, `handoff_file_write`, `handoff_process_list`, `handoff_process_kill`, `handoff_system_info` |
+| **Smart Elements** | `handoff_find_element`, `handoff_scroll_to` |
+| **Document Processing** | `handoff_doc_scan`, `handoff_doc_edit`, `handoff_doc_apply`, `handoff_doc_export`, `handoff_doc_list` |
+| **Claude CLI** | `claude_cli_run`, `claude_cli_skill`, `claude_cli_status` |
+
+## Desktop Client
+
+The Python desktop client (`desktop-client/dual_screen_capture_client.py`) captures all monitors and streams via WebSocket:
+
+```bash
+# Start with local backend
+python dual_screen_capture_client.py --server-url ws://localhost:8007/ws/live-desktop
+
+# Start with Supabase relay
+python dual_screen_capture_client.py --server-url wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream
+```
+
+**Features**:
+
+- Multi-monitor capture using `mss` library
+- DPI-awareness for correct multi-monitor screenshots on Windows
+- Auto-reconnect with exponential backoff
+- Graceful shutdown handling (SIGTERM/SIGINT)
+- Frame format: base64 JPEG with `monitorId` field (`monitor_0`, `monitor_1`, etc.)
 
 ## Important Notes
 

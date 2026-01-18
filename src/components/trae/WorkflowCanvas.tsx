@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, memo } from 'react';
 import {
   ReactFlow,
   Node,
@@ -83,8 +83,42 @@ interface WorkflowGraph {
   edges: any[];
 }
 
+// Helper functions for node styling (memoized outside component)
+const getNodeColor = (type: string): string => {
+  switch (type) {
+    case 'manual_trigger': return 'bg-gradient-to-br from-emerald-100 to-green-200 border-emerald-400 shadow-emerald-200/50';
+    case 'schedule_trigger': return 'bg-gradient-to-br from-blue-100 to-indigo-200 border-blue-400 shadow-blue-200/50';
+    case 'websocket_comm': return 'bg-gradient-to-br from-emerald-100 to-teal-200 border-emerald-400 shadow-emerald-200/50';
+    case 'click_action': return 'bg-gradient-to-br from-orange-100 to-amber-200 border-orange-400 shadow-orange-200/50';
+    case 'type_text_action': return 'bg-gradient-to-br from-purple-100 to-violet-200 border-purple-400 shadow-purple-200/50';
+    case 'delay': return 'bg-gradient-to-br from-yellow-100 to-amber-200 border-yellow-400 shadow-yellow-200/50';
+    case 'http_request_action': return 'bg-gradient-to-br from-red-100 to-rose-200 border-red-400 shadow-red-200/50';
+    case 'if_condition': return 'bg-gradient-to-br from-cyan-100 to-teal-200 border-cyan-400 shadow-cyan-200/50';
+    case 'variable_store': return 'bg-gradient-to-br from-pink-100 to-rose-200 border-pink-400 shadow-pink-200/50';
+    case 'end': return 'bg-gradient-to-br from-gray-100 to-slate-200 border-gray-400 shadow-gray-200/50';
+    default: return 'bg-gradient-to-br from-white to-gray-100 border-gray-300 shadow-gray-200/50';
+  }
+};
+
+const getNodeIcon = (type: string) => {
+  switch (type) {
+    case 'manual_trigger': return <Play className="w-5 h-5 text-emerald-600" />;
+    case 'schedule_trigger': return <Timer className="w-5 h-5 text-blue-600" />;
+    case 'live_desktop': return <Monitor className="w-5 h-5 text-slate-600" />;
+    case 'websocket_comm': return <Wifi className="w-5 h-5 text-emerald-600" />;
+    case 'click_action': return <MousePointer className="w-5 h-5 text-orange-600" />;
+    case 'type_text_action': return <Keyboard className="w-5 h-5 text-purple-600" />;
+    case 'delay': return <Timer className="w-5 h-5 text-yellow-600" />;
+    case 'http_request_action': return <Globe className="w-5 h-5 text-red-600" />;
+    case 'if_condition': return <GitBranch className="w-5 h-5 text-cyan-600" />;
+    case 'variable_store': return <Database className="w-5 h-5 text-pink-600" />;
+    case 'end': return <Square className="w-5 h-5 text-gray-600" />;
+    default: return <Settings className="w-5 h-5 text-gray-600" />;
+  }
+};
+
 // Custom Node Component - n8n style simplified
-const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
+const CustomNode: React.FC<{ data: NodeData; id: string }> = memo(({ data, id }) => {
   // Config nodes (like websocket) - no handles, just visual
   if (data.type === 'websocket_config') {
     return (
@@ -142,40 +176,6 @@ const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
     );
   }
 
-  const getNodeColor = (type: string) => {
-    switch (type) {
-      case 'manual_trigger': return 'bg-gradient-to-br from-emerald-100 to-green-200 border-emerald-400 shadow-emerald-200/50';
-      case 'schedule_trigger': return 'bg-gradient-to-br from-blue-100 to-indigo-200 border-blue-400 shadow-blue-200/50';
-      case 'websocket_comm': return 'bg-gradient-to-br from-emerald-100 to-teal-200 border-emerald-400 shadow-emerald-200/50';
-      case 'click_action': return 'bg-gradient-to-br from-orange-100 to-amber-200 border-orange-400 shadow-orange-200/50';
-      case 'type_text_action': return 'bg-gradient-to-br from-purple-100 to-violet-200 border-purple-400 shadow-purple-200/50';
-      case 'delay': return 'bg-gradient-to-br from-yellow-100 to-amber-200 border-yellow-400 shadow-yellow-200/50';
-      case 'http_request_action': return 'bg-gradient-to-br from-red-100 to-rose-200 border-red-400 shadow-red-200/50';
-      case 'if_condition': return 'bg-gradient-to-br from-cyan-100 to-teal-200 border-cyan-400 shadow-cyan-200/50';
-      case 'variable_store': return 'bg-gradient-to-br from-pink-100 to-rose-200 border-pink-400 shadow-pink-200/50';
-  
-      case 'end': return 'bg-gradient-to-br from-gray-100 to-slate-200 border-gray-400 shadow-gray-200/50';
-      default: return 'bg-gradient-to-br from-white to-gray-100 border-gray-300 shadow-gray-200/50';
-    }
-  };
-
-  const getNodeIcon = (type: string) => {
-    switch (type) {
-      case 'manual_trigger': return <Play className="w-5 h-5 text-emerald-600" />;
-      case 'schedule_trigger': return <Timer className="w-5 h-5 text-blue-600" />;
-      case 'live_desktop': return <Monitor className="w-5 h-5 text-slate-600" />;
-      case 'websocket_comm': return <Wifi className="w-5 h-5 text-emerald-600" />;
-      case 'click_action': return <MousePointer className="w-5 h-5 text-orange-600" />;
-      case 'type_text_action': return <Keyboard className="w-5 h-5 text-purple-600" />;
-      case 'delay': return <Timer className="w-5 h-5 text-yellow-600" />;
-      case 'http_request_action': return <Globe className="w-5 h-5 text-red-600" />;
-      case 'if_condition': return <GitBranch className="w-5 h-5 text-cyan-600" />;
-      case 'variable_store': return <Database className="w-5 h-5 text-pink-600" />;
-  
-      case 'end': return <Square className="w-5 h-5 text-gray-600" />;
-      default: return <Settings className="w-5 h-5 text-gray-600" />;
-    }
-  };
 
   const hasConfig = data.config && Object.keys(data.config).length > 0;
   const isConfigured = hasConfig && Object.values(data.config).some(v => v !== undefined && v !== '');
@@ -232,9 +232,11 @@ const CustomNode: React.FC<{ data: NodeData; id: string }> = ({ data, id }) => {
       )}
     </div>
   );
-};
+});
 
-// Define custom node types
+CustomNode.displayName = 'CustomNode';
+
+// Define custom node types (constant - already optimized via React.memo on CustomNode)
 const nodeTypes: NodeTypes = {
   custom: CustomNode,
   manual_trigger: CustomNode,
@@ -258,7 +260,7 @@ interface WorkflowCanvasProps {
   onExecutionStart?: (executionId: string) => void;
 }
 
-const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
+const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = memo(({
   workflowId,
   readOnly = false,
   onWorkflowChange,
@@ -421,12 +423,10 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
     toast.success('Node deleted!');
   }, [readOnly, setNodes, setEdges, selectedNode]);
 
-  // Validate workflow
-  const validateWorkflow = useCallback(() => {
+  // Validate workflow (memoized)
+  const validation = useMemo(() => {
     return ConnectionValidator.validateWorkflow(nodes, edges);
   }, [nodes, edges]);
-
-  const validation = validateWorkflow();
 
   return (
     <div className="h-full flex bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -512,14 +512,14 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
             />
             <MiniMap 
               className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden"
-              nodeColor={(node) => {
+              nodeColor={useCallback((node: Node<NodeData>) => {
                 switch (node.data?.status) {
                   case 'running': return '#3b82f6';
                   case 'completed': return '#10b981';
                   case 'error': return '#ef4444';
                   default: return '#6b7280';
                 }
-              }}
+              }, [])}
             />
             <Background 
               variant={BackgroundVariant.Dots} 
@@ -655,14 +655,18 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
       />
     </div>
   );
-};
+});
 
-const WorkflowCanvas: React.FC<WorkflowCanvasProps> = (props) => {
+WorkflowCanvasInner.displayName = 'WorkflowCanvasInner';
+
+const WorkflowCanvas: React.FC<WorkflowCanvasProps> = memo((props) => {
   return (
     <ReactFlowProvider>
       <WorkflowCanvasInner {...props} />
     </ReactFlowProvider>
   );
-};
+});
+
+WorkflowCanvas.displayName = 'WorkflowCanvas';
 
 export default WorkflowCanvas;

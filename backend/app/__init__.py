@@ -12,4 +12,4 @@ __author__ = "TRAE Development Team"
 
 from .main import create_app
 
-__all__ = ["create_app"] 
+__all__ = ["create_app"]
