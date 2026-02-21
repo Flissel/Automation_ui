@@ -393,7 +393,7 @@ async def test_proxmox_connection():
     """Test function for Proxmox connection"""
     # Example configuration - replace with actual values
     client = ProxmoxClient(
-        host="78.46.234.142",
+        host="your-proxmox-host",
         username="root@pam",
         password="your_password_here",
         verify_ssl=False,

@@ -1,7 +1,9 @@
 {
-  "name": "vite_react_shadcn_ts",
-  "private": true,
-  "version": "0.0.0",
+  "name": "automation-ui",
+  "version": "1.0.0",
+  "description": "Desktop Automation Platform with real-time streaming, workflow automation, and AI-powered screen analysis",
+  "license": "MIT",
+  "keywords": ["desktop-automation", "screen-streaming", "workflow", "ocr", "ai-agent"],
   "type": "module",
   "scripts": {
     "dev": "vite",
