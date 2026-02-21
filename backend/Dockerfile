@@ -5,7 +5,7 @@
 # Optimiert für Container-Umgebung (ohne GUI-Abhängigkeiten)
 # =============================================================================
 
-FROM python:3.11-slim AS base
+FROM python:3.14-slim AS base
 
 # Labels
 LABEL maintainer="TRAE Development Team"
@@ -62,7 +62,7 @@ RUN pip install --upgrade pip && \
 # ============================================
 # Stage 3: Production Image
 # ============================================
-FROM python:3.11-slim AS production
+FROM python:3.14-slim AS production
 
 # System-Laufzeit-Abhängigkeiten (minimal)
 RUN apt-get update && apt-get install -y --no-install-recommends \
