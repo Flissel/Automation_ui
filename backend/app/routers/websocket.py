@@ -165,6 +165,7 @@ async def websocket_live_desktop(websocket: WebSocket):
                 "screenshot_capture",
                 "automation_triggers",
                 "multi_desktop_clients",
+                "task_queue",  # Voice → MCP task events
             ],
         }
 
@@ -280,6 +281,34 @@ async def handle_websocket_message(
         elif message_type == "mcp_call":
             await handle_mcp_call(websocket, client_id, message)
 
+        # Task Queue subscriptions
+        elif message_type == "subscribe_task_queue":
+            await handle_subscribe_task_queue(websocket, client_id, message)
+
+        elif message_type == "unsubscribe_task_queue":
+            await handle_unsubscribe_task_queue(websocket, client_id, message)
+
+        elif message_type == "get_task_queue_status":
+            status = await get_task_queue_status()
+            await websocket.send_text(json.dumps({
+                "type": "task_queue_status",
+                "status": status,
+                "timestamp": datetime.now().isoformat()
+            }))
+
+        elif message_type == "action_ack":
+            # ACK from desktop client for a delegated action (remote mode)
+            from ..services.action_router import action_router
+            command_id = message.get("commandId", "")
+            ack_result = {
+                "success": message.get("success", False),
+                "result": message.get("result", {}),
+                "executionTimeMs": message.get("executionTimeMs", 0),
+            }
+            resolved = action_router.handle_ack(command_id, ack_result)
+            if resolved:
+                logger.info(f"Action ACK resolved: {command_id} (success={ack_result['success']})")
+
         else:
             logger.warning(f"⚠️ Unknown message type from {client_id}: {message_type}")
             await websocket.send_text(
@@ -316,6 +345,28 @@ async def handle_frame_data(
 
     if not frame_data:
         return
+
+    # Store frame in StreamFrameCache for MCP tools (vision_analyze, handoff_read_screen)
+    try:
+        import sys
+        import os
+        moire_agents_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "moire_agents"
+        )
+        if moire_agents_path not in sys.path:
+            sys.path.insert(0, moire_agents_path)
+
+        from stream_frame_cache import StreamFrameCache
+        monitor_num = int(monitor_id.replace("monitor_", "")) if isinstance(monitor_id, str) else monitor_id
+        StreamFrameCache.update_frame(
+            monitor_id=monitor_num,
+            frame_base64=frame_data,
+            metadata=metadata
+        )
+        logger.debug(f"📦 Frame cached for monitor {monitor_num}")
+    except Exception as cache_error:
+        logger.debug(f"⚠️ Cache update failed: {cache_error}")
 
     # Create frame message for subscribers - use 'frame_data' type to match frontend expectation
     frame_message = json.dumps(
@@ -1096,3 +1147,112 @@ async def websocket_echo(websocket: WebSocket):
             logger.debug(f"🔄 Echoed: {data[:50]}...")
     except WebSocketDisconnect:
         logger.info("🔌 WebSocket echo connection disconnected")
+
+
+# === Task Queue Bridge (Redis → WebSocket) ===
+
+# Track clients subscribed to task queue events
+task_queue_subscribers: Set[str] = set()
+
+
+async def handle_subscribe_task_queue(websocket: WebSocket, client_id: str, message: Dict):
+    """Handle task queue subscription request"""
+    task_queue_subscribers.add(client_id)
+    logger.info(f"📋 Client {client_id} subscribed to task queue events")
+
+    await websocket.send_text(json.dumps({
+        "type": "task_queue_subscribed",
+        "clientId": client_id,
+        "timestamp": datetime.now().isoformat()
+    }))
+
+
+async def handle_unsubscribe_task_queue(websocket: WebSocket, client_id: str, message: Dict):
+    """Handle task queue unsubscription request"""
+    task_queue_subscribers.discard(client_id)
+    logger.info(f"📋 Client {client_id} unsubscribed from task queue events")
+
+    await websocket.send_text(json.dumps({
+        "type": "task_queue_unsubscribed",
+        "clientId": client_id,
+        "timestamp": datetime.now().isoformat()
+    }))
+
+
+async def broadcast_task_event(event_data: Dict[str, Any]):
+    """Broadcast task event to all subscribed WebSocket clients.
+
+    Called by Redis PubSub handler when task events are received.
+    """
+    if not task_queue_subscribers:
+        return
+
+    # Add timestamp if not present
+    if "timestamp" not in event_data:
+        event_data["timestamp"] = datetime.now().isoformat()
+
+    # Wrap in task_event message type
+    message = {
+        "type": "task_event",
+        "event": event_data.get("status", "unknown"),
+        "data": event_data
+    }
+    message_json = json.dumps(message)
+
+    disconnected_clients = []
+
+    for client_id in task_queue_subscribers:
+        if client_id in manager.active_connections:
+            try:
+                await manager.active_connections[client_id].send_text(message_json)
+                logger.debug(f"📋 Task event sent to {client_id}: {event_data.get('status')}")
+            except Exception as e:
+                logger.error(f"❌ Failed to send task event to {client_id}: {e}")
+                disconnected_clients.append(client_id)
+        else:
+            disconnected_clients.append(client_id)
+
+    # Cleanup disconnected subscribers
+    for client_id in disconnected_clients:
+        task_queue_subscribers.discard(client_id)
+
+
+async def setup_task_queue_bridge():
+    """Setup Redis → WebSocket bridge for task events.
+
+    Call this during app startup to subscribe to Redis task channels.
+    """
+    try:
+        from ..services.redis_pubsub import redis_pubsub
+        import os
+
+        # Connect to Redis if not already connected
+        if not redis_pubsub.is_connected:
+            redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+            await redis_pubsub.connect(redis_url)
+
+        # Subscribe to all task events with broadcast handler
+        await redis_pubsub.subscribe_task_events(broadcast_task_event)
+
+        logger.info("✅ Task Queue Bridge setup complete - Redis → WebSocket")
+        return True
+
+    except Exception as e:
+        logger.warning(f"⚠️ Task Queue Bridge setup failed (Redis may not be running): {e}")
+        return False
+
+
+async def get_task_queue_status() -> Dict[str, Any]:
+    """Get task queue bridge status"""
+    try:
+        from ..services.redis_pubsub import redis_pubsub
+        redis_connected = redis_pubsub.is_connected
+    except:
+        redis_connected = False
+
+    return {
+        "subscribers": len(task_queue_subscribers),
+        "subscriber_ids": list(task_queue_subscribers),
+        "redis_connected": redis_connected,
+        "active_connections": manager.get_connection_count()
+    }

@@ -683,6 +683,9 @@ class RobustDualScreenCaptureClient:
                     await self.websocket.send(
                         json.dumps({"type": "pong", "timestamp": time.time()})
                     )
+                elif msg_type == "execute_action":
+                    # Remote action from ActionRouter (Brain-in-Docker mode)
+                    asyncio.create_task(self._execute_remote_action(data))
                 elif msg_type == "shutdown":
                     logger.info("[CMD] SHUTDOWN empfangen von Server")
                     self.should_run = False
@@ -739,6 +742,168 @@ class RobustDualScreenCaptureClient:
                 )
         except Exception:
             pass
+
+    async def _execute_remote_action(self, data: Dict[str, Any]):
+        """Execute a remote action from ActionRouter and send ACK back.
+
+        Receives: {type: "execute_action", commandId, tool, arguments}
+        Sends:    {type: "action_ack", commandId, success, result, executionTimeMs}
+        """
+        command_id = data.get("commandId", "")
+        tool = data.get("tool", "")
+        args = data.get("arguments", {})
+        start_ts = time.time()
+
+        logger.info(f"[ACTION] Executing remote action: {tool} (cmd={command_id})")
+
+        result = {"success": False, "error": "Unknown tool"}
+        try:
+            if tool == "action_click":
+                x, y = int(args.get("x", 0)), int(args.get("y", 0))
+                button = args.get("button", "left")
+                pyautogui.moveTo(x, y, duration=0.3)
+                pyautogui.click(button=button)
+                result = {"success": True, "action": "click", "x": x, "y": y, "button": button}
+
+            elif tool == "action_type":
+                text = args.get("text", "")
+                try:
+                    import pyperclip
+                    pyperclip.copy(text)
+                    pyautogui.hotkey("ctrl", "v")
+                except ImportError:
+                    pyautogui.write(text, interval=0.02)
+                result = {"success": True, "action": "type", "text_length": len(text)}
+
+            elif tool == "action_press":
+                key = args.get("key", "enter")
+                pyautogui.press(key)
+                result = {"success": True, "action": "press", "key": key}
+
+            elif tool == "action_hotkey":
+                keys_str = args.get("keys", "")
+                keys = [k.strip() for k in keys_str.split("+") if k.strip()]
+                if keys:
+                    pyautogui.hotkey(*keys)
+                    result = {"success": True, "action": "hotkey", "keys": keys}
+                else:
+                    result = {"success": False, "error": "No keys provided"}
+
+            elif tool == "action_scroll":
+                direction = args.get("direction", "down")
+                amount = int(args.get("amount", 3))
+                x = args.get("x")
+                y = args.get("y")
+                clicks = amount if direction == "up" else -amount
+                if x is not None and y is not None:
+                    pyautogui.scroll(clicks, int(x), int(y))
+                else:
+                    pyautogui.scroll(clicks)
+                result = {"success": True, "action": "scroll", "direction": direction, "amount": amount}
+
+            elif tool == "get_focus":
+                try:
+                    import win32gui
+                    hwnd = win32gui.GetForegroundWindow()
+                    title = win32gui.GetWindowText(hwnd)
+                    result = {"success": True, "title": title, "hwnd": hwnd}
+                except ImportError:
+                    result = {"success": False, "error": "win32gui not available"}
+
+            elif tool == "set_focus":
+                title_query = args.get("title", "")
+                try:
+                    import win32gui
+                    found = []
+                    def _enum_cb(hwnd, results):
+                        if win32gui.IsWindowVisible(hwnd):
+                            t = win32gui.GetWindowText(hwnd)
+                            if title_query.lower() in t.lower():
+                                results.append(hwnd)
+                        return True
+                    win32gui.EnumWindows(_enum_cb, found)
+                    if found:
+                        hwnd = found[0]
+                        win32gui.ShowWindow(hwnd, 9)  # SW_RESTORE
+                        win32gui.SetForegroundWindow(hwnd)
+                        actual_title = win32gui.GetWindowText(hwnd)
+                        result = {"success": True, "is_focused": True, "recovered": True, "hwnd": hwnd, "title": actual_title}
+                    else:
+                        result = {"success": False, "error": f"Window '{title_query}' not found"}
+                except ImportError:
+                    result = {"success": False, "error": "win32gui not available"}
+
+            elif tool == "list_windows":
+                try:
+                    import win32gui
+                    windows = []
+                    def _enum_cb2(hwnd, results):
+                        if win32gui.IsWindowVisible(hwnd):
+                            t = win32gui.GetWindowText(hwnd)
+                            if t.strip():
+                                results.append({"hwnd": hwnd, "title": t})
+                        return True
+                    win32gui.EnumWindows(_enum_cb2, windows)
+                    result = {"success": True, "windows": windows, "count": len(windows)}
+                except ImportError:
+                    result = {"success": False, "error": "win32gui not available"}
+
+            elif tool == "mouse_move":
+                x, y = int(args.get("x", 0)), int(args.get("y", 0))
+                duration = min(float(args.get("duration", 0.5)), 2.0)
+                pyautogui.moveTo(x, y, duration=duration)
+                result = {"success": True, "x": x, "y": y, "duration": duration}
+
+            elif tool == "shell_exec":
+                import subprocess
+                cmd = args.get("command", "")
+                timeout = int(args.get("timeout", 30))
+                proc = subprocess.Popen(
+                    ["powershell", "-Command", cmd],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                    creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+                )
+                try:
+                    stdout, stderr = proc.communicate(timeout=min(timeout, 10))
+                    result = {
+                        "success": proc.returncode == 0,
+                        "stdout": stdout[:2000] if stdout else "",
+                        "stderr": stderr[:500] if stderr else "",
+                        "exit_code": proc.returncode,
+                    }
+                except subprocess.TimeoutExpired:
+                    # Process still running (GUI app) — that's OK
+                    result = {
+                        "success": True,
+                        "pid": proc.pid,
+                        "message": f"Process launched (PID {proc.pid}), still running",
+                    }
+
+            else:
+                result = {"success": False, "error": f"Unsupported tool: {tool}"}
+
+        except Exception as e:
+            logger.error(f"[ACTION] Execution failed: {tool} -> {e}")
+            result = {"success": False, "error": str(e)}
+
+        elapsed_ms = int((time.time() - start_ts) * 1000)
+
+        # Send ACK back to backend
+        try:
+            if self.websocket and self.is_connected:
+                ack = {
+                    "type": "action_ack",
+                    "commandId": command_id,
+                    "success": result.get("success", False),
+                    "result": result,
+                    "executionTimeMs": elapsed_ms,
+                    "clientId": self.client_id,
+                    "timestamp": time.time(),
+                }
+                await self.websocket.send(json.dumps(ack))
+                logger.info(f"[ACTION] ACK sent: {tool} success={result.get('success')} ({elapsed_ms}ms)")
+        except Exception as e:
+            logger.error(f"[ACTION] Failed to send ACK: {e}")
 
     async def ping_loop(self):
         logger.info("[PING] Loop gestartet (5s)")

@@ -1,0 +1,14 @@
+{
+  "summary": "",
+  "recent": [
+    {
+      "role": "user",
+      "content": "Oeffne den Rechner und rechne 42 mal 17"
+    },
+    {
+      "role": "assistant",
+      "content": "Aufgabe unvollstaendig (max iterations)"
+    }
+  ],
+  "turn_count": 1
+}

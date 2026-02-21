@@ -1,0 +1,22 @@
+{
+  "summary": "",
+  "recent": [
+    {
+      "role": "user",
+      "content": "Oeffne den Rechner und rechne 42 mal 17"
+    },
+    {
+      "role": "assistant",
+      "content": "Ich benötige deine Bestätigung, um den Rechner zu öffnen. Bitte bestätige die Ausführung des Befehls."
+    },
+    {
+      "role": "user",
+      "content": "Oeffne den Rechner und rechne 42 mal 17"
+    },
+    {
+      "role": "assistant",
+      "content": "Ich benötige deine Bestätigung, um den Rechner zu öffnen. Der Befehl `calc` wartet auf deine Freigabe.\n\nSobald du bestätigst, werde ich:\n1. Den Windows-Rechner öffnen\n2. Die Berechnung 42 × 17 durchführen\n3. Das Ergebnis (714) anzeigen\n\nBitte bestätige die Ausführung des Befehls."
+    }
+  ],
+  "turn_count": 2
+}

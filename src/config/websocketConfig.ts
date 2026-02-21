@@ -11,27 +11,25 @@
 // ============================================================================
 
 /**
- * Get WebSocket base URL from environment variables or use Supabase Edge Function
- * Priority: VITE_WS_URL > Supabase Edge Function (wss://...)
+ * Get WebSocket base URL from environment variables
+ * MIGRATED: Now uses local FastAPI backend exclusively (no Supabase)
+ * Priority: VITE_WS_URL > Default localhost
  */
 const getWebSocketBaseUrl = (): string => {
-  // Check for full WebSocket URL in environment
+  // Check for WebSocket URL in environment
   if (import.meta.env.VITE_WS_URL) {
-    const envUrl = import.meta.env.VITE_WS_URL;
-    
-    // Safety check: if envUrl points to localhost but we're not on localhost, ignore it
-    if (envUrl.includes('localhost') && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-      console.warn('⚠️ VITE_WS_URL points to localhost but running on', window.location.hostname, '- using Supabase Edge Function instead');
-      const supabaseProjectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || 'dgzreelowtzquljhxskq';
-      return `wss://${supabaseProjectId}.supabase.co/functions/v1`;
-    }
-    
-    return envUrl;
+    return import.meta.env.VITE_WS_URL;
   }
-  
-  // Default to Supabase Edge Function URL
-  const supabaseProjectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || 'dgzreelowtzquljhxskq';
-  return `wss://${supabaseProjectId}.supabase.co/functions/v1`;
+
+  // Build WebSocket URL from backend URL if available
+  if (import.meta.env.VITE_BACKEND_URL) {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    // Convert http(s) to ws(s)
+    return backendUrl.replace(/^http/, 'ws') + '/ws';
+  }
+
+  // Default to local FastAPI backend
+  return 'ws://localhost:8007/ws';
 };
 
 // ============================================================================
@@ -42,12 +40,13 @@ export const WEBSOCKET_CONFIG = {
   // Base WebSocket server URL
   BASE_URL: getWebSocketBaseUrl(),
   
-  // Supabase Edge Function endpoint paths - match backend routes
+  // FastAPI WebSocket endpoint paths
   ENDPOINTS: {
     LIVE_DESKTOP: '/live-desktop',
     MULTI_DESKTOP: '/live-desktop',
     FILESYSTEM_BRIDGE: '/live-desktop',
     WORKFLOW: '/live-desktop',
+    CLAWDBOT: '/clawdbot',
     DEFAULT: '/live-desktop'
   },
   
@@ -89,6 +88,8 @@ export const WEBSOCKET_CONFIG = {
     DESKTOP_CAPTURE: 'desktop_capture',
     VIRTUAL_DESKTOP: 'virtual_desktop',
     FILESYSTEM_BRIDGE: 'filesystem_bridge',
+    CLAWDBOT: 'clawdbot',
+    CLAWDBOT_PLUGIN: 'clawdbot_plugin',
   },
   
   // Capability definitions
@@ -101,6 +102,10 @@ export const WEBSOCKET_CONFIG = {
     WORKFLOW_DATA: 'workflow_data',
     DESKTOP_STREAM: 'desktop_stream',
     OCR_PROCESSING: 'ocr_processing',
+    // Clawdbot messaging integration
+    MESSAGING_BRIDGE: 'messaging_bridge',
+    AUTOMATION_COMMANDS: 'automation_commands',
+    NOTIFICATIONS: 'notifications',
   }
 } as const;
 

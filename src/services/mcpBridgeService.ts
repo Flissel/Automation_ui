@@ -295,7 +295,7 @@ export async function executeMCPNode(
           shell: config.shell,
         });
 
-      case 'mcp_find_element':
+      case 'mcp_find_element': {
         const result = await mcpBridgeService.findElement({
           text: config.text,
           element_type: config.element_type === 'any' ? undefined : config.element_type,
@@ -306,6 +306,7 @@ export async function executeMCPNode(
           await mcpBridgeService.click({ x: result.data.x, y: result.data.y });
         }
         return result;
+      }
 
       case 'mcp_scroll':
         return mcpBridgeService.scroll({

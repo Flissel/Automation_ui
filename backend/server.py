@@ -14,6 +14,12 @@ import uvicorn
 # Add current directory to path for proper imports
 sys.path.append(str(Path(__file__).parent))
 
+# Load .env from project root so os.getenv() works everywhere
+from dotenv import load_dotenv
+_env_path = Path(__file__).parent.parent / ".env"
+if _env_path.exists():
+    load_dotenv(_env_path, override=False)
+
 from app.main import create_app
 
 # Create app instance for uvicorn to import

@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Monitor,
-  MessageSquare,
   Settings,
   Play,
   Pause,
@@ -22,7 +21,8 @@ import {
   WifiOff,
   Zap
 } from 'lucide-react';
-import { IntentChatPanel } from '@/components/electron/IntentChatPanel';
+// IntentChatPanel replaced by vapi_web.html iframe (Voice Control)
+import type { StreamEvent } from '@/components/electron/IntentChatPanel';
 import { LiveStreamWithDetection, DetectionBox, FrameData } from '@/components/electron/LiveStreamWithDetection';
 import {
   isElectron,
@@ -345,9 +345,39 @@ export const ElectronDesktopAutomation: React.FC = () => {
     if (inElectron) {
       const success = await startScreenCapture({ fps: 15, quality: 80 });
       setIsCapturing(success);
-    } else if (websocket) {
-      sendWebSocketMessage(websocket, { type: 'start_capture' });
-      setIsCapturing(true);
+    } else {
+      // Check if desktop client process is running, start if needed
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8007';
+      try {
+        const statusRes = await fetch(`${backendUrl}/api/client/status`);
+        const status = await statusRes.json();
+
+        if (!status.is_running) {
+          // Start desktop client process via backend
+          await fetch(`${backendUrl}/api/client/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ auto_restart: true })
+          });
+          // Wait for client to connect to WebSocket
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          // Re-request desktop clients list to trigger auto-subscription
+          if (websocket) {
+            sendWebSocketMessage(websocket, { type: 'get_desktop_clients' });
+          }
+        } else if (websocket) {
+          // Client already running, just send start_capture
+          sendWebSocketMessage(websocket, { type: 'start_capture' });
+        }
+        setIsCapturing(true);
+      } catch (err) {
+        console.error('Failed to start desktop client:', err);
+        // Fallback: try sending start_capture anyway
+        if (websocket) {
+          sendWebSocketMessage(websocket, { type: 'start_capture' });
+          setIsCapturing(true);
+        }
+      }
     }
   }, [inElectron, websocket]);
 
@@ -421,8 +451,111 @@ export const ElectronDesktopAutomation: React.FC = () => {
     return result;
   }, [executeAction]);
 
+  // LLM-powered intent processing via Claude Opus 4.6
+  const handleIntent = useCallback(async (text: string) => {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8007';
+    try {
+      const response = await fetch(`${backendUrl}/api/llm/intent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      if (!response.ok) {
+        const errText = await response.text();
+        return { success: false, action: 'error', error: `API ${response.status}: ${errText.substring(0, 200)}` };
+      }
+      const data = await response.json();
+      return {
+        success: data.success,
+        action: data.steps?.length ? data.steps.map((s: { tool: string }) => s.tool).join(' → ') : text,
+        ocrText: data.summary || ''
+      };
+    } catch (err) {
+      return { success: false, action: 'error', error: String(err) };
+    }
+  }, []);
+
+  // Persistent conversation ID for intervention system (approve/deny)
+  const conversationIdRef = useRef(`conv_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`);
+
+  // LLM-powered intent processing with SSE streaming
+  const handleIntentStream = useCallback(async (
+    text: string,
+    onEvent: (event: StreamEvent) => void
+  ): Promise<void> => {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8007';
+    try {
+      const response = await fetch(`${backendUrl}/api/llm/intent/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, conversation_id: conversationIdRef.current })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        onEvent({ type: 'error', message: `API ${response.status}: ${errText.substring(0, 200)}` });
+        onEvent({ type: 'done', success: false, total_steps: 0, iterations: 0, duration_ms: 0 });
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        onEvent({ type: 'error', message: 'No response body reader' });
+        onEvent({ type: 'done', success: false, total_steps: 0, iterations: 0, duration_ms: 0 });
+        return;
+      }
+
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event: StreamEvent = JSON.parse(line.substring(6));
+              onEvent(event);
+            } catch {
+              // Ignore parse errors
+            }
+          }
+        }
+      }
+
+      // Process remaining buffer
+      if (buffer.startsWith('data: ')) {
+        try {
+          const event: StreamEvent = JSON.parse(buffer.substring(6));
+          onEvent(event);
+        } catch {
+          // Ignore
+        }
+      }
+    } catch (err) {
+      onEvent({ type: 'error', message: String(err) });
+      onEvent({ type: 'done', success: false, total_steps: 0, iterations: 0, duration_ms: 0 });
+    }
+  }, []);
+
   const handleClickPosition = useCallback((x: number, y: number) => {
     setClickTarget({ x, y });
+  }, []);
+
+  // Listen for action_visual events from voice iframe (PostMessage)
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'action_visual') {
+        setClickTarget({ x: event.data.x, y: event.data.y });
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
   }, []);
 
   // ============================================
@@ -552,8 +685,8 @@ export const ElectronDesktopAutomation: React.FC = () => {
           <Tabs defaultValue="chat" className="h-full flex flex-col">
             <TabsList className="bg-gray-800 shrink-0">
               <TabsTrigger value="chat" className="flex items-center gap-1">
-                <MessageSquare className="w-4 h-4" />
-                Chat
+                <Zap className="w-4 h-4" />
+                Voice
               </TabsTrigger>
               <TabsTrigger value="info" className="flex items-center gap-1">
                 <Monitor className="w-4 h-4" />
@@ -566,11 +699,11 @@ export const ElectronDesktopAutomation: React.FC = () => {
             </TabsList>
 
             <TabsContent value="chat" className="flex-1 mt-2 overflow-hidden">
-              <IntentChatPanel
-                onReadScreen={handleReadScreen}
-                onValidate={handleValidate}
-                onAction={handleAction}
-                className="h-full"
+              <iframe
+                src="http://localhost:8765"
+                className="w-full h-full border-0 rounded-lg"
+                title="Voice Control"
+                allow="microphone"
               />
             </TabsContent>
 

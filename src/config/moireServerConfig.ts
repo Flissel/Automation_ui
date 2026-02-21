@@ -5,8 +5,8 @@
  * which handles UI detection, OCR, and CNN classification.
  */
 
-// MoireServer WebSocket URL
-export const MOIRE_SERVER_URL = 'ws://localhost:8766';
+// MoireServer WebSocket URL (MoireTracker submodule)
+export const MOIRE_SERVER_URL = 'ws://localhost:8765';
 
 // Message types for MoireServer communication
 export const MOIRE_MESSAGE_TYPES = {

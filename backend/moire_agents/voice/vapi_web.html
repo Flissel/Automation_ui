@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moire Voice Control</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 600px;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            color: #888;
+            margin-bottom: 2rem;
+        }
+        .status {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+        .status.ready { background: rgba(100, 255, 100, 0.2); border: 1px solid #64ff64; }
+        .status.listening { background: rgba(100, 200, 255, 0.2); border: 1px solid #64c8ff; }
+        .status.processing { background: rgba(255, 200, 100, 0.2); border: 1px solid #ffc864; }
+        .status.error { background: rgba(255, 100, 100, 0.2); border: 1px solid #ff6464; }
+
+        .mic-button {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #00d9ff, #00ff88);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 2rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 30px rgba(0, 217, 255, 0.3);
+        }
+        .mic-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 40px rgba(0, 217, 255, 0.5);
+        }
+        .mic-button.active {
+            animation: pulse 1.5s infinite;
+            background: linear-gradient(135deg, #ff6464, #ff8c64);
+        }
+        .mic-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .mic-button svg {
+            width: 48px;
+            height: 48px;
+            fill: #1a1a2e;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 100, 100, 0.5); }
+            50% { box-shadow: 0 0 0 20px rgba(255, 100, 100, 0); }
+        }
+
+        .transcript {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            text-align: left;
+        }
+        .transcript-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        .message {
+            margin-bottom: 0.75rem;
+            padding: 0.5rem;
+            border-radius: 8px;
+        }
+        .message.user {
+            background: rgba(0, 217, 255, 0.1);
+            border-left: 3px solid #00d9ff;
+        }
+        .message.system {
+            background: rgba(0, 255, 136, 0.1);
+            border-left: 3px solid #00ff88;
+        }
+        .message.error {
+            background: rgba(255, 100, 100, 0.1);
+            border-left: 3px solid #ff6464;
+        }
+        .message-label {
+            font-size: 0.7rem;
+            color: #666;
+            margin-bottom: 0.25rem;
+        }
+
+        .commands {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+        .command-chip {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            color: #fff;
+        }
+        .command-chip:hover {
+            background: rgba(0, 217, 255, 0.3);
+        }
+
+        .input-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        .input-row input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: #fff;
+            font-size: 1rem;
+        }
+        .input-row input::placeholder {
+            color: #666;
+        }
+        .input-row button {
+            background: linear-gradient(135deg, #00d9ff, #00ff88);
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            color: #1a1a2e;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .browser-warning {
+            background: rgba(255, 200, 100, 0.2);
+            border: 1px solid #ffc864;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        /* Task List */
+        .task-list {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            text-align: left;
+            display: none;
+        }
+        .task-list.visible { display: block; }
+        .task-list-title {
+            font-size: 0.8rem;
+            color: #00d9ff;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+        .task-item {
+            padding: 0.3rem 0.5rem;
+            margin-bottom: 0.25rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .task-item.pending { color: #888; }
+        .task-item.in_progress { color: #ffc864; background: rgba(255, 200, 100, 0.1); }
+        .task-item.done { color: #64ff64; }
+        .task-item.failed { color: #ff6464; text-decoration: line-through; }
+        .task-icon { width: 1.2em; text-align: center; }
+
+        /* Click Warning */
+        .message.warning {
+            background: rgba(255, 200, 100, 0.15);
+            border-left: 3px solid #ffc864;
+        }
+
+        /* Intervention Controls */
+        .intervention-bar {
+            display: none;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .intervention-bar.visible { display: flex; }
+        .intervention-btn {
+            padding: 0.4rem 1rem;
+            border-radius: 6px;
+            border: 1px solid;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: #fff;
+            background: transparent;
+            transition: all 0.2s;
+        }
+        .intervention-btn.pause { border-color: #ffc864; }
+        .intervention-btn.pause:hover { background: rgba(255, 200, 100, 0.3); }
+        .intervention-btn.cancel { border-color: #ff6464; }
+        .intervention-btn.cancel:hover { background: rgba(255, 100, 100, 0.3); }
+        .intervention-btn.feedback { border-color: #00d9ff; }
+        .intervention-btn.feedback:hover { background: rgba(0, 217, 255, 0.3); }
+
+        /* Approval Bar */
+        .approval-bar {
+            display: none;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border: 1px solid #ffc864;
+            border-radius: 8px;
+            background: rgba(255, 200, 100, 0.1);
+        }
+        .approval-bar.visible { display: flex; }
+
+        .click-confirm-bar {
+            display: none;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border: 1px solid #64b5f6;
+            border-radius: 8px;
+            background: rgba(100, 181, 246, 0.1);
+        }
+        .click-confirm-bar.visible { display: flex; }
+        .click-confirm-bar .confirm-title {
+            font-weight: bold;
+            color: #64b5f6;
+            font-size: 0.9rem;
+        }
+        .click-confirm-bar .confirm-detail {
+            color: #ccc;
+            font-size: 0.85rem;
+        }
+        .click-confirm-bar .confirm-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.3rem;
+        }
+        .confirm-btn {
+            padding: 0.5rem 1.5rem;
+            border-radius: 6px;
+            border: 1px solid;
+            color: #fff;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .confirm-btn.correct { border-color: #4ade80; background: rgba(74, 222, 128, 0.2); }
+        .confirm-btn.wrong { border-color: #ff6464; background: rgba(255, 100, 100, 0.2); }
+        .approval-bar .approval-title {
+            font-weight: bold;
+            color: #ffc864;
+            font-size: 0.9rem;
+        }
+        .approval-bar .approval-detail {
+            color: #ccc;
+            font-size: 0.85rem;
+            word-break: break-all;
+        }
+        .approval-bar .approval-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.3rem;
+        }
+        .approval-btn {
+            padding: 0.5rem 1.5rem;
+            border-radius: 6px;
+            border: 1px solid;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #fff;
+            transition: all 0.2s;
+        }
+        .approval-btn.approve { border-color: #4ade80; background: rgba(74, 222, 128, 0.2); }
+        .approval-btn.approve:hover { background: rgba(74, 222, 128, 0.4); }
+        .approval-btn.deny { border-color: #ff6464; background: rgba(255, 100, 100, 0.2); }
+        .approval-btn.deny:hover { background: rgba(255, 100, 100, 0.4); }
+        .feedback-input {
+            display: none;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .feedback-input.visible { display: flex; }
+
+        /* Live Typing Indicator */
+        .typing-indicator {
+            display: none;
+            background: rgba(0, 217, 255, 0.08);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.75rem;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .typing-indicator.visible { display: block; }
+        .typing-indicator .typing-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.4rem;
+            font-size: 0.75rem;
+            color: #00d9ff;
+        }
+        .typing-indicator .typing-progress-bar {
+            height: 3px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+            margin-bottom: 0.5rem;
+            overflow: hidden;
+        }
+        .typing-indicator .typing-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            border-radius: 2px;
+            transition: width 0.15s ease;
+            width: 0%;
+        }
+        .typing-indicator .typing-text {
+            color: #e0e0e0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 120px;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+        .typing-indicator .typing-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            background: #00d9ff;
+            margin-left: 1px;
+            animation: blink 0.7s infinite;
+            vertical-align: text-bottom;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Moire Voice Control</h1>
+        <p class="subtitle">Sprachgesteuerte Desktop-Automatisierung</p>
+
+        <div id="browserWarning" class="browser-warning">
+            Dein Browser unterstützt keine Spracherkennung. Bitte Chrome oder Edge verwenden.
+        </div>
+
+        <div id="status" class="status ready">
+            Bereit - Klicke auf das Mikrofon oder tippe einen Befehl
+        </div>
+
+        <div id="taskList" class="task-list">
+            <div class="task-list-title">Aufgaben:</div>
+            <div id="taskItems"></div>
+        </div>
+
+        <div id="interventionBar" class="intervention-bar">
+            <button class="intervention-btn pause" onclick="togglePause()" id="pauseBtn">Pause</button>
+            <button class="intervention-btn cancel" onclick="cancelExecution()">Abbrechen</button>
+            <button class="intervention-btn feedback" onclick="showFeedback()">Eingreifen</button>
+        </div>
+        <div id="approvalBar" class="approval-bar">
+            <div class="approval-title" id="approvalTitle">Tool braucht Genehmigung</div>
+            <div class="approval-detail" id="approvalDetail"></div>
+            <div class="approval-buttons">
+                <button class="approval-btn approve" onclick="handleToolApproval(true)">Genehmigen</button>
+                <button class="approval-btn deny" onclick="handleToolApproval(false)">Ablehnen</button>
+            </div>
+        </div>
+
+        <div id="clickConfirmBar" class="click-confirm-bar">
+            <div class="confirm-title" id="confirmTitle">Klick richtig?</div>
+            <div class="confirm-detail" id="confirmDetail"></div>
+            <div class="confirm-buttons">
+                <button class="confirm-btn correct" onclick="handleClickConfirm(true)">Richtig</button>
+                <button class="confirm-btn wrong" onclick="handleClickConfirm(false)">Falsch</button>
+            </div>
+        </div>
+
+        <div id="feedbackInput" class="feedback-input">
+            <input type="text" id="feedbackText" placeholder="Anweisung an den Agent..."
+                   onkeypress="if(event.key==='Enter') sendFeedback()"
+                   style="flex:1; background: rgba(255,255,255,0.1); border: 1px solid rgba(0,217,255,0.3); border-radius: 6px; padding: 0.5rem; color: #fff;">
+            <button onclick="sendFeedback()" style="background: rgba(0,217,255,0.3); border: 1px solid #00d9ff; color: #fff; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">Senden</button>
+        </div>
+
+        <button id="micButton" class="mic-button" onclick="toggleListening()">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1 1.93c-3.94-.49-7-3.85-7-7.93h2c0 3.03 2.47 5.5 5.5 5.5S17 11.03 17 8h2c0 4.08-3.06 7.44-7 7.93V19h4v2H8v-2h4v-3.07z"/>
+            </svg>
+        </button>
+
+        <div id="typingIndicator" class="typing-indicator">
+            <div class="typing-header">
+                <span>Tippe Text...</span>
+                <span id="typingProgress">0%</span>
+            </div>
+            <div class="typing-progress-bar">
+                <div id="typingProgressFill" class="typing-progress-fill"></div>
+            </div>
+            <div class="typing-text" id="typingText"><span class="typing-cursor"></span></div>
+        </div>
+
+        <div class="transcript">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="transcript-label">Verlauf: <span id="memoryIndicator" style="color: #00ff88; font-size: 0.75rem;"></span></div>
+                <button onclick="newConversation()" style="background: rgba(255,100,100,0.3); border: 1px solid #ff6464; color: #fff; padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.75rem; cursor: pointer;">Neues Gespraech</button>
+            </div>
+            <div id="messages"></div>
+        </div>
+
+        <div class="input-row">
+            <input type="text" id="textInput" placeholder="Oder tippe einen Befehl..."
+                   onkeypress="if(event.key==='Enter') sendTextCommand()">
+            <button onclick="sendTextCommand()">Senden</button>
+        </div>
+
+        <div class="commands">
+            <button class="command-chip" onclick="sendCommand('Was ist auf meinem Bildschirm?')">Was sehe ich?</button>
+            <button class="command-chip" onclick="sendCommand('Oeffne Notepad und schreib Hello World')">Notepad Test</button>
+            <button class="command-chip" onclick="sendCommand('Oeffne den Rechner und rechne 42 mal 17')">Rechner Test</button>
+            <button class="command-chip" onclick="sendCommand('Scrolle nach unten')">Scrolle runter</button>
+        </div>
+        <div style="margin-top: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+            <label style="font-size: 0.8rem; color: #888; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                <input type="checkbox" id="videoAgentToggle" style="accent-color: #00d9ff;">
+                Video Agent (Frame-Analyse nach jedem Schritt)
+            </label>
+        </div>
+    </div>
+
+    <script>
+        // Backend API URL - LLM Intent SSE Streaming (Claude Opus 4 + 21 tools)
+        const API_URL = 'http://localhost:8007/api/llm/intent/stream';
+
+        // Conversation memory - persistent session ID
+        let conversationId = 'voice_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+
+        // Speech Recognition
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        let isListening = false;
+
+        // Silence timer state (outer scope so toggleListening can access)
+        let silenceTimer = null;
+        let silenceCountdown = null;
+        let collectedTranscript = '';
+        const SILENCE_TIMEOUT = 6000; // 6s silence before submit
+
+        // Session rotation - prevents Chrome's ~60s Web Speech API timeout
+        const SESSION_ROTATION_MS = 25000; // Rotate every 25s (well before 60s limit)
+        let sessionRotationTimer = null;
+        let isRotating = false;       // true during seamless rotation (don't clear transcript)
+        let preservedTranscript = ''; // carries text across rotation boundaries
+
+        const statusEl = document.getElementById('status');
+        const micButton = document.getElementById('micButton');
+        const messagesEl = document.getElementById('messages');
+        const textInput = document.getElementById('textInput');
+        const browserWarning = document.getElementById('browserWarning');
+
+        // Typing indicator
+        const typingIndicator = document.getElementById('typingIndicator');
+        const typingText = document.getElementById('typingText');
+        const typingProgressFill = document.getElementById('typingProgressFill');
+        const typingProgressLabel = document.getElementById('typingProgress');
+
+        function showTypingIndicator(show) {
+            typingIndicator.classList.toggle('visible', show);
+            if (!show) {
+                typingText.innerHTML = '<span class="typing-cursor"></span>';
+                typingProgressFill.style.width = '0%';
+                typingProgressLabel.textContent = '0%';
+            }
+        }
+
+        function updateTypingStream(event) {
+            showTypingIndicator(true);
+            const pct = Math.round((event.progress || 0) * 100);
+            typingProgressFill.style.width = pct + '%';
+            typingProgressLabel.textContent = pct + '%';
+            // Show text typed so far with blinking cursor
+            const escaped = (event.typed_so_far || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            typingText.innerHTML = escaped + '<span class="typing-cursor"></span>';
+            // Auto-scroll typing text
+            typingText.scrollTop = typingText.scrollHeight;
+        }
+
+        // Intervention system
+        const INTERVENE_URL = 'http://localhost:8007/api/llm/intent/intervene';
+        const interventionBar = document.getElementById('interventionBar');
+        const feedbackInputEl = document.getElementById('feedbackInput');
+        let isPaused = false;
+        let isExecuting = false;
+
+        function showInterventionBar(show) {
+            isExecuting = show;
+            interventionBar.classList.toggle('visible', show);
+            if (!show) {
+                feedbackInputEl.classList.remove('visible');
+                isPaused = false;
+                document.getElementById('pauseBtn').textContent = 'Pause';
+            }
+        }
+
+        async function sendIntervention(action, data = {}) {
+            try {
+                await fetch(INTERVENE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conversation_id: conversationId, action, data })
+                });
+            } catch (e) { console.error('Intervention failed:', e); }
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            sendIntervention(isPaused ? 'pause' : 'resume');
+            document.getElementById('pauseBtn').textContent = isPaused ? 'Weiter' : 'Pause';
+            if (isPaused) setStatus('processing', 'PAUSIERT - klicke "Weiter" zum Fortsetzen');
+        }
+
+        function cancelExecution() {
+            sendIntervention('cancel');
+            addMessage('warning', 'Ausfuehrung abgebrochen');
+            showInterventionBar(false);
+        }
+
+        function showFeedback() {
+            feedbackInputEl.classList.toggle('visible');
+            document.getElementById('feedbackText').focus();
+        }
+
+        function sendFeedback() {
+            const text = document.getElementById('feedbackText').value.trim();
+            if (!text) return;
+            sendIntervention('feedback', { message: text });
+            addMessage('user', '[Eingriff] ' + text);
+            document.getElementById('feedbackText').value = '';
+            feedbackInputEl.classList.remove('visible');
+        }
+
+        // Tool Approval system (for shell_exec, send_message, etc.)
+        let pendingApprovalTool = null;
+
+        function showApprovalBar(toolName, params, message) {
+            pendingApprovalTool = toolName;
+            document.getElementById('approvalTitle').textContent = `"${toolName}" braucht Genehmigung`;
+            const paramStr = params ? Object.entries(params).map(([k,v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`).join(', ') : '';
+            document.getElementById('approvalDetail').textContent = paramStr || message || '';
+            document.getElementById('approvalBar').classList.add('visible');
+        }
+
+        function hideApprovalBar() {
+            pendingApprovalTool = null;
+            document.getElementById('approvalBar').classList.remove('visible');
+        }
+
+        async function handleToolApproval(approved) {
+            const action = approved ? 'approve_tool' : 'deny_tool';
+            addMessage(approved ? 'system' : 'warning',
+                `[${approved ? 'GENEHMIGT' : 'ABGELEHNT'}] ${pendingApprovalTool}`);
+            hideApprovalBar();
+            await sendIntervention(action);
+        }
+
+        // ============================================
+        // Click Confirmation (Richtig/Falsch)
+        // ============================================
+        let pendingClickElement = null;
+
+        function showClickConfirmBar(element, x, y, confirmed, threshold) {
+            pendingClickElement = element;
+            document.getElementById('confirmTitle').textContent = `Klick auf "${element}" bei (${x}, ${y}) richtig?`;
+            document.getElementById('confirmDetail').textContent = `Bestaetigungen: ${confirmed}/${threshold}`;
+            document.getElementById('clickConfirmBar').classList.add('visible');
+        }
+
+        function hideClickConfirmBar() {
+            pendingClickElement = null;
+            document.getElementById('clickConfirmBar').classList.remove('visible');
+        }
+
+        async function handleClickConfirm(correct) {
+            const action = correct ? 'confirm_click' : 'deny_click';
+            addMessage(correct ? 'system' : 'warning',
+                `[${correct ? 'RICHTIG' : 'FALSCH'}] Klick auf "${pendingClickElement}"`);
+            hideClickConfirmBar();
+            await sendIntervention(action);
+        }
+
+        function startSilenceTimer() {
+            clearSilenceTimer();
+            let remaining = SILENCE_TIMEOUT / 1000;
+            // Show countdown in status
+            silenceCountdown = setInterval(() => {
+                remaining -= 1;
+                if (remaining > 0 && collectedTranscript.trim()) {
+                    setStatus('listening', `"${collectedTranscript.trim()}" — sende in ${remaining}s...`);
+                }
+            }, 1000);
+            silenceTimer = setTimeout(() => {
+                clearSilenceTimer();
+                clearSessionRotation();
+                if (collectedTranscript.trim()) {
+                    const cmd = collectedTranscript.trim();
+                    collectedTranscript = '';
+                    preservedTranscript = '';
+                    isListening = false;
+                    recognition.stop();
+                    micButton.classList.remove('active');
+                    sendCommand(cmd);
+                }
+            }, SILENCE_TIMEOUT);
+        }
+
+        function startSessionRotation() {
+            clearSessionRotation();
+            sessionRotationTimer = setTimeout(() => {
+                if (!isListening) return;
+                // Save current transcript for the next session
+                preservedTranscript = collectedTranscript;
+                isRotating = true;
+                console.log('[Voice] Session rotation - preserving:', preservedTranscript.length, 'chars');
+                try { recognition.stop(); } catch(e) {}
+                // onend handler will restart with isRotating=true
+            }, SESSION_ROTATION_MS);
+        }
+
+        function clearSessionRotation() {
+            if (sessionRotationTimer) { clearTimeout(sessionRotationTimer); sessionRotationTimer = null; }
+        }
+
+        function clearSilenceTimer() {
+            if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+            if (silenceCountdown) { clearInterval(silenceCountdown); silenceCountdown = null; }
+        }
+
+        // Check browser support
+        if (!SpeechRecognition) {
+            browserWarning.style.display = 'block';
+            micButton.disabled = true;
+        } else {
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'de-DE';
+
+            recognition.onstart = () => {
+                isListening = true;
+                if (isRotating) {
+                    // Seamless rotation: keep preserved text, just reset flag
+                    isRotating = false;
+                } else {
+                    // Fresh start: clear everything
+                    collectedTranscript = '';
+                    preservedTranscript = '';
+                }
+                clearSilenceTimer();
+                micButton.classList.add('active');
+                if (preservedTranscript) {
+                    setStatus('listening', `Erkannt: "${preservedTranscript}"`);
+                } else {
+                    setStatus('listening', 'Ich hoere zu... Sprich jetzt!');
+                }
+                // Start rotation timer to prevent Chrome timeout
+                startSessionRotation();
+            };
+
+            recognition.onend = () => {
+                clearSessionRotation();
+                // In continuous mode, restart if still listening and no pending submit
+                if (isListening) {
+                    if (isRotating) {
+                        // Seamless rotation - restart immediately, transcript preserved
+                        try { recognition.start(); } catch(e) { isRotating = false; }
+                    } else {
+                        // Normal restart (e.g. Chrome auto-stop)
+                        try { recognition.start(); } catch(e) {}
+                    }
+                    return;
+                }
+                micButton.classList.remove('active');
+                if (!silenceTimer) setStatus('ready', 'Bereit');
+            };
+
+            recognition.onresult = (event) => {
+                let sessionTranscript = '';
+                let hasInterim = false;
+                for (let i = 0; i < event.results.length; i++) {
+                    sessionTranscript += event.results[i][0].transcript;
+                    if (!event.results[i].isFinal) hasInterim = true;
+                }
+
+                // Combine preserved text from previous rotations with current session
+                collectedTranscript = preservedTranscript
+                    ? preservedTranscript + ' ' + sessionTranscript
+                    : sessionTranscript;
+                setStatus('listening', `Erkannt: "${collectedTranscript}"`);
+
+                // Reset silence timer on every speech result
+                startSilenceTimer();
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                if (event.error === 'no-speech') {
+                    // Don't stop listening on no-speech, just keep going
+                    if (!collectedTranscript.trim()) {
+                        setStatus('listening', 'Ich hoere zu... Sprich jetzt!');
+                    }
+                    return;
+                }
+                if (event.error === 'network' || event.error === 'aborted') {
+                    // Network error - submit what we have, then restart
+                    clearSessionRotation();
+                    if (collectedTranscript.trim()) {
+                        clearSilenceTimer();
+                        sendCommand(collectedTranscript.trim());
+                        collectedTranscript = '';
+                        preservedTranscript = '';
+                    }
+                    // Auto-restart recognition after short delay
+                    if (isListening) {
+                        setStatus('listening', 'Verbindung neu aufgebaut...');
+                        setTimeout(() => {
+                            try { recognition.start(); } catch(e) {}
+                        }, 300);
+                        return;
+                    }
+                }
+                isListening = false;
+                clearSilenceTimer();
+                micButton.classList.remove('active');
+                if (event.error === 'not-allowed') {
+                    setStatus('error', 'Mikrofon-Zugriff verweigert. Bitte erlaube den Zugriff.');
+                } else {
+                    setStatus('error', `Fehler: ${event.error}`);
+                }
+            };
+        }
+
+        function toggleListening() {
+            if (!recognition) return;
+
+            if (isListening) {
+                clearSilenceTimer();
+                clearSessionRotation();
+                collectedTranscript = '';
+                preservedTranscript = '';
+                isRotating = false;
+                isListening = false;
+                recognition.stop();
+                micButton.classList.remove('active');
+                setStatus('ready', 'Bereit');
+            } else {
+                recognition.start();
+            }
+        }
+
+        function sendTextCommand() {
+            const text = textInput.value.trim();
+            if (text) {
+                sendCommand(text);
+                textInput.value = '';
+            }
+        }
+
+        async function sendCommand(command) {
+            addMessage('user', command);
+            setStatus('processing', 'Verarbeite...');
+            showInterventionBar(true);
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: command,
+                        conversation_id: conversationId,
+                        video_agent: document.getElementById('videoAgentToggle').checked
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                // Read SSE stream
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep incomplete line in buffer
+
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        try {
+                            const event = JSON.parse(line.substring(6));
+                            handleSSEEvent(event);
+                        } catch (e) {
+                            // Ignore parse errors for incomplete JSON
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('API error:', error);
+                addMessage('error', `Backend nicht erreichbar (${error.message})`);
+                setStatus('error', 'Backend nicht erreichbar');
+                showInterventionBar(false);
+                showTypingIndicator(false);
+            }
+        }
+
+        const taskListEl = document.getElementById('taskList');
+        const taskItemsEl = document.getElementById('taskItems');
+
+        function renderTasks(tasks) {
+            taskItemsEl.innerHTML = '';
+            if (!tasks || tasks.length === 0) {
+                taskListEl.classList.remove('visible');
+                return;
+            }
+            taskListEl.classList.add('visible');
+            const icons = { pending: '○', in_progress: '◉', done: '●', failed: '✗' };
+            tasks.forEach(t => {
+                const item = document.createElement('div');
+                item.className = 'task-item ' + (t.status || 'pending');
+                const icon = document.createElement('span');
+                icon.className = 'task-icon';
+                icon.textContent = icons[t.status] || '○';
+                const title = document.createElement('span');
+                title.textContent = t.title || '';
+                item.appendChild(icon);
+                item.appendChild(title);
+                taskItemsEl.appendChild(item);
+            });
+        }
+
+        function handleSSEEvent(event) {
+            switch (event.type) {
+                case 'thinking':
+                    setStatus('processing', event.content ? `Denke: ${event.content}` : 'Denke...');
+                    break;
+                case 'tool_start':
+                    setStatus('processing', `Tool: ${event.tool}...`);
+                    if (event.tool !== 'update_tasks') {
+                        addMessage('system', `[${event.tool}] ${JSON.stringify(event.params || {})}`);
+                    }
+                    break;
+                case 'tool_result': {
+                    if (event.tool === 'update_tasks') break; // Handled by task_update event
+                    const icon = event.success ? '+' : 'x';
+                    const resultStr = event.result ? JSON.stringify(event.result) : '';
+                    addMessage('system', `[${icon}] ${event.tool} = ${event.success ? 'OK' : 'Fehler'}${resultStr && resultStr !== '{}' ? '\n' + resultStr : ''}`);
+                    break;
+                }
+                case 'task_update':
+                    renderTasks(event.tasks || []);
+                    break;
+                case 'click_warning':
+                    addMessage('warning', `Klick bei (${event.x},${event.y}) ohne Wirkung - ${event.message}`);
+                    break;
+                case 'typing_stream':
+                    updateTypingStream(event);
+                    setStatus('processing', `Tippe... ${Math.round((event.progress || 0) * 100)}%`);
+                    break;
+                case 'approval_required':
+                    showApprovalBar(event.tool, event.params, event.message);
+                    setStatus('processing', `GENEHMIGUNG NOETIG: ${event.tool}`);
+                    addMessage('warning', `GENEHMIGUNG NOETIG: ${event.tool}\n${event.message || ''}`);
+                    break;
+                case 'waiting_approval':
+                    setStatus('processing', `Warte auf Genehmigung: ${event.tool}...`);
+                    break;
+                case 'tool_approved':
+                    hideApprovalBar();
+                    setStatus('processing', `${event.tool} genehmigt - wird ausgefuehrt...`);
+                    break;
+                case 'tool_denied':
+                    hideApprovalBar();
+                    addMessage('warning', `${event.tool} wurde abgelehnt`);
+                    break;
+                case 'click_confirm':
+                    showClickConfirmBar(
+                        event.element, event.x, event.y,
+                        event.user_confirmed || 0, event.threshold || 3
+                    );
+                    setStatus('processing', `Klick auf "${event.element}" richtig?`);
+                    break;
+                case 'waiting_click_confirm':
+                    setStatus('processing', `Warte auf Bestaetigung: ${event.element}...`);
+                    break;
+                case 'click_confirmed':
+                    hideClickConfirmBar();
+                    addMessage('system', `Klick bestaetigt: "${event.element}"${event.trusted ? ' (Auto-Trust)' : ''}`);
+                    setStatus('processing', 'Bestaetigt - weiter...');
+                    break;
+                case 'click_denied':
+                    hideClickConfirmBar();
+                    addMessage('warning', `Klick verworfen: "${event.element}" — wird neu gesucht`);
+                    setStatus('processing', 'Korrigiere...');
+                    break;
+                case 'typing_done':
+                    showTypingIndicator(false);
+                    break;
+                case 'paused':
+                    setStatus('processing', 'PAUSIERT');
+                    addMessage('system', 'Agent pausiert');
+                    break;
+                case 'resumed':
+                    setStatus('processing', 'Fortgesetzt...');
+                    addMessage('system', 'Agent fortgesetzt');
+                    break;
+                case 'cancelled':
+                    addMessage('warning', 'Ausfuehrung abgebrochen');
+                    showInterventionBar(false);
+                    setStatus('ready', 'Abgebrochen');
+                    break;
+                case 'user_feedback':
+                    addMessage('system', `Feedback injiziert: "${event.message}"`);
+                    break;
+                case 'task_skipped':
+                    addMessage('system', `Task ${event.task_id} uebersprungen`);
+                    break;
+                case 'action_visual':
+                    // Forward to parent (ElectronDesktopAutomation) for overlay on live stream
+                    if (window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'action_visual',
+                            x: event.x,
+                            y: event.y,
+                            action: event.action || event.tool
+                        }, '*');
+                    }
+                    break;
+                case 'video_analysis': {
+                    const vaIcon = event.verified ? '+' : '!';
+                    const vaConf = Math.round((event.confidence || 0) * 100);
+                    addMessage('system', `[${vaIcon} Video] ${event.screen_state} (${vaConf}%)`);
+                    break;
+                }
+                case 'training_saved':
+                    addMessage('system', `Training-Daten gespeichert: ${event.file}`);
+                    break;
+                case 'summary':
+                    addMessage('system', event.content || 'Erledigt');
+                    break;
+                case 'error':
+                    addMessage('error', event.message || 'Unbekannter Fehler');
+                    break;
+                case 'done': {
+                    const dur = event.duration_ms ? `${(event.duration_ms / 1000).toFixed(1)}s` : '';
+                    const steps = event.total_steps || 0;
+                    const turn = event.turn_count || '';
+                    setStatus('ready', `Fertig (${steps} Steps, ${dur})${turn ? ` | Turn ${turn}` : ''}`);
+                    showInterventionBar(false);
+                    showTypingIndicator(false);
+                    // Hide task list after completion (with small delay so user sees final state)
+                    setTimeout(() => { taskListEl.classList.remove('visible'); }, 8000);
+                    break;
+                }
+            }
+        }
+
+        function setStatus(state, text) {
+            statusEl.className = 'status ' + state;
+            statusEl.textContent = text;
+        }
+
+        function addMessage(type, text) {
+            const msg = document.createElement('div');
+            msg.className = 'message ' + type;
+
+            const label = document.createElement('div');
+            label.className = 'message-label';
+            const labels = { user: 'Du', system: 'System', error: 'Fehler', warning: 'Warnung' };
+            label.textContent = labels[type] || type;
+
+            const content = document.createElement('div');
+            content.textContent = text;
+
+            msg.appendChild(label);
+            msg.appendChild(content);
+            messagesEl.appendChild(msg);
+
+            // Scroll to bottom
+            messagesEl.parentElement.scrollTop = messagesEl.parentElement.scrollHeight;
+        }
+
+        // Track turn count for memory indicator
+        let turnCount = 0;
+        const memoryIndicator = document.getElementById('memoryIndicator');
+
+        function updateMemoryIndicator() {
+            if (turnCount > 0) {
+                memoryIndicator.textContent = `(Turn ${turnCount} - Endlos-Session)`;
+            } else {
+                memoryIndicator.textContent = '';
+            }
+        }
+
+        // Wrap addMessage to track user turns
+        const _origAddMessage = addMessage;
+        addMessage = function(type, text) {
+            _origAddMessage(type, text);
+            if (type === 'user') {
+                turnCount++;
+                updateMemoryIndicator();
+            }
+        };
+
+        function newConversation() {
+            conversationId = 'voice_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+            messagesEl.innerHTML = '';
+            taskListEl.classList.remove('visible');
+            taskItemsEl.innerHTML = '';
+            showInterventionBar(false);
+            showTypingIndicator(false);
+            hideApprovalBar();
+            hideClickConfirmBar();
+            turnCount = 0;
+            updateMemoryIndicator();
+            addMessage('system', 'Neues Gespraech gestartet. Der Agent hat keinen Kontext mehr von vorher.');
+            setStatus('ready', 'Neues Gespraech - Bereit');
+        }
+
+        // Initial message
+        addMessage('system', 'Willkommen! Klicke auf das Mikrofon oder tippe einen Befehl. Der Agent merkt sich den Gespraechsverlauf.');
+    </script>
+</body>
+</html>
