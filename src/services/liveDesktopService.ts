@@ -1,12 +1,31 @@
 /**
  * Live Desktop Service
  * Handles all API operations for Live Desktop functionality
+ *
+ * MIGRATED: Now uses local FastAPI backend instead of Supabase
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { ConfigApiService, LiveDesktopConfig as ApiConfig } from '@/services/configApiService';
 import { LiveDesktopConfig, OCRRegion } from '@/types/liveDesktop';
 import { WEBSOCKET_CONFIG } from '@/config/websocketConfig';
 import { safeExecute, transformError, ErrorCode } from '@/utils/errorHandling';
+
+/**
+ * Transform API config to LiveDesktopConfig type
+ */
+function transformConfig(apiConfig: ApiConfig): LiveDesktopConfig {
+  const config = apiConfig.configuration as Record<string, unknown>;
+  return {
+    id: apiConfig.id,
+    name: apiConfig.name,
+    description: apiConfig.description || '',
+    websocketUrl: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`,
+    ...config,
+    createdAt: apiConfig.created_at || new Date().toISOString(),
+    updatedAt: apiConfig.updated_at || new Date().toISOString(),
+    category: apiConfig.category || undefined,
+  } as LiveDesktopConfig;
+}
 
 export class LiveDesktopService {
   /**
@@ -14,23 +33,8 @@ export class LiveDesktopService {
    */
   static async getConfigs(): Promise<LiveDesktopConfig[]> {
     const result = await safeExecute(async () => {
-      const { data, error } = await supabase
-        .from('live_desktop_configs')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      return (data || []).map((row) => ({
-        id: row.id,
-        name: row.name,
-        description: row.description || '',
-        websocketUrl: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`,
-        ...(row.configuration as any),
-        createdAt: row.created_at || new Date().toISOString(),
-        updatedAt: row.updated_at || new Date().toISOString(),
-        category: row.category || undefined,
-      }));
+      const configs = await ConfigApiService.getConfigs();
+      return configs.map(transformConfig);
     }, { operation: 'getConfigs' });
 
     if (result.error) {
@@ -45,27 +49,15 @@ export class LiveDesktopService {
    */
   static async getConfig(id: string): Promise<LiveDesktopConfig | null> {
     const result = await safeExecute(async () => {
-      const { data, error } = await supabase
-        .from('live_desktop_configs')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') return null; // Not found
+      try {
+        const config = await ConfigApiService.getConfig(id);
+        return transformConfig(config);
+      } catch (error: unknown) {
+        if (error instanceof Error && error.message.includes('404')) {
+          return null;
+        }
         throw error;
       }
-
-      return {
-        id: data.id,
-        name: data.name,
-        description: data.description || '',
-        websocketUrl: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`,
-        ...(data.configuration as any),
-        createdAt: data.created_at || new Date().toISOString(),
-        updatedAt: data.updated_at || new Date().toISOString(),
-        category: data.category || undefined,
-      };
     }, { operation: 'getConfig', configId: id });
 
     if (result.error) {
@@ -80,30 +72,14 @@ export class LiveDesktopService {
    */
   static async createConfig(config: Partial<LiveDesktopConfig>): Promise<LiveDesktopConfig> {
     const result = await safeExecute(async () => {
-      const { data, error } = await supabase
-        .from('live_desktop_configs')
-        .insert({
-          name: config.name || 'New Configuration',
-          description: config.description,
-          category: config.category,
-          configuration: config as any,
-          is_active: true,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      return {
-        id: data.id,
-        name: data.name,
-        description: data.description || '',
-        websocketUrl: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`,
-        ...(data.configuration as any),
-        createdAt: data.created_at || new Date().toISOString(),
-        updatedAt: data.updated_at || new Date().toISOString(),
-        category: data.category || undefined,
-      };
+      const created = await ConfigApiService.createConfig({
+        name: config.name || 'New Configuration',
+        description: config.description,
+        category: config.category,
+        configuration: config as Record<string, unknown>,
+        is_active: true,
+      });
+      return transformConfig(created);
     }, { operation: 'createConfig', configName: config.name });
 
     if (result.error) {
@@ -122,18 +98,12 @@ export class LiveDesktopService {
    */
   static async updateConfig(id: string, updates: Partial<LiveDesktopConfig>): Promise<void> {
     const result = await safeExecute(async () => {
-      const { error } = await supabase
-        .from('live_desktop_configs')
-        .update({
-          name: updates.name,
-          description: updates.description,
-          category: updates.category,
-          configuration: updates as any,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-
-      if (error) throw error;
+      await ConfigApiService.updateConfig(id, {
+        name: updates.name,
+        description: updates.description,
+        category: updates.category,
+        configuration: updates as Record<string, unknown>,
+      });
     }, { operation: 'updateConfig', configId: id });
 
     if (result.error) {
@@ -146,12 +116,7 @@ export class LiveDesktopService {
    */
   static async deleteConfig(id: string): Promise<void> {
     const result = await safeExecute(async () => {
-      const { error } = await supabase
-        .from('live_desktop_configs')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await ConfigApiService.deleteConfig(id);
     }, { operation: 'deleteConfig', configId: id });
 
     if (result.error) {
@@ -163,24 +128,8 @@ export class LiveDesktopService {
    * Get active configurations
    */
   static async getActiveConfigs(): Promise<LiveDesktopConfig[]> {
-    const { data, error } = await supabase
-      .from('live_desktop_configs')
-      .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    return (data || []).map((row) => ({
-      id: row.id,
-      name: row.name,
-      description: row.description || '',
-      websocketUrl: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`,
-      ...(row.configuration as any),
-      createdAt: row.created_at || new Date().toISOString(),
-      updatedAt: row.updated_at || new Date().toISOString(),
-      category: row.category || undefined,
-    }));
+    const configs = await ConfigApiService.getActiveConfigs();
+    return configs.map(transformConfig);
   }
 
   /**
@@ -190,10 +139,10 @@ export class LiveDesktopService {
     const result = await safeExecute(async () => {
       const config = await this.getConfig(configId);
       if (!config) {
-        throw transformError(new Error('Configuration not found'), { 
-          operation: 'updateOCRRegions', 
+        throw transformError(new Error('Configuration not found'), {
+          operation: 'updateOCRRegions',
           configId,
-          code: ErrorCode.NOT_FOUND 
+          code: ErrorCode.NOT_FOUND,
         });
       }
 
@@ -210,35 +159,14 @@ export class LiveDesktopService {
    * Toggle configuration active status
    */
   static async toggleActive(id: string, isActive: boolean): Promise<void> {
-    const { error } = await supabase
-      .from('live_desktop_configs')
-      .update({ is_active: isActive })
-      .eq('id', id);
-
-    if (error) throw error;
+    await ConfigApiService.updateConfig(id, { is_active: isActive });
   }
 
   /**
    * Get configurations by category
    */
   static async getConfigsByCategory(category: string): Promise<LiveDesktopConfig[]> {
-    const { data, error } = await supabase
-      .from('live_desktop_configs')
-      .select('*')
-      .eq('category', category)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    return (data || []).map((row) => ({
-      id: row.id,
-      name: row.name,
-      description: row.description || '',
-      websocketUrl: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`,
-      ...(row.configuration as any),
-      createdAt: row.created_at || new Date().toISOString(),
-      updatedAt: row.updated_at || new Date().toISOString(),
-      category: row.category || undefined,
-    }));
+    const configs = await ConfigApiService.getConfigs({ category });
+    return configs.map(transformConfig);
   }
 }

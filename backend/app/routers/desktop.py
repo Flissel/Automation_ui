@@ -278,3 +278,77 @@ async def receive_host_frame(request: Request, frame_data: HostFrameData):
     except Exception as e:
         logger.error(f"Receive host frame error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/cached-frame/{monitor_id}")
+@log_api_request(logger)
+async def get_cached_frame(monitor_id: int = 0, max_age_ms: int = 5000):
+    """Get cached frame from StreamFrameCache for MCP tools.
+
+    This endpoint bridges the gap between the WebSocket frame receiver
+    and external processes (like MCP server) that need access to live frames.
+    """
+    try:
+        import sys
+        import os
+        moire_agents_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "moire_agents"
+        )
+        if moire_agents_path not in sys.path:
+            sys.path.insert(0, moire_agents_path)
+
+        from stream_frame_cache import StreamFrameCache
+
+        frame = StreamFrameCache.get_fresh_frame(monitor_id=monitor_id, max_age_ms=max_age_ms)
+
+        if frame:
+            return JSONResponse(
+                content={
+                    "success": True,
+                    "monitor_id": monitor_id,
+                    "frame_data": frame.data,
+                    "age_ms": frame.age_ms,
+                    "width": frame.width,
+                    "height": frame.height,
+                    "is_fresh": frame.is_fresh,
+                }
+            )
+        else:
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "monitor_id": monitor_id,
+                    "error": "No fresh frame available",
+                    "frame_data": None,
+                },
+                status_code=404,
+            )
+
+    except Exception as e:
+        logger.error(f"Get cached frame error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/cache-status")
+@log_api_request(logger)
+async def get_cache_status():
+    """Get StreamFrameCache status for debugging."""
+    try:
+        import sys
+        import os
+        moire_agents_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "moire_agents"
+        )
+        if moire_agents_path not in sys.path:
+            sys.path.insert(0, moire_agents_path)
+
+        from stream_frame_cache import StreamFrameCache
+
+        status = StreamFrameCache.get_status()
+        return JSONResponse(content={"success": True, **status})
+
+    except Exception as e:
+        logger.error(f"Get cache status error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

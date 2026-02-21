@@ -23,6 +23,20 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False, env="DEBUG")
     environment: str = Field(default="development", env="ENVIRONMENT")
 
+    # Database Settings (PostgreSQL)
+    database_url: str = Field(
+        default="postgresql://trae:trae_secret_2024@localhost:5432/automation_ui",
+        env="DATABASE_URL"
+    )
+    database_pool_size: int = Field(default=5, env="DATABASE_POOL_SIZE")
+    database_max_overflow: int = Field(default=10, env="DATABASE_MAX_OVERFLOW")
+    database_pool_timeout: int = Field(default=30, env="DATABASE_POOL_TIMEOUT")
+    database_echo: bool = Field(default=False, env="DATABASE_ECHO")
+
+    # Redis Settings
+    redis_url: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
+    redis_max_connections: int = Field(default=10, env="REDIS_MAX_CONNECTIONS")
+
     # Server
     host: str = Field(default="0.0.0.0", env="HOST")
     port: int = Field(default=8000, env="PORT")
@@ -57,6 +71,18 @@ class Settings(BaseSettings):
     enable_file_watcher: bool = Field(default=True, env="ENABLE_FILE_WATCHER")
     enable_click_automation: bool = Field(default=True, env="ENABLE_CLICK_AUTOMATION")
     enable_websockets: bool = Field(default=True, env="ENABLE_WEBSOCKETS")
+
+    # Remote Execution (Brain-in-Docker mode)
+    execution_mode: str = Field(default="local", env="EXECUTION_MODE")  # "local" or "remote"
+    remote_desktop_client_id: str = Field(default="", env="REMOTE_DESKTOP_CLIENT_ID")
+    remote_action_timeout: int = Field(default=30, env="REMOTE_ACTION_TIMEOUT")
+    remote_frame_max_age_ms: int = Field(default=2000, env="REMOTE_FRAME_MAX_AGE_MS")
+
+    # LLM Model Configuration (OpenRouter)
+    llm_model: str = Field(default="anthropic/claude-opus-4", env="LLM_MODEL")
+    vision_model: str = Field(default="nvidia/nemotron-nano-12b-v2-vl:free", env="VISION_MODEL")
+    compaction_model: str = Field(default="anthropic/claude-sonnet-4", env="COMPACTION_MODEL")
+    video_agent_default: bool = Field(default=True, env="VIDEO_AGENT_DEFAULT")
 
     # OCR Settings
     ocr_languages: List[str] = Field(
@@ -423,9 +449,11 @@ class Settings(BaseSettings):
     class Config:
         """Pydantic config"""
 
-        env_file = None  # Disable .env file for Docker
+        # Load from root .env if it exists (local dev), env vars override (Docker)
+        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
         env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "ignore"  # Ignore VITE_*, OPENROUTER_*, etc. from shared .env
         # Environment variables enabled for proper configuration
         env_prefix = ""
 

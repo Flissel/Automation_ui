@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Save, Upload, Download, Trash2, Plus, Settings, Copy } from 'lucide-react';
 import { LiveDesktopConfig, LiveDesktopTemplate } from '@/types/liveDesktop';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { ConfigApiService } from '@/services/configApiService';
 // Import centralized WebSocket configuration for consistent URL handling
 import { WEBSOCKET_CONFIG } from '@/config/websocketConfig';
 
@@ -73,46 +73,37 @@ export const LiveDesktopConfigManager: React.FC<LiveDesktopConfigManagerProps> =
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const { toast } = useToast();
 
-  // Load saved configurations from Supabase on mount
+  // Load saved configurations from local API on mount
   useEffect(() => {
     const loadConfigs = async () => {
       try {
-        const { data, error } = await supabase
-          .from('live_desktop_configs')
-          .select('*')
-          .order('updated_at', { ascending: false });
-        
-        if (data) {
-          setSavedConfigs(data.map(item => {
-            const config = item.configuration as any;
-            return {
-              id: item.id,
-              name: item.name,
-              description: item.description || '',
-              websocketUrl: config.websocketUrl || WEBSOCKET_CONFIG.BASE_URL,
-              streaming: config.streaming || { fps: 10, quality: 75, scale: 0.8 },
-              connection: config.connection || { timeout: 30, maxReconnectAttempts: 5, reconnectInterval: 5 },
-              ocr: config.ocr || { enabled: false, extractionInterval: 30, autoSend: false },
-              ocrRegions: config.ocrRegions || [],
-              createdAt: item.created_at,
-              updatedAt: item.updated_at,
-              category: item.category || 'custom'
-            } as LiveDesktopConfig;
-          }));
-        }
-        if (error) {
-          console.error('Error loading configs from Supabase:', error);
-          // Fallback to localStorage
-          const saved = localStorage.getItem('liveDesktopConfigs');
-          if (saved) {
-            setSavedConfigs(JSON.parse(saved));
-          }
-        }
+        const data = await ConfigApiService.getConfigs();
+        setSavedConfigs(data.map(item => {
+          const config = item.configuration as Record<string, unknown>;
+          return {
+            id: item.id,
+            name: item.name,
+            description: item.description || '',
+            websocketUrl: (config.websocketUrl as string) || WEBSOCKET_CONFIG.BASE_URL,
+            streaming: (config.streaming as LiveDesktopConfig['streaming']) || { fps: 10, quality: 75, scale: 0.8 },
+            connection: (config.connection as LiveDesktopConfig['connection']) || { timeout: 30, maxReconnectAttempts: 5, reconnectInterval: 5 },
+            ocr: (config.ocr as LiveDesktopConfig['ocr']) || { enabled: false, extractionInterval: 30, autoSend: false },
+            ocrRegions: (config.ocrRegions as LiveDesktopConfig['ocrRegions']) || [],
+            createdAt: item.created_at || new Date().toISOString(),
+            updatedAt: item.updated_at || new Date().toISOString(),
+            category: item.category || 'custom'
+          } as LiveDesktopConfig;
+        }));
       } catch (error) {
-        console.error('Error loading saved configs:', error);
+        console.error('Error loading configs from API:', error);
+        // Fallback to localStorage
+        const saved = localStorage.getItem('liveDesktopConfigs');
+        if (saved) {
+          setSavedConfigs(JSON.parse(saved));
+        }
       }
     };
-    
+
     loadConfigs();
   }, []);
 
@@ -133,35 +124,40 @@ export const LiveDesktopConfigManager: React.FC<LiveDesktopConfigManagerProps> =
     }
 
     try {
-      const configToSave = {
-        id: currentConfig.id,
-        name: currentConfig.name,
-        description: currentConfig.description,
-        configuration: currentConfig as any, // Convert to JSON-compatible type
-        updated_at: new Date().toISOString(),
-        category: currentConfig.category || 'custom'
-      };
+      // Check if config exists (update) or is new (create)
+      const isExisting = savedConfigs.some(c => c.id === currentConfig.id);
+      let savedData;
 
-      const { data, error } = await supabase
-        .from('live_desktop_configs')
-        .upsert(configToSave)
-        .select()
-        .single();
-
-      if (error) throw error;
+      if (isExisting) {
+        savedData = await ConfigApiService.updateConfig(currentConfig.id, {
+          name: currentConfig.name,
+          description: currentConfig.description,
+          category: currentConfig.category || 'custom',
+          configuration: currentConfig as unknown as Record<string, unknown>,
+        });
+      } else {
+        savedData = await ConfigApiService.createConfig({
+          name: currentConfig.name,
+          description: currentConfig.description,
+          category: currentConfig.category || 'custom',
+          configuration: currentConfig as unknown as Record<string, unknown>,
+          is_active: true,
+        });
+      }
 
       // Update local state
-      const updated = savedConfigs.map(config => 
-        config.id === currentConfig.id ? { ...currentConfig, updatedAt: data.updated_at } : config
+      const now = new Date().toISOString();
+      const updated = savedConfigs.map(config =>
+        config.id === currentConfig.id ? { ...currentConfig, updatedAt: now } : config
       );
 
       if (!updated.some(config => config.id === currentConfig.id)) {
-        updated.push({ ...currentConfig, updatedAt: data.updated_at });
+        updated.push({ ...currentConfig, id: savedData?.id || currentConfig.id, updatedAt: now });
       }
 
       setSavedConfigs(updated);
       onConfigSave(currentConfig);
-      
+
       toast({
         title: "Configuration Saved",
         description: `"${currentConfig.name}" has been saved successfully`,

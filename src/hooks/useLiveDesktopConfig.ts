@@ -1,12 +1,31 @@
 /**
  * Custom hook for managing Live Desktop configurations
- * Integrates with Supabase for persistent storage
+ *
+ * MIGRATED: Now uses local FastAPI backend instead of Supabase
  */
 
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect, useCallback } from 'react';
+import { ConfigApiService, LiveDesktopConfig as ApiConfig } from '@/services/configApiService';
 import { LiveDesktopConfig } from '@/types/liveDesktop';
 import { useToast } from '@/hooks/use-toast';
+import { WEBSOCKET_CONFIG } from '@/config/websocketConfig';
+
+/**
+ * Transform API config to LiveDesktopConfig type
+ */
+function transformConfig(apiConfig: ApiConfig): LiveDesktopConfig {
+  const config = apiConfig.configuration as Record<string, unknown>;
+  return {
+    id: apiConfig.id,
+    name: apiConfig.name,
+    description: apiConfig.description || '',
+    websocketUrl: `${WEBSOCKET_CONFIG.BASE_URL}${WEBSOCKET_CONFIG.ENDPOINTS.LIVE_DESKTOP}`,
+    ...config,
+    createdAt: apiConfig.created_at || new Date().toISOString(),
+    updatedAt: apiConfig.updated_at || new Date().toISOString(),
+    category: apiConfig.category || undefined,
+  } as LiveDesktopConfig;
+}
 
 export const useLiveDesktopConfig = () => {
   const [configs, setConfigs] = useState<LiveDesktopConfig[]>([]);
@@ -14,59 +33,38 @@ export const useLiveDesktopConfig = () => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Load configurations from Supabase
-  const loadConfigs = async () => {
+  // Load configurations from local API
+  const loadConfigs = useCallback(async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('live_desktop_configs')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const typedConfigs = (data || []).map((row) => ({
-        id: row.id,
-        name: row.name,
-        description: row.description || '',
-        websocketUrl: '', // Will be populated from config
-        ...(row.configuration as any),
-        createdAt: row.created_at || new Date().toISOString(),
-        updatedAt: row.updated_at || new Date().toISOString(),
-        category: row.category || undefined,
-      }));
-
+      const data = await ConfigApiService.getConfigs();
+      const typedConfigs = data.map(transformConfig);
       setConfigs(typedConfigs);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('Error loading configs:', err);
-      setError(err.message);
+      setError(message);
       toast({
         title: 'Error loading configurations',
-        description: err.message,
+        description: message,
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   // Create new configuration
   const createConfig = async (config: Partial<LiveDesktopConfig>) => {
     try {
-      const { data, error } = await supabase
-        .from('live_desktop_configs')
-        .insert({
-          name: config.name || 'New Configuration',
-          description: config.description,
-          category: config.category,
-          configuration: config as any,
-          is_active: true,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+      const data = await ConfigApiService.createConfig({
+        name: config.name || 'New Configuration',
+        description: config.description,
+        category: config.category,
+        configuration: config as Record<string, unknown>,
+        is_active: true,
+      });
 
       toast({
         title: 'Configuration created',
@@ -75,11 +73,12 @@ export const useLiveDesktopConfig = () => {
 
       await loadConfigs();
       return data;
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('Error creating config:', err);
       toast({
         title: 'Error creating configuration',
-        description: err.message,
+        description: message,
         variant: 'destructive',
       });
       throw err;
@@ -89,18 +88,12 @@ export const useLiveDesktopConfig = () => {
   // Update existing configuration
   const updateConfig = async (id: string, updates: Partial<LiveDesktopConfig>) => {
     try {
-      const { error } = await supabase
-        .from('live_desktop_configs')
-        .update({
-          name: updates.name,
-          description: updates.description,
-          category: updates.category,
-          configuration: updates as any,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-
-      if (error) throw error;
+      await ConfigApiService.updateConfig(id, {
+        name: updates.name,
+        description: updates.description,
+        category: updates.category,
+        configuration: updates as Record<string, unknown>,
+      });
 
       toast({
         title: 'Configuration updated',
@@ -108,11 +101,12 @@ export const useLiveDesktopConfig = () => {
       });
 
       await loadConfigs();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('Error updating config:', err);
       toast({
         title: 'Error updating configuration',
-        description: err.message,
+        description: message,
         variant: 'destructive',
       });
       throw err;
@@ -122,12 +116,7 @@ export const useLiveDesktopConfig = () => {
   // Delete configuration
   const deleteConfig = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('live_desktop_configs')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await ConfigApiService.deleteConfig(id);
 
       toast({
         title: 'Configuration deleted',
@@ -135,11 +124,12 @@ export const useLiveDesktopConfig = () => {
       });
 
       await loadConfigs();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('Error deleting config:', err);
       toast({
         title: 'Error deleting configuration',
-        description: err.message,
+        description: message,
         variant: 'destructive',
       });
       throw err;
@@ -149,15 +139,9 @@ export const useLiveDesktopConfig = () => {
   // Toggle configuration active status
   const toggleConfigActive = async (id: string, isActive: boolean) => {
     try {
-      const { error } = await supabase
-        .from('live_desktop_configs')
-        .update({ is_active: isActive })
-        .eq('id', id);
-
-      if (error) throw error;
-
+      await ConfigApiService.updateConfig(id, { is_active: isActive });
       await loadConfigs();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error toggling config:', err);
       throw err;
     }
@@ -166,7 +150,7 @@ export const useLiveDesktopConfig = () => {
   // Load configs on mount
   useEffect(() => {
     loadConfigs();
-  }, []);
+  }, [loadConfigs]);
 
   return {
     configs,

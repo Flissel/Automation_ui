@@ -1,0 +1,3003 @@
+{
+  "resolution": "1920x1080",
+  "elements": {
+    "word:x": {
+      "x": 416,
+      "y": 284,
+      "confidence": 0.5,
+      "last_verified": 1770897077.9443638,
+      "hits": 13,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "X"
+    },
+    "word:o": {
+      "x": 1404,
+      "y": 214,
+      "confidence": 0.7,
+      "last_verified": 1770900655.775415,
+      "hits": 2,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "o"
+    },
+    "word:hilfe": {
+      "x": 1050,
+      "y": 253,
+      "confidence": 0.6,
+      "last_verified": 1770897076.150044,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Hilfe"
+    },
+    "word:editor": {
+      "x": 1204,
+      "y": 317,
+      "confidence": 0.8,
+      "last_verified": 1770897076.1716218,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Editor"
+    },
+    "word:datei": {
+      "x": 355,
+      "y": 253,
+      "confidence": 0.6,
+      "last_verified": 1770897076.1942039,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Datei"
+    },
+    "word:was_sehe_ich?": {
+      "x": 1662,
+      "y": 984,
+      "confidence": 0.65,
+      "last_verified": 1770897076.2669077,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Was sehe ich?"
+    },
+    "word:‘microsoft_word_öffnen": {
+      "x": 1671,
+      "y": 239,
+      "confidence": 0.65,
+      "last_verified": 1770897076.323701,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "‘Microsoft Word öffnen"
+    },
+    "word:diktieren": {
+      "x": 1083,
+      "y": 318,
+      "confidence": 0.6,
+      "last_verified": 1770897076.3410053,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Diktieren"
+    },
+    "word:ansicht:": {
+      "x": 995,
+      "y": 253,
+      "confidence": 0.6,
+      "last_verified": 1770897076.3480492,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Ansicht:"
+    },
+    "word:dokument1": {
+      "x": 726,
+      "y": 214,
+      "confidence": 0.6,
+      "last_verified": 1770897076.410916,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Dokument1"
+    },
+    "word:entwurf": {
+      "x": 609,
+      "y": 253,
+      "confidence": 0.6,
+      "last_verified": 1770897076.47467,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Entwurf"
+    },
+    "word:add-": {
+      "x": 1145,
+      "y": 317,
+      "confidence": 0.6,
+      "last_verified": 1770897076.5072873,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Add-"
+    },
+    "word:zeichnen": {
+      "x": 538,
+      "y": 253,
+      "confidence": 0.6,
+      "last_verified": 1770897076.5238001,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Zeichnen"
+    },
+    "word:®": {
+      "x": 1595,
+      "y": 240,
+      "confidence": 0.7,
+      "last_verified": 1770897076.5407724,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "®"
+    },
+    "word:=": {
+      "x": 1826,
+      "y": 62,
+      "confidence": 0.5,
+      "last_verified": 1770897076.558639,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "="
+    },
+    "word:referenzen": {
+      "x": 745,
+      "y": 253,
+      "confidence": 0.65,
+      "last_verified": 1770897076.573521,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Referenzen"
+    },
+    "word:li": {
+      "x": 811,
+      "y": 336,
+      "confidence": 0.7,
+      "last_verified": 1770897076.6134331,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Li"
+    },
+    "word:bearbeiten": {
+      "x": 1011,
+      "y": 315,
+      "confidence": 0.6,
+      "last_verified": 1770897076.6301363,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Bearbeiten"
+    },
+    "word:automatisches_speichern": {
+      "x": 436,
+      "y": 215,
+      "confidence": 0.65,
+      "last_verified": 1770897076.6620774,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Automatisches Speichern"
+    },
+    "word:f": {
+      "x": 462,
+      "y": 309,
+      "confidence": 0.5,
+      "last_verified": 1770897076.71156,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "F"
+    },
+    "word:>": {
+      "x": 57,
+      "y": 62,
+      "confidence": 0.7,
+      "last_verified": 1770897076.7409363,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": ">"
+    },
+    "word:senden": {
+      "x": 1824,
+      "y": 935,
+      "confidence": 0.6,
+      "last_verified": 1770897076.7531211,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Senden"
+    },
+    "word:100%": {
+      "x": 1841,
+      "y": 478,
+      "confidence": 0.6,
+      "last_verified": 1770897076.7644413,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "100%"
+    },
+    "word:9": {
+      "x": 936,
+      "y": 379,
+      "confidence": 0.5,
+      "last_verified": 1770897078.5692863,
+      "hits": 2,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "9"
+    },
+    "word:localhost:3003/electron": {
+      "x": 229,
+      "y": 64,
+      "confidence": 0.65,
+      "last_verified": 1770897076.790177,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "localhost:3003/electron"
+    },
+    "word:layout.": {
+      "x": 671,
+      "y": 255,
+      "confidence": 0.6,
+      "last_verified": 1770897076.8046882,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Layout."
+    },
+    "word:notepad_test": {
+      "x": 1779,
+      "y": 985,
+      "confidence": 0.65,
+      "last_verified": 1770897076.870299,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Notepad Test"
+    },
+    "word:einfügen": {
+      "x": 376,
+      "y": 320,
+      "confidence": 0.6,
+      "last_verified": 1770897077.1619473,
+      "hits": 2,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Einfügen"
+    },
+    "word:copilot": {
+      "x": 1248,
+      "y": 319,
+      "confidence": 0.6,
+      "last_verified": 1770897076.8985858,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Copilot"
+    },
+    "word:‘ocr_designer": {
+      "x": 1015,
+      "y": 117,
+      "confidence": 0.65,
+      "last_verified": 1770897076.912454,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "‘OCR Designer"
+    },
+    "word:aufgaben:": {
+      "x": 1608,
+      "y": 213,
+      "confidence": 0.65,
+      "last_verified": 1770897076.9720058,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Aufgaben:"
+    },
+    "word:sendungen": {
+      "x": 831,
+      "y": 254,
+      "confidence": 0.65,
+      "last_verified": 1770897077.0130296,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Sendungen"
+    },
+    "word:-": {
+      "x": 1862,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770897077.0226483,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "-"
+    },
+    "word:beschreiben_sie,_was_sie_mit_copilot_entwerfen_möchten": {
+      "x": 790,
+      "y": 425,
+      "confidence": 0.5,
+      "last_verified": 1770897077.031118,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Beschreiben Sie, was Sie mit Copilot entwerfen möchten"
+    },
+    "word:überprüfen": {
+      "x": 920,
+      "y": 254,
+      "confidence": 0.65,
+      "last_verified": 1770897077.041903,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Überprüfen"
+    },
+    "word:formatvorlagen": {
+      "x": 922,
+      "y": 319,
+      "confidence": 0.65,
+      "last_verified": 1770897077.0497403,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Formatvorlagen"
+    },
+    "word:q": {
+      "x": 628,
+      "y": 1056,
+      "confidence": 0.7,
+      "last_verified": 1770897078.588159,
+      "hits": 2,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Q"
+    },
+    "word:ocr_desktop_automation": {
+      "x": 413,
+      "y": 110,
+      "confidence": 0.65,
+      "last_verified": 1770897077.0987175,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "OCR Desktop Automation"
+    },
+    "word:a": {
+      "x": 545,
+      "y": 335,
+      "confidence": 0.7,
+      "last_verified": 1770897078.4340851,
+      "hits": 6,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "A"
+    },
+    "word:suchen": {
+      "x": 888,
+      "y": 214,
+      "confidence": 0.6,
+      "last_verified": 1770897077.1762335,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Suchen"
+    },
+    "word:aa~": {
+      "x": 592,
+      "y": 336,
+      "confidence": 0.6,
+      "last_verified": 1770897077.182752,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Aa~"
+    },
+    "word:abbrechen": {
+      "x": 1707,
+      "y": 295,
+      "confidence": 0.6,
+      "last_verified": 1770897077.188845,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Abbrechen"
+    },
+    "word:©": {
+      "x": 137,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770897077.1976924,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "©"
+    },
+    "word:[wait]_{\"seconds\":3}": {
+      "x": 1661,
+      "y": 602,
+      "confidence": 0.65,
+      "last_verified": 1770897077.2954986,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "[wait] {\"seconds\":3}"
+    },
+    "word:[screen_layout]_{}": {
+      "x": 1654,
+      "y": 853,
+      "confidence": 0.65,
+      "last_verified": 1770897077.3045883,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "[screen_layout] {}"
+    },
+    "word:[+]_get_focus_=_ok": {
+      "x": 1660,
+      "y": 790,
+      "confidence": 0.65,
+      "last_verified": 1770897077.3141446,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "[+] get_focus = OK"
+    },
+    "word:schriftart:": {
+      "x": 551,
+      "y": 358,
+      "confidence": 0.6,
+      "last_verified": 1770897077.323204,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Schriftart:"
+    },
+    "word:sprache": {
+      "x": 1082,
+      "y": 359,
+      "confidence": 0.6,
+      "last_verified": 1770897077.3307028,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Sprache"
+    },
+    "word:absatz": {
+      "x": 765,
+      "y": 358,
+      "confidence": 0.6,
+      "last_verified": 1770897077.343126,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Absatz"
+    },
+    "word:[+]_wait_=_ok": {
+      "x": 1643,
+      "y": 665,
+      "confidence": 0.65,
+      "last_verified": 1770897077.3529866,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "[+] wait = OK"
+    },
+    "word:zwischenablage:": {
+      "x": 380,
+      "y": 359,
+      "confidence": 0.65,
+      "last_verified": 1770897077.3594263,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Zwischenablage:"
+    },
+    "word:12.": {
+      "x": 1037,
+      "y": 379,
+      "confidence": 0.5,
+      "last_verified": 1770897077.3674634,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "12."
+    },
+    "word:11.": {
+      "x": 1004,
+      "y": 379,
+      "confidence": 0.5,
+      "last_verified": 1770897077.3755739,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "11."
+    },
+    "word:xx,": {
+      "x": 583,
+      "y": 312,
+      "confidence": 0.7,
+      "last_verified": 1770897077.3989422,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Xx,"
+    },
+    "word:2": {
+      "x": 846,
+      "y": 213,
+      "confidence": 0.7,
+      "last_verified": 1770897078.6124768,
+      "hits": 3,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "2"
+    },
+    "word:u": {
+      "x": 513,
+      "y": 310,
+      "confidence": 0.7,
+      "last_verified": 1770897077.4687505,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "u"
+    },
+    "word:[3": {
+      "x": 834,
+      "y": 379,
+      "confidence": 0.5,
+      "last_verified": 1770897077.4756117,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "[3"
+    },
+    "word:add-ins": {
+      "x": 1146,
+      "y": 358,
+      "confidence": 0.6,
+      "last_verified": 1770897077.4813876,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Add-Ins"
+    },
+    "word:1": {
+      "x": 669,
+      "y": 379,
+      "confidence": 0.7,
+      "last_verified": 1770897077.4911163,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "1"
+    },
+    "word:|": {
+      "x": 584,
+      "y": 1056,
+      "confidence": 0.7,
+      "last_verified": 1770897078.2416108,
+      "hits": 2,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "|"
+    },
+    "word:start": {
+      "x": 406,
+      "y": 258,
+      "confidence": 0.5,
+      "last_verified": 1770897077.527494,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Start"
+    },
+    "word:_": {
+      "x": 110,
+      "y": 194,
+      "confidence": 0.6,
+      "last_verified": 1770897077.5350232,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "_"
+    },
+    "word:5": {
+      "x": 800,
+      "y": 379,
+      "confidence": 0.5,
+      "last_verified": 1770897077.543891,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "5"
+    },
+    "word:|_kommentare_|": {
+      "x": 1188,
+      "y": 253,
+      "confidence": 0.65,
+      "last_verified": 1770897077.5499802,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "| Kommentare |"
+    },
+    "word:|z_bearbeitung_~|": {
+      "x": 1304,
+      "y": 253,
+      "confidence": 0.65,
+      "last_verified": 1770897077.557809,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "|Z Bearbeitung ~|"
+    },
+    "word:befehl.": {
+      "x": 1715,
+      "y": 936,
+      "confidence": 0.6,
+      "last_verified": 1770897077.5865102,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Befehl."
+    },
+    "word:k": {
+      "x": 488,
+      "y": 309,
+      "confidence": 0.7,
+      "last_verified": 1770897077.5935407,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "K"
+    },
+    "word:[ie]": {
+      "x": 416,
+      "y": 310,
+      "confidence": 0.7,
+      "last_verified": 1770897077.5994642,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "[IE]"
+    },
+    "word:4%": {
+      "x": 1087,
+      "y": 116,
+      "confidence": 0.7,
+      "last_verified": 1770897077.6070063,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "4%"
+    },
+    "word:tippe": {
+      "x": 1598,
+      "y": 479,
+      "confidence": 0.6,
+      "last_verified": 1770897077.613609,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Tippe"
+    },
+    "word:oder": {
+      "x": 1599,
+      "y": 936,
+      "confidence": 0.6,
+      "last_verified": 1770897077.6216817,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Oder"
+    },
+    "word:3": {
+      "x": 733,
+      "y": 379,
+      "confidence": 0.5,
+      "last_verified": 1770897077.6289134,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "3"
+    },
+    "word:deu": {
+      "x": 1757,
+      "y": 1057,
+      "confidence": 0.6,
+      "last_verified": 1770897077.645874,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "DEU"
+    },
+    "word:12.02.2026": {
+      "x": 1872,
+      "y": 1064,
+      "confidence": 0.6,
+      "last_verified": 1770897077.6865582,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "12.02.2026"
+    },
+    "word:tippe_einen": {
+      "x": 1655,
+      "y": 937,
+      "confidence": 0.65,
+      "last_verified": 1770897077.85579,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "tippe einen"
+    },
+    "word:text...": {
+      "x": 1639,
+      "y": 478,
+      "confidence": 0.6,
+      "last_verified": 1770897077.8940709,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Text..."
+    },
+    "word:suche": {
+      "x": 665,
+      "y": 1056,
+      "confidence": 0.6,
+      "last_verified": 1770897077.909151,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Suche"
+    },
+    "word:14.": {
+      "x": 1105,
+      "y": 379,
+      "confidence": 0.5,
+      "last_verified": 1770897077.922732,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "14."
+    },
+    "word:startseite_-_raiffe": {
+      "x": 117,
+      "y": 20,
+      "confidence": 0.65,
+      "last_verified": 1770897077.9363277,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Startseite - Raiffe"
+    },
+    "word:13.": {
+      "x": 1071,
+      "y": 379,
+      "confidence": 0.5,
+      "last_verified": 1770897077.952446,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "13."
+    },
+    "word:15.": {
+      "x": 1139,
+      "y": 379,
+      "confidence": 0.5,
+      "last_verified": 1770897077.9592848,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "15."
+    },
+    "word:top": {
+      "x": 356,
+      "y": 129,
+      "confidence": 0.5,
+      "last_verified": 1770897077.9672813,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "top"
+    },
+    "word:pause": {
+      "x": 1623,
+      "y": 295,
+      "confidence": 0.6,
+      "last_verified": 1770897077.9804788,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Pause"
+    },
+    "word:+": {
+      "x": 1715,
+      "y": 20,
+      "confidence": 0.7,
+      "last_verified": 1770897078.0085166,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "+"
+    },
+    "word:tipe_text..._100%\nword|": {
+      "x": 1719,
+      "y": 495,
+      "confidence": 0.5,
+      "last_verified": 1770897078.0414863,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Tipe Text... 100%\nword|"
+    },
+    "word:oder_tippe_einen_befehl.": {
+      "x": 1671,
+      "y": 936,
+      "confidence": 0.5,
+      "last_verified": 1770897078.058157,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Oder tippe einen Befehl."
+    },
+    "word:|_2_suchen_|": {
+      "x": 980,
+      "y": 214,
+      "confidence": 0.5,
+      "last_verified": 1770897078.0756028,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "| 2 suchen |"
+    },
+    "word:ng": {
+      "x": 411,
+      "y": 130,
+      "confidence": 0.7,
+      "last_verified": 1770897078.0891018,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "ng"
+    },
+    "word:aufgaben:\n©_microsoft_word_öffnen": {
+      "x": 1718,
+      "y": 229,
+      "confidence": 0.5,
+      "last_verified": 1770897078.104277,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Aufgaben:\n© Microsoft Word öffnen"
+    },
+    "word:4": {
+      "x": 767,
+      "y": 378,
+      "confidence": 0.5,
+      "last_verified": 1770897078.1126683,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "4"
+    },
+    "word:oo": {
+      "x": 1146,
+      "y": 291,
+      "confidence": 0.5,
+      "last_verified": 1770897078.1217127,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "oo"
+    },
+    "word:sf": {
+      "x": 416,
+      "y": 335,
+      "confidence": 0.7,
+      "last_verified": 1770897078.1493216,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "SF"
+    },
+    "word:=)": {
+      "x": 1819,
+      "y": 1056,
+      "confidence": 0.5,
+      "last_verified": 1770897078.1778123,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "=)"
+    },
+    "word:feed_|_linkedin": {
+      "x": 445,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770897078.2044334,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Feed | Linkedin"
+    },
+    "word:liked_songs": {
+      "x": 606,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770897078.2196398,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Liked Songs"
+    },
+    "word:banking_portal": {
+      "x": 277,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770897078.228038,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Banking Portal"
+    },
+    "word:=]": {
+      "x": 1161,
+      "y": 1060,
+      "confidence": 0.5,
+      "last_verified": 1770897078.2800865,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "=]"
+    },
+    "word:trusted-login-sy": {
+      "x": 1281,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770897078.3299406,
+      "hits": 2,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "trusted-login-sy"
+    },
+    "word:meine_ablage_—": {
+      "x": 783,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770897078.3155937,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Meine Ablage —"
+    },
+    "word:poetry_-_google": {
+      "x": 1115,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770897078.3535585,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Poetry - Google"
+    },
+    "word:perspectiv_-_goo.": {
+      "x": 948,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770897078.369087,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "perspectiv - Goo."
+    },
+    "word:€": {
+      "x": 22,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770897078.3882575,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "€"
+    },
+    "word:strea": {
+      "x": 380,
+      "y": 128,
+      "confidence": 0.5,
+      "last_verified": 1770897078.4047952,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Strea"
+    },
+    "word:[7]": {
+      "x": 1249,
+      "y": 291,
+      "confidence": 0.5,
+      "last_verified": 1770897078.4577143,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "[7]"
+    },
+    "word:7": {
+      "x": 868,
+      "y": 379,
+      "confidence": 0.5,
+      "last_verified": 1770897078.4840262,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "7"
+    },
+    "word:£0": {
+      "x": 1010,
+      "y": 289,
+      "confidence": 0.5,
+      "last_verified": 1770897078.5113442,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "£0"
+    },
+    "word:des!": {
+      "x": 335,
+      "y": 128,
+      "confidence": 0.5,
+      "last_verified": 1770897078.5312884,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "Des!"
+    },
+    "word:cr": {
+      "x": 446,
+      "y": 128,
+      "confidence": 0.7,
+      "last_verified": 1770897078.545286,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "CR"
+    },
+    "word:=\na": {
+      "x": 697,
+      "y": 321,
+      "confidence": 0.5,
+      "last_verified": 1770897078.5528097,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "=\na"
+    },
+    "word:12:51": {
+      "x": 1887,
+      "y": 1048,
+      "confidence": 0.6,
+      "last_verified": 1770897078.5604873,
+      "hits": 1,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "12:51"
+    },
+    "aufzeichnungssymbolleiste:‘word_öffnen": {
+      "x": 1643,
+      "y": 414,
+      "confidence": 0.65,
+      "last_verified": 1770899522.362421,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "‘Word öffnen"
+    },
+    "aufzeichnungssymbolleiste:o": {
+      "x": 1594,
+      "y": 413,
+      "confidence": 0.7,
+      "last_verified": 1770902817.316298,
+      "hits": 6,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "o"
+    },
+    "aufzeichnungssymbolleiste:®": {
+      "x": 606,
+      "y": 1056,
+      "confidence": 0.7,
+      "last_verified": 1770902818.7505546,
+      "hits": 3,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "®"
+    },
+    "aufzeichnungssymbolleiste:=": {
+      "x": 1826,
+      "y": 62,
+      "confidence": 0.5,
+      "last_verified": 1770902817.3328972,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "="
+    },
+    "aufzeichnungssymbolleiste:dokument_erstellen_lassen": {
+      "x": 1680,
+      "y": 499,
+      "confidence": 0.65,
+      "last_verified": 1770899522.4597585,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Dokument erstellen lassen"
+    },
+    "aufzeichnungssymbolleiste:=_connected": {
+      "x": 1716,
+      "y": 166,
+      "confidence": 0.65,
+      "last_verified": 1770899522.4743137,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "= Connected"
+    },
+    "aufzeichnungssymbolleiste:a": {
+      "x": 784,
+      "y": 428,
+      "confidence": 0.7,
+      "last_verified": 1770902818.707104,
+      "hits": 6,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "a"
+    },
+    "aufzeichnungssymbolleiste:°": {
+      "x": 459,
+      "y": 807,
+      "confidence": 0.7,
+      "last_verified": 1770902817.4054735,
+      "hits": 4,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "°"
+    },
+    "aufzeichnungssymbolleiste:>": {
+      "x": 57,
+      "y": 62,
+      "confidence": 0.7,
+      "last_verified": 1770902817.3860896,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": ">"
+    },
+    "aufzeichnungssymbolleiste:£2": {
+      "x": 688,
+      "y": 715,
+      "confidence": 0.7,
+      "last_verified": 1770899522.5399182,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "£2"
+    },
+    "aufzeichnungssymbolleiste:is}": {
+      "x": 1872,
+      "y": 166,
+      "confidence": 0.7,
+      "last_verified": 1770899522.5530288,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Is}"
+    },
+    "aufzeichnungssymbolleiste:took:_screen_layout...": {
+      "x": 1718,
+      "y": 227,
+      "confidence": 0.5,
+      "last_verified": 1770902817.4225488,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Took: screen layout..."
+    },
+    "aufzeichnungssymbolleiste:(": {
+      "x": 1593,
+      "y": 1022,
+      "confidence": 0.5,
+      "last_verified": 1770899522.5799026,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "("
+    },
+    "aufzeichnungssymbolleiste:localhost:3003/electron": {
+      "x": 229,
+      "y": 64,
+      "confidence": 0.65,
+      "last_verified": 1770902817.4381301,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "localhost:3003/electron"
+    },
+    "aufzeichnungssymbolleiste:ocr_designer": {
+      "x": 1015,
+      "y": 117,
+      "confidence": 0.65,
+      "last_verified": 1770899522.611131,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "OCR Designer"
+    },
+    "aufzeichnungssymbolleiste:desktop_automation": {
+      "x": 111,
+      "y": 168,
+      "confidence": 0.65,
+      "last_verified": 1770899522.625636,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Desktop Automation"
+    },
+    "aufzeichnungssymbolleiste:aufgaben:": {
+      "x": 1608,
+      "y": 302,
+      "confidence": 0.65,
+      "last_verified": 1770902817.5068274,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Aufgaben:"
+    },
+    "aufzeichnungssymbolleiste:-": {
+      "x": 1862,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770902817.5591326,
+      "hits": 3,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "-"
+    },
+    "aufzeichnungssymbolleiste:8_settings": {
+      "x": 1792,
+      "y": 215,
+      "confidence": 0.65,
+      "last_verified": 1770899522.6674142,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "8 Settings"
+    },
+    "aufzeichnungssymbolleiste:q": {
+      "x": 1690,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770902817.5741463,
+      "hits": 3,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Q"
+    },
+    "aufzeichnungssymbolleiste:[abbrechen_|": {
+      "x": 1708,
+      "y": 469,
+      "confidence": 0.6,
+      "last_verified": 1770902817.6215112,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "[Abbrechen |"
+    },
+    "aufzeichnungssymbolleiste:abbrechen": {
+      "x": 1707,
+      "y": 468,
+      "confidence": 0.6,
+      "last_verified": 1770902817.664924,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Abbrechen"
+    },
+    "aufzeichnungssymbolleiste:‘auseinandersetzen": {
+      "x": 1659,
+      "y": 985,
+      "confidence": 0.65,
+      "last_verified": 1770899522.720687,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "‘auseinandersetzen"
+    },
+    "aufzeichnungssymbolleiste:©": {
+      "x": 137,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770902817.693213,
+      "hits": 3,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "©"
+    },
+    "aufzeichnungssymbolleiste:‘dahinter_aus_als_werterfihrende": {
+      "x": 1700,
+      "y": 725,
+      "confidence": 0.65,
+      "last_verified": 1770899522.7487624,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "‘dahinter aus als werterfihrende"
+    },
+    "aufzeichnungssymbolleiste:kurskonzept_an_copilot_übermitteln.": {
+      "x": 1705,
+      "y": 473,
+      "confidence": 0.65,
+      "last_verified": 1770899522.7625403,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Kurskonzept an Copilot übermitteln."
+    },
+    "aufzeichnungssymbolleiste:sprachgesteuerte_desktop-automatisierung": {
+      "x": 1717,
+      "y": 250,
+      "confidence": 0.65,
+      "last_verified": 1770899522.7765892,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Sprachgesteuerte Desktop-Automatisierung"
+    },
+    "aufzeichnungssymbolleiste:ocr_desktop_automation": {
+      "x": 413,
+      "y": 110,
+      "confidence": 0.65,
+      "last_verified": 1770902817.5898638,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "OCR Desktop Automation"
+    },
+    "aufzeichnungssymbolleiste:5": {
+      "x": 1024,
+      "y": 595,
+      "confidence": 0.7,
+      "last_verified": 1770899522.8019288,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "5"
+    },
+    "aufzeichnungssymbolleiste:tool:_screen_layout...": {
+      "x": 1718,
+      "y": 229,
+      "confidence": 0.65,
+      "last_verified": 1770902817.7113554,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Tool: screen layout..."
+    },
+    "aufzeichnungssymbolleiste:_": {
+      "x": 110,
+      "y": 194,
+      "confidence": 0.6,
+      "last_verified": 1770902817.7248387,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "_"
+    },
+    "aufzeichnungssymbolleiste:um\ncontrol": {
+      "x": 680,
+      "y": 537,
+      "confidence": 0.6,
+      "last_verified": 1770899522.8364642,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "um\nControl"
+    },
+    "aufzeichnungssymbolleiste:|": {
+      "x": 562,
+      "y": 1056,
+      "confidence": 0.7,
+      "last_verified": 1770902818.4614966,
+      "hits": 3,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "|"
+    },
+    "aufzeichnungssymbolleiste:unwissenden_user_die_sich_damit": {
+      "x": 1704,
+      "y": 965,
+      "confidence": 0.65,
+      "last_verified": 1770899522.8650086,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Unwissenden User die sich damit"
+    },
+    "aufzeichnungssymbolleiste:copilot_mit_alt+|_aktivieren": {
+      "x": 1682,
+      "y": 445,
+      "confidence": 0.65,
+      "last_verified": 1770899522.8933673,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Copilot mit Alt+| aktivieren"
+    },
+    "aufzeichnungssymbolleiste:statistische_antwort_und_es_soll": {
+      "x": 1698,
+      "y": 865,
+      "confidence": 0.65,
+      "last_verified": 1770899522.9047935,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "statistische Antwort und es soll"
+    },
+    "aufzeichnungssymbolleiste:keine_seele_besitzen_es_ist_eine": {
+      "x": 1697,
+      "y": 845,
+      "confidence": 0.65,
+      "last_verified": 1770899522.9193704,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "keine Seele besitzen es ist eine"
+    },
+    "aufzeichnungssymbolleiste:deu": {
+      "x": 1757,
+      "y": 1057,
+      "confidence": 0.6,
+      "last_verified": 1770902817.8128662,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "DEU"
+    },
+    "aufzeichnungssymbolleiste:12.02.2026": {
+      "x": 1872,
+      "y": 1064,
+      "confidence": 0.6,
+      "last_verified": 1770902817.842851,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "12.02.2026"
+    },
+    "aufzeichnungssymbolleiste:die_man_definiert_hat_hier_einzu": {
+      "x": 1699,
+      "y": 925,
+      "confidence": 0.65,
+      "last_verified": 1770899522.9538794,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "die man definiert hat hier einzu"
+    },
+    "aufzeichnungssymbolleiste:x": {
+      "x": 1051,
+      "y": 1059,
+      "confidence": 0.5,
+      "last_verified": 1770902818.680905,
+      "hits": 18,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "x"
+    },
+    "aufzeichnungssymbolleiste:transformer_modellen_keine": {
+      "x": 1688,
+      "y": 785,
+      "confidence": 0.65,
+      "last_verified": 1770899523.0376325,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Transformer Modellen keine"
+    },
+    "aufzeichnungssymbolleiste:suche": {
+      "x": 643,
+      "y": 1056,
+      "confidence": 0.6,
+      "last_verified": 1770902818.0826652,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Suche"
+    },
+    "aufzeichnungssymbolleiste:pause": {
+      "x": 1623,
+      "y": 468,
+      "confidence": 0.6,
+      "last_verified": 1770902818.2429261,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Pause"
+    },
+    "aufzeichnungssymbolleiste:+": {
+      "x": 1715,
+      "y": 20,
+      "confidence": 0.7,
+      "last_verified": 1770902818.259638,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "+"
+    },
+    "aufzeichnungssymbolleiste:weil_angreifer_benutzen_genau_die": {
+      "x": 1709,
+      "y": 946,
+      "confidence": 0.65,
+      "last_verified": 1770899523.1311872,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "weil Angreifer benutzen genau die"
+    },
+    "aufzeichnungssymbolleiste:emotionale_bindungen_aufbauen": {
+      "x": 1704,
+      "y": 806,
+      "confidence": 0.65,
+      "last_verified": 1770899523.1428783,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "emotionale Bindungen aufbauen"
+    },
+    "aufzeichnungssymbolleiste:qd_info": {
+      "x": 1718,
+      "y": 214,
+      "confidence": 0.6,
+      "last_verified": 1770899523.1588323,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "QD Info"
+    },
+    "aufzeichnungssymbolleiste:‚wichtig_die_security-mabnahmen": {
+      "x": 1703,
+      "y": 906,
+      "confidence": 0.65,
+      "last_verified": 1770899523.17392,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "‚wichtig die security-maBnahmen"
+    },
+    "aufzeichnungssymbolleiste:fragen_und_als_gesund_sollen_dir": {
+      "x": 1703,
+      "y": 746,
+      "confidence": 0.65,
+      "last_verified": 1770899523.1887093,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Fragen und als gesund sollen dir"
+    },
+    "aufzeichnungssymbolleiste:studenten_abgeholt_dass_diese": {
+      "x": 1697,
+      "y": 766,
+      "confidence": 0.65,
+      "last_verified": 1770899523.2062767,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Studenten abgeholt dass diese"
+    },
+    "aufzeichnungssymbolleiste:©_monitor_0": {
+      "x": 55,
+      "y": 212,
+      "confidence": 0.65,
+      "last_verified": 1770899523.224299,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "© Monitor 0"
+    },
+    "aufzeichnungssymbolleiste:feed_|_linkedin": {
+      "x": 112,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770899523.236341,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Feed | Linkedin"
+    },
+    "aufzeichnungssymbolleiste:liked_songs_|_sune": {
+      "x": 598,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770899523.2492905,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Liked Songs | Sune"
+    },
+    "aufzeichnungssymbolleiste:8": {
+      "x": 921,
+      "y": 1057,
+      "confidence": 0.5,
+      "last_verified": 1770902818.667148,
+      "hits": 3,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "8"
+    },
+    "aufzeichnungssymbolleiste:können_aufgrund_davon_weil_sie": {
+      "x": 1701,
+      "y": 826,
+      "confidence": 0.65,
+      "last_verified": 1770899523.2748902,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "können aufgrund davon weil sie"
+    },
+    "aufzeichnungssymbolleiste:=]": {
+      "x": 1183,
+      "y": 1060,
+      "confidence": 0.5,
+      "last_verified": 1770899523.287451,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "=]"
+    },
+    "aufzeichnungssymbolleiste:9": {
+      "x": 1719,
+      "y": 1056,
+      "confidence": 0.5,
+      "last_verified": 1770902818.51129,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "9"
+    },
+    "aufzeichnungssymbolleiste:meine_ablage_-_google_drive": {
+      "x": 864,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770899523.3127084,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Meine Ablage - Google Drive"
+    },
+    "aufzeichnungssymbolleiste:darauf_hingewiesen_werden_wie": {
+      "x": 1700,
+      "y": 886,
+      "confidence": 0.65,
+      "last_verified": 1770899523.3238103,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "darauf hingewiesen werden wie"
+    },
+    "aufzeichnungssymbolleiste:trusted-login-system": {
+      "x": 1079,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770899523.3389242,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "trusted-login-system"
+    },
+    "aufzeichnungssymbolleiste:desktop.space_—_google_drive": {
+      "x": 388,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770899523.3540933,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "desktop.space — Google Drive"
+    },
+    "aufzeichnungssymbolleiste:4%": {
+      "x": 1087,
+      "y": 116,
+      "confidence": 0.7,
+      "last_verified": 1770902817.79783,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "4%"
+    },
+    "aufzeichnungssymbolleiste:€": {
+      "x": 22,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770902818.6945958,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "€"
+    },
+    "aufzeichnungssymbolleiste:=)": {
+      "x": 1818,
+      "y": 1056,
+      "confidence": 0.7,
+      "last_verified": 1770902818.6238961,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "=)"
+    },
+    "aufzeichnungssymbolleiste:13:31": {
+      "x": 1887,
+      "y": 1048,
+      "confidence": 0.6,
+      "last_verified": 1770899523.4234827,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "13:31"
+    },
+    "aufzeichnungssymbolleiste:stop": {
+      "x": 1820,
+      "y": 169,
+      "confidence": 0.5,
+      "last_verified": 1770899523.4535155,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Stop"
+    },
+    "aufzeichnungssymbolleiste:t": {
+      "x": 786,
+      "y": 543,
+      "confidence": 0.7,
+      "last_verified": 1770902818.197329,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "T"
+    },
+    "aufzeichnungssymbolleiste:oo": {
+      "x": 689,
+      "y": 604,
+      "confidence": 0.5,
+      "last_verified": 1770902818.735366,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Oo"
+    },
+    "visual_studio_code:moire_voice": {
+      "x": 689,
+      "y": 479,
+      "confidence": 0.65,
+      "last_verified": 1770900546.4123406,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Moire Voice"
+    },
+    "visual_studio_code:o": {
+      "x": 1594,
+      "y": 488,
+      "confidence": 0.7,
+      "last_verified": 1770900546.9541504,
+      "hits": 4,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "o"
+    },
+    "visual_studio_code:=": {
+      "x": 1826,
+      "y": 62,
+      "confidence": 0.5,
+      "last_verified": 1770900546.4999275,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "="
+    },
+    "visual_studio_code:°": {
+      "x": 1228,
+      "y": 807,
+      "confidence": 0.7,
+      "last_verified": 1770900546.5471425,
+      "hits": 2,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "°"
+    },
+    "visual_studio_code:>": {
+      "x": 57,
+      "y": 62,
+      "confidence": 0.7,
+      "last_verified": 1770900546.5653195,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": ">"
+    },
+    "visual_studio_code:a": {
+      "x": 784,
+      "y": 428,
+      "confidence": 0.7,
+      "last_verified": 1770900547.6317801,
+      "hits": 5,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "a"
+    },
+    "visual_studio_code:took:_screen_layout...": {
+      "x": 1718,
+      "y": 387,
+      "confidence": 0.5,
+      "last_verified": 1770900546.6530726,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Took: screen layout..."
+    },
+    "visual_studio_code:control": {
+      "x": 1717,
+      "y": 282,
+      "confidence": 0.65,
+      "last_verified": 1770900546.7851489,
+      "hits": 2,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Control"
+    },
+    "visual_studio_code:localhost:3003/electron": {
+      "x": 229,
+      "y": 64,
+      "confidence": 0.65,
+      "last_verified": 1770900546.6910691,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "localhost:3003/electron"
+    },
+    "visual_studio_code:moire": {
+      "x": 1668,
+      "y": 234,
+      "confidence": 0.65,
+      "last_verified": 1770900546.7100313,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Moire"
+    },
+    "visual_studio_code:sn": {
+      "x": 537,
+      "y": 805,
+      "confidence": 0.5,
+      "last_verified": 1770900546.8023534,
+      "hits": 2,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Sn"
+    },
+    "visual_studio_code:‘ocr_designer": {
+      "x": 1015,
+      "y": 117,
+      "confidence": 0.65,
+      "last_verified": 1770900546.7485409,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "‘OCR Designer"
+    },
+    "visual_studio_code:aufgaben:": {
+      "x": 1608,
+      "y": 462,
+      "confidence": 0.65,
+      "last_verified": 1770900546.7665474,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Aufgaben:"
+    },
+    "visual_studio_code:voice": {
+      "x": 1773,
+      "y": 234,
+      "confidence": 0.65,
+      "last_verified": 1770900546.8225675,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Voice"
+    },
+    "visual_studio_code:sprachgesteuerte_desktop-automatisierung": {
+      "x": 1717,
+      "y": 324,
+      "confidence": 0.65,
+      "last_verified": 1770900546.8414211,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Sprachgesteuerte Desktop-Automatisierung"
+    },
+    "visual_studio_code:-": {
+      "x": 1862,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770900546.8562624,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "-"
+    },
+    "visual_studio_code:word_öffnen_und_leeres_dokument_prüfen": {
+      "x": 1722,
+      "y": 490,
+      "confidence": 0.65,
+      "last_verified": 1770900546.8706853,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Word öffnen und leeres Dokument prüfen"
+    },
+    "visual_studio_code:copilot-antwort_abwarten": {
+      "x": 1679,
+      "y": 574,
+      "confidence": 0.65,
+      "last_verified": 1770900546.886012,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Copilot-Antwort abwarten"
+    },
+    "visual_studio_code:q": {
+      "x": 1690,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770900546.9161208,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Q"
+    },
+    "visual_studio_code:ocr_desktop_automation": {
+      "x": 413,
+      "y": 110,
+      "confidence": 0.65,
+      "last_verified": 1770900546.9387436,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "OCR Desktop Automation"
+    },
+    "visual_studio_code:[abbrechen_|": {
+      "x": 1708,
+      "y": 628,
+      "confidence": 0.6,
+      "last_verified": 1770900546.9690473,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "[Abbrechen |"
+    },
+    "visual_studio_code:kurskonzept_an_copilot_übermitteln.": {
+      "x": 1705,
+      "y": 546,
+      "confidence": 0.65,
+      "last_verified": 1770900546.98421,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Kurskonzept an Copilot übermitteln."
+    },
+    "visual_studio_code:abbrechen": {
+      "x": 1707,
+      "y": 627,
+      "confidence": 0.6,
+      "last_verified": 1770900546.9981084,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Abbrechen"
+    },
+    "visual_studio_code:©": {
+      "x": 137,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770900547.0113394,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "©"
+    },
+    "visual_studio_code:tool:_screen_layout...": {
+      "x": 1718,
+      "y": 389,
+      "confidence": 0.65,
+      "last_verified": 1770900547.026575,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Tool: screen layout..."
+    },
+    "visual_studio_code:_": {
+      "x": 110,
+      "y": 194,
+      "confidence": 0.6,
+      "last_verified": 1770900547.0404406,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "_"
+    },
+    "visual_studio_code:copilot_mit_alt+|_öffnen": {
+      "x": 1673,
+      "y": 518,
+      "confidence": 0.65,
+      "last_verified": 1770900547.0553436,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Copilot mit Alt+| öffnen"
+    },
+    "visual_studio_code:4%": {
+      "x": 1087,
+      "y": 116,
+      "confidence": 0.7,
+      "last_verified": 1770900547.0699294,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "4%"
+    },
+    "visual_studio_code:statistische_antwort_und_es_soll": {
+      "x": 1698,
+      "y": 840,
+      "confidence": 0.65,
+      "last_verified": 1770900547.0837781,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "statistische Antwort und es soll"
+    },
+    "visual_studio_code:‘auseinandersetzen_du_musst_erst": {
+      "x": 1704,
+      "y": 960,
+      "confidence": 0.65,
+      "last_verified": 1770900547.0981457,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "‘auseinandersetzen du musst erst"
+    },
+    "visual_studio_code:unwissenden_user_die_sich_damit": {
+      "x": 1704,
+      "y": 940,
+      "confidence": 0.65,
+      "last_verified": 1770900547.1135354,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Unwissenden User die sich damit"
+    },
+    "visual_studio_code:keine_seele_besitzen_es_ist_eine": {
+      "x": 1697,
+      "y": 820,
+      "confidence": 0.65,
+      "last_verified": 1770900547.1334436,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "keine Seele besitzen es ist eine"
+    },
+    "visual_studio_code:deu": {
+      "x": 1757,
+      "y": 1057,
+      "confidence": 0.6,
+      "last_verified": 1770900547.1495104,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "DEU"
+    },
+    "visual_studio_code:12.02.2026": {
+      "x": 1872,
+      "y": 1064,
+      "confidence": 0.6,
+      "last_verified": 1770900547.165899,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "12.02.2026"
+    },
+    "visual_studio_code:die_man_definiert_hat_hier_einzu": {
+      "x": 1699,
+      "y": 900,
+      "confidence": 0.65,
+      "last_verified": 1770900547.1793423,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "die man definiert hat hier einzu"
+    },
+    "visual_studio_code:x": {
+      "x": 1897,
+      "y": 20,
+      "confidence": 0.7,
+      "last_verified": 1770900547.3579078,
+      "hits": 7,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "X"
+    },
+    "visual_studio_code:suche": {
+      "x": 643,
+      "y": 1056,
+      "confidence": 0.6,
+      "last_verified": 1770900547.3011072,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Suche"
+    },
+    "visual_studio_code:können_aufgrund_davon_weil_sie": {
+      "x": 1701,
+      "y": 801,
+      "confidence": 0.65,
+      "last_verified": 1770900547.315653,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "können aufgrund davon weil sie"
+    },
+    "visual_studio_code:t": {
+      "x": 786,
+      "y": 544,
+      "confidence": 0.7,
+      "last_verified": 1770900547.3440847,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "T"
+    },
+    "visual_studio_code:pause": {
+      "x": 1623,
+      "y": 627,
+      "confidence": 0.6,
+      "last_verified": 1770900547.3711164,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Pause"
+    },
+    "visual_studio_code:+": {
+      "x": 1482,
+      "y": 20,
+      "confidence": 0.7,
+      "last_verified": 1770900547.3851423,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "+"
+    },
+    "visual_studio_code:weil_angreifer_benutzen_genau_die": {
+      "x": 1709,
+      "y": 921,
+      "confidence": 0.65,
+      "last_verified": 1770900547.3994143,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "weil Angreifer benutzen genau die"
+    },
+    "visual_studio_code:‚wichtig_die_security-mabnahmen": {
+      "x": 1703,
+      "y": 881,
+      "confidence": 0.65,
+      "last_verified": 1770900547.413306,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "‚wichtig die security-maBnahmen"
+    },
+    "visual_studio_code:s": {
+      "x": 1139,
+      "y": 1060,
+      "confidence": 0.5,
+      "last_verified": 1770900547.427427,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "S"
+    },
+    "visual_studio_code:|": {
+      "x": 562,
+      "y": 1056,
+      "confidence": 0.7,
+      "last_verified": 1770900547.4402947,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "|"
+    },
+    "visual_studio_code:(1)_felix_baumann_|_linkedin": {
+      "x": 146,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770900547.4539053,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "(1) Felix Baumann | LinkedIn"
+    },
+    "visual_studio_code:liked_songs_|_sune": {
+      "x": 598,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770900547.468499,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Liked Songs | Sune"
+    },
+    "visual_studio_code:9": {
+      "x": 1719,
+      "y": 1056,
+      "confidence": 0.5,
+      "last_verified": 1770900547.4833963,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "9"
+    },
+    "visual_studio_code:meine_ablage_-_google_drive": {
+      "x": 864,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770900547.4961731,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Meine Ablage - Google Drive"
+    },
+    "visual_studio_code:darauf_hingewiesen_werden_wie": {
+      "x": 1700,
+      "y": 861,
+      "confidence": 0.65,
+      "last_verified": 1770900547.509225,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "darauf hingewiesen werden wie"
+    },
+    "visual_studio_code:trusted-login-system": {
+      "x": 1079,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770900547.520832,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "trusted-login-system"
+    },
+    "visual_studio_code:gemini_-_direkter_zugriff_auf_g": {
+      "x": 1342,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770900547.5339093,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "Gemini - direkter Zugriff auf G"
+    },
+    "visual_studio_code:@": {
+      "x": 1320,
+      "y": 1057,
+      "confidence": 0.5,
+      "last_verified": 1770900547.548202,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "@"
+    },
+    "visual_studio_code:desktop.space_—_google_drive": {
+      "x": 388,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770900547.5623913,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "desktop.space — Google Drive"
+    },
+    "visual_studio_code:=)": {
+      "x": 1818,
+      "y": 1056,
+      "confidence": 0.7,
+      "last_verified": 1770900547.575262,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "=)"
+    },
+    "visual_studio_code:8": {
+      "x": 921,
+      "y": 1057,
+      "confidence": 0.5,
+      "last_verified": 1770900547.5889938,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "8"
+    },
+    "visual_studio_code:€": {
+      "x": 22,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770900547.6036077,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "€"
+    },
+    "visual_studio_code:sicher_gehen_das_du_ein_leeeres": {
+      "x": 1699,
+      "y": 981,
+      "confidence": 0.65,
+      "last_verified": 1770900547.6159136,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "sicher gehen das du ein leeeres"
+    },
+    "visual_studio_code:13:48": {
+      "x": 1887,
+      "y": 1048,
+      "confidence": 0.6,
+      "last_verified": 1770900547.6438992,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "13:48"
+    },
+    "visual_studio_code:®": {
+      "x": 606,
+      "y": 1056,
+      "confidence": 0.7,
+      "last_verified": 1770900547.6598058,
+      "hits": 1,
+      "app_raw": "[Python stderr]: [Python… - VibeMind-VoiceDialog - Visual Studio Code",
+      "element_raw": "®"
+    },
+    "word:leeres_dokument": {
+      "x": 1404,
+      "y": 214,
+      "confidence": 0.7,
+      "last_verified": 1770900655.775415,
+      "hits": 2,
+      "app_raw": "Dokument1 - Word",
+      "element_raw": "o"
+    },
+    "aufzeichnungssymbolleiste:sn": {
+      "x": 537,
+      "y": 805,
+      "confidence": 0.5,
+      "last_verified": 1770902817.4898455,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Sn"
+    },
+    "aufzeichnungssymbolleiste:‘ocr_designer": {
+      "x": 1015,
+      "y": 117,
+      "confidence": 0.65,
+      "last_verified": 1770902817.4713833,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "‘OCR Designer"
+    },
+    "aufzeichnungssymbolleiste:ergebnis_in_word_einfügen": {
+      "x": 1681,
+      "y": 415,
+      "confidence": 0.65,
+      "last_verified": 1770902817.5365872,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Ergebnis in Word einfügen"
+    },
+    "aufzeichnungssymbolleiste:bildschirm_analysieren": {
+      "x": 1669,
+      "y": 330,
+      "confidence": 0.65,
+      "last_verified": 1770902817.6038322,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Bildschirm analysieren"
+    },
+    "aufzeichnungssymbolleiste:dass_ich_danach_evaluieren_kann": {
+      "x": 1702,
+      "y": 642,
+      "confidence": 0.65,
+      "last_verified": 1770902817.6353426,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "dass ich danach evaluieren kann"
+    },
+    "aufzeichnungssymbolleiste:kursbeschreibung_an_copilot_übermitteln": {
+      "x": 1720,
+      "y": 387,
+      "confidence": 0.65,
+      "last_verified": 1770902817.6520278,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Kursbeschreibung an Copilot übermitteln"
+    },
+    "aufzeichnungssymbolleiste:windows": {
+      "x": 1475,
+      "y": 949,
+      "confidence": 0.65,
+      "last_verified": 1770902817.6794896,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Windows"
+    },
+    "aufzeichnungssymbolleiste:noch_mal_als_kleines_video_das_hier": {
+      "x": 1711,
+      "y": 702,
+      "confidence": 0.65,
+      "last_verified": 1770902817.752029,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "noch mal als kleines Video das hier"
+    },
+    "aufzeichnungssymbolleiste:steuer_ich_habe_also_hier_relativ.": {
+      "x": 1702,
+      "y": 842,
+      "confidence": 0.65,
+      "last_verified": 1770902817.7695937,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "steuer ich habe also hier relativ."
+    },
+    "aufzeichnungssymbolleiste:erstellung_von_diesem_kurs": {
+      "x": 1686,
+      "y": 883,
+      "confidence": 0.65,
+      "last_verified": 1770902817.7841146,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Erstellung von diesem Kurs"
+    },
+    "aufzeichnungssymbolleiste:habe_hier_mal_was_vorbereitet": {
+      "x": 1694,
+      "y": 682,
+      "confidence": 0.65,
+      "last_verified": 1770902817.8280332,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "habe hier mal was vorbereitet"
+    },
+    "aufzeichnungssymbolleiste:copilot_in_word_öffnen_(alt+1)": {
+      "x": 1690,
+      "y": 359,
+      "confidence": 0.65,
+      "last_verified": 1770902818.0307431,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Copilot in Word öffnen (Alt+1)"
+    },
+    "aufzeichnungssymbolleiste:versuche_damit_meinen_pc": {
+      "x": 1684,
+      "y": 802,
+      "confidence": 0.65,
+      "last_verified": 1770902818.0669262,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "versuche damit meinen PC"
+    },
+    "aufzeichnungssymbolleiste:gemini_-_direkte‘": {
+      "x": 1445,
+      "y": 20,
+      "confidence": 0.65,
+      "last_verified": 1770902818.1613913,
+      "hits": 3,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Gemini - direkte‘"
+    },
+    "aufzeichnungssymbolleiste:desktop_automatisierung_ich": {
+      "x": 1692,
+      "y": 783,
+      "confidence": 0.65,
+      "last_verified": 1770902818.3115375,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Desktop Automatisierung ich"
+    },
+    "aufzeichnungssymbolleiste:system_welches_noch_nicht_ganz": {
+      "x": 1702,
+      "y": 743,
+      "confidence": 0.65,
+      "last_verified": 1770902818.3373127,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "System welches noch nicht ganz"
+    },
+    "aufzeichnungssymbolleiste:langes_rein_gesprochen_fiir_die": {
+      "x": 1696,
+      "y": 863,
+      "confidence": 0.65,
+      "last_verified": 1770902818.3663821,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "langes rein gesprochen fiir die"
+    },
+    "aufzeichnungssymbolleiste:ist_ein_beispiel_von_meinem_agent": {
+      "x": 1707,
+      "y": 723,
+      "confidence": 0.65,
+      "last_verified": 1770902818.3852863,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "ist ein Beispiel von meinem Agent"
+    },
+    "aufzeichnungssymbolleiste:s": {
+      "x": 1139,
+      "y": 1060,
+      "confidence": 0.5,
+      "last_verified": 1770902818.4020631,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "S"
+    },
+    "aufzeichnungssymbolleiste:liked_songs": {
+      "x": 440,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770902818.4179204,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Liked Songs"
+    },
+    "aufzeichnungssymbolleiste:automatisch_über_sprache_zu": {
+      "x": 1692,
+      "y": 823,
+      "confidence": 0.65,
+      "last_verified": 1770902818.476595,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "automatisch über Sprache zu"
+    },
+    "aufzeichnungssymbolleiste:google_gemini": {
+      "x": 1606,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770902818.5446403,
+      "hits": 2,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Google Gemini"
+    },
+    "aufzeichnungssymbolleiste:trusted-login-sy": {
+      "x": 783,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770902818.5657647,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "trusted-login-sy"
+    },
+    "aufzeichnungssymbolleiste:ihre_mitteilunge:": {
+      "x": 117,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770902818.5808969,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Ihre Mitteilunge:"
+    },
+    "aufzeichnungssymbolleiste:@": {
+      "x": 1320,
+      "y": 1057,
+      "confidence": 0.5,
+      "last_verified": 1770902818.5955234,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "@"
+    },
+    "aufzeichnungssymbolleiste:meine_ablage_—": {
+      "x": 616,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770902818.6101432,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "Meine Ablage —"
+    },
+    "aufzeichnungssymbolleiste:wie_gut_dieser_kurs_ist_also_ich": {
+      "x": 1695,
+      "y": 663,
+      "confidence": 0.65,
+      "last_verified": 1770902818.6373217,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "wie gut dieser Kurs ist also ich"
+    },
+    "aufzeichnungssymbolleiste:desktop.space_—": {
+      "x": 281,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770902818.6514442,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "desktop.space —"
+    },
+    "aufzeichnungssymbolleiste:14:26": {
+      "x": 1887,
+      "y": 1048,
+      "confidence": 0.6,
+      "last_verified": 1770902818.7206435,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "14:26"
+    },
+    "aufzeichnungssymbolleiste:ausgereift_ist_das_ist_meine": {
+      "x": 1684,
+      "y": 763,
+      "confidence": 0.65,
+      "last_verified": 1770902818.769735,
+      "hits": 1,
+      "app_raw": "Aufzeichnungssymbolleiste",
+      "element_raw": "ausgereift ist das ist meine"
+    },
+    "google_chrome:reload": {
+      "x": 446,
+      "y": 113,
+      "confidence": 0.6,
+      "last_verified": 1770909570.004895,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Reload"
+    },
+    "google_chrome:moire_voice": {
+      "x": 689,
+      "y": 524,
+      "confidence": 0.65,
+      "last_verified": 1770909570.014805,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Moire Voice"
+    },
+    "google_chrome:=": {
+      "x": 1826,
+      "y": 62,
+      "confidence": 0.5,
+      "last_verified": 1770909570.0235276,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "="
+    },
+    "google_chrome:‘was_ist_auf_meinem_bildschirm?": {
+      "x": 1700,
+      "y": 867,
+      "confidence": 0.65,
+      "last_verified": 1770909570.032604,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "‘Was ist auf meinem Bildschirm?"
+    },
+    "google_chrome:>": {
+      "x": 57,
+      "y": 62,
+      "confidence": 0.7,
+      "last_verified": 1770909570.0415173,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": ">"
+    },
+    "google_chrome:(tum_1_-_endlos-": {
+      "x": 1671,
+      "y": 701,
+      "confidence": 0.65,
+      "last_verified": 1770909570.0516043,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "(Tum 1 - Endlos-"
+    },
+    "google_chrome:session)": {
+      "x": 1610,
+      "y": 716,
+      "confidence": 0.6,
+      "last_verified": 1770909570.059604,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Session)"
+    },
+    "google_chrome:‘willkommen!_klicke_auf_das_mikrofon": {
+      "x": 1718,
+      "y": 765,
+      "confidence": 0.65,
+      "last_verified": 1770909570.0692346,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "‘Willkommen! Klicke auf das Mikrofon"
+    },
+    "google_chrome:took:_screen_layout...": {
+      "x": 1718,
+      "y": 436,
+      "confidence": 0.5,
+      "last_verified": 1770909570.0772347,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Took: screen layout..."
+    },
+    "google_chrome:control": {
+      "x": 1717,
+      "y": 331,
+      "confidence": 0.65,
+      "last_verified": 1770909570.172085,
+      "hits": 2,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Control"
+    },
+    "google_chrome:localhost:3003/electron": {
+      "x": 229,
+      "y": 64,
+      "confidence": 0.65,
+      "last_verified": 1770909570.0941765,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "localhost:3003/electron"
+    },
+    "google_chrome:moire": {
+      "x": 1668,
+      "y": 283,
+      "confidence": 0.65,
+      "last_verified": 1770909570.1152916,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Moire"
+    },
+    "google_chrome:£3": {
+      "x": 688,
+      "y": 645,
+      "confidence": 0.7,
+      "last_verified": 1770909570.1313448,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "£3"
+    },
+    "google_chrome:reload_this_page_to_apply_your_updated_settings_on_this_site": {
+      "x": 223,
+      "y": 114,
+      "confidence": 0.5,
+      "last_verified": 1770909570.1490698,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Reload this page to apply your updated settings on this site"
+    },
+    "google_chrome:‘ocr_designer": {
+      "x": 1015,
+      "y": 169,
+      "confidence": 0.65,
+      "last_verified": 1770909570.1609879,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "‘OCR Designer"
+    },
+    "google_chrome:voice": {
+      "x": 1773,
+      "y": 283,
+      "confidence": 0.65,
+      "last_verified": 1770909570.182453,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Voice"
+    },
+    "google_chrome:-": {
+      "x": 1862,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770909570.2169318,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "-"
+    },
+    "google_chrome:sprachgesteuerte_desktop-automatisierung": {
+      "x": 1717,
+      "y": 373,
+      "confidence": 0.65,
+      "last_verified": 1770909570.245076,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Sprachgesteuerte Desktop-Automatisierung"
+    },
+    "google_chrome:q": {
+      "x": 650,
+      "y": 1056,
+      "confidence": 0.7,
+      "last_verified": 1770909571.1353211,
+      "hits": 2,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Q"
+    },
+    "google_chrome:[screen_layout]_{\"monitor_id\":0}": {
+      "x": 1700,
+      "y": 931,
+      "confidence": 0.65,
+      "last_verified": 1770909570.2683706,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "[screen_layout] {\"monitor_id\":0}"
+    },
+    "google_chrome:[_=_|": {
+      "x": 1792,
+      "y": 710,
+      "confidence": 0.6,
+      "last_verified": 1770909570.302521,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "[ = |"
+    },
+    "google_chrome:[abbrechen_|": {
+      "x": 1708,
+      "y": 504,
+      "confidence": 0.6,
+      "last_verified": 1770909570.3167708,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "[Abbrechen |"
+    },
+    "google_chrome:abbrechen": {
+      "x": 1707,
+      "y": 503,
+      "confidence": 0.6,
+      "last_verified": 1770909570.327496,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Abbrechen"
+    },
+    "google_chrome:windows": {
+      "x": 1475,
+      "y": 949,
+      "confidence": 0.65,
+      "last_verified": 1770909570.3388824,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Windows"
+    },
+    "google_chrome:©": {
+      "x": 137,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770909570.350133,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "©"
+    },
+    "google_chrome:en_lil\n=": {
+      "x": 469,
+      "y": 609,
+      "confidence": 0.5,
+      "last_verified": 1770909570.360411,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "en lil\n="
+    },
+    "google_chrome:tool:_screen_layout...": {
+      "x": 1718,
+      "y": 438,
+      "confidence": 0.65,
+      "last_verified": 1770909570.4488676,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Tool: screen layout..."
+    },
+    "google_chrome:_": {
+      "x": 110,
+      "y": 246,
+      "confidence": 0.6,
+      "last_verified": 1770909570.486319,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "_"
+    },
+    "google_chrome:ocr_desktop_automation": {
+      "x": 413,
+      "y": 162,
+      "confidence": 0.65,
+      "last_verified": 1770909570.4993465,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "OCR Desktop Automation"
+    },
+    "google_chrome:4%": {
+      "x": 1087,
+      "y": 168,
+      "confidence": 0.7,
+      "last_verified": 1770909570.5091228,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "4%"
+    },
+    "google_chrome:merkt_sich_den_gespraechsverlauf.": {
+      "x": 1708,
+      "y": 806,
+      "confidence": 0.65,
+      "last_verified": 1770909570.5207353,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "merkt sich den Gespraechsverlauf."
+    },
+    "google_chrome:desktop_automation": {
+      "x": 1168,
+      "y": 169,
+      "confidence": 0.65,
+      "last_verified": 1770909570.533118,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Desktop Automation"
+    },
+    "google_chrome:oo": {
+      "x": 689,
+      "y": 644,
+      "confidence": 0.5,
+      "last_verified": 1770909570.543885,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Oo"
+    },
+    "google_chrome:deu": {
+      "x": 1757,
+      "y": 1057,
+      "confidence": 0.6,
+      "last_verified": 1770909570.5533848,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "DEU"
+    },
+    "google_chrome:12.02.2026": {
+      "x": 1872,
+      "y": 1064,
+      "confidence": 0.6,
+      "last_verified": 1770909570.562115,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "12.02.2026"
+    },
+    "google_chrome:x": {
+      "x": 1897,
+      "y": 20,
+      "confidence": 0.7,
+      "last_verified": 1770909570.7430806,
+      "hits": 11,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "X"
+    },
+    "google_chrome:a": {
+      "x": 785,
+      "y": 454,
+      "confidence": 0.7,
+      "last_verified": 1770909571.1144326,
+      "hits": 3,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "a"
+    },
+    "google_chrome:>=": {
+      "x": 687,
+      "y": 712,
+      "confidence": 0.5,
+      "last_verified": 1770909570.752594,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": ">="
+    },
+    "google_chrome:suche": {
+      "x": 687,
+      "y": 1056,
+      "confidence": 0.6,
+      "last_verified": 1770909570.763141,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Suche"
+    },
+    "google_chrome:localhost": {
+      "x": 1021,
+      "y": 20,
+      "confidence": 0.6,
+      "last_verified": 1770909570.7719524,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "localhost"
+    },
+    "google_chrome:t": {
+      "x": 786,
+      "y": 569,
+      "confidence": 0.7,
+      "last_verified": 1770909570.7950084,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "T"
+    },
+    "google_chrome:kilo_-_move_at_kilo_©": {
+      "x": 1236,
+      "y": 21,
+      "confidence": 0.65,
+      "last_verified": 1770909570.8041933,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Kilo - Move at Kilo ©"
+    },
+    "google_chrome:verlauf:": {
+      "x": 1608,
+      "y": 699,
+      "confidence": 0.6,
+      "last_verified": 1770909570.8218544,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Verlauf:"
+    },
+    "google_chrome:top": {
+      "x": 356,
+      "y": 181,
+      "confidence": 0.5,
+      "last_verified": 1770909570.8433623,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "top"
+    },
+    "google_chrome:+": {
+      "x": 1715,
+      "y": 20,
+      "confidence": 0.7,
+      "last_verified": 1770909570.8544645,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "+"
+    },
+    "google_chrome:pause": {
+      "x": 1623,
+      "y": 503,
+      "confidence": 0.6,
+      "last_verified": 1770909570.8651874,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Pause"
+    },
+    "google_chrome:of": {
+      "x": 963,
+      "y": 1056,
+      "confidence": 0.7,
+      "last_verified": 1770909570.8768702,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "of"
+    },
+    "google_chrome:®": {
+      "x": 26,
+      "y": 113,
+      "confidence": 0.7,
+      "last_verified": 1770909570.8896275,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "®"
+    },
+    "google_chrome:ihre_mitteilungen_|_l": {
+      "x": 126,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770909570.8990514,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Ihre Mitteilungen | L"
+    },
+    "google_chrome:liked_songs_|_suno": {
+      "x": 677,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770909570.91039,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Liked Songs | Suno"
+    },
+    "google_chrome:=)": {
+      "x": 1819,
+      "y": 1056,
+      "confidence": 0.5,
+      "last_verified": 1770909570.9291654,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "=)"
+    },
+    "google_chrome:senior_software_eng": {
+      "x": 1418,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770909570.9412093,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Senior Software Eng"
+    },
+    "google_chrome:trusted-login-system": {
+      "x": 1604,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770909570.9526556,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "trusted-login-system"
+    },
+    "google_chrome:req_mining_from_e:": {
+      "x": 313,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770909570.9641933,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Req_mining_from_e:"
+    },
+    "google_chrome:openclawd_-_googl:": {
+      "x": 497,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770909570.9767468,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "OpenClawd - Googl:"
+    },
+    "google_chrome:meine_ablage_-_goo": {
+      "x": 868,
+      "y": 22,
+      "confidence": 0.65,
+      "last_verified": 1770909570.992106,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Meine Ablage - Goo"
+    },
+    "google_chrome:@": {
+      "x": 1276,
+      "y": 1057,
+      "confidence": 0.5,
+      "last_verified": 1770909571.0021975,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "@"
+    },
+    "google_chrome:‘oder_tippe_einen_befehl._der_agent": {
+      "x": 1710,
+      "y": 786,
+      "confidence": 0.65,
+      "last_verified": 1770909571.0148897,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "‘oder tippe einen Befehl. Der Agent"
+    },
+    "google_chrome:€": {
+      "x": 22,
+      "y": 63,
+      "confidence": 0.7,
+      "last_verified": 1770909571.030756,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "€"
+    },
+    "google_chrome:str": {
+      "x": 373,
+      "y": 180,
+      "confidence": 0.5,
+      "last_verified": 1770909571.050521,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Str"
+    },
+    "google_chrome:des!": {
+      "x": 335,
+      "y": 180,
+      "confidence": 0.5,
+      "last_verified": 1770909571.0742357,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "Des!"
+    },
+    "google_chrome:cr": {
+      "x": 446,
+      "y": 180,
+      "confidence": 0.7,
+      "last_verified": 1770909571.0951324,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "CR"
+    },
+    "google_chrome:16:19": {
+      "x": 1887,
+      "y": 1048,
+      "confidence": 0.6,
+      "last_verified": 1770909571.1250067,
+      "hits": 1,
+      "app_raw": "trusted-login-system - Google Chrome",
+      "element_raw": "16:19"
+    }
+  },
+  "version": 1
+}

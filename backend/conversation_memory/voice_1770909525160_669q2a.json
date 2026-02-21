@@ -1,0 +1,22 @@
+{
+  "summary": "",
+  "recent": [
+    {
+      "role": "user",
+      "content": "Was ist auf meinem Bildschirm?"
+    },
+    {
+      "role": "assistant",
+      "content": "Auf deinem Bildschirm sehe ich:\n\n## OCR Desktop Automation Anwendung\nEine Web-basierte Desktop-Automatisierungs-Anwendung läuft in Chrome auf `localhost:3003/electron`.\n\n### Hauptbereiche:\n- **Zwei Monitor-Fenster** nebeneinander (Monitor 0 und 1), beide zeigen \"0 FPS\"\n- **Monitor 0** zeigt einen Desktop-Screenshot mit verschiedenen geöffneten Programmen\n- **Monitor 1** zeigt einen Code-Editor mit dunklem Theme\n\n### Rechte Seitenleiste:\n- **Voice-Chat Interface** mit türkisem Mikrofon-Button\n- S"
+    },
+    {
+      "role": "user",
+      "content": "Scrolle nach unten"
+    },
+    {
+      "role": "assistant",
+      "content": "Ich habe 3 Mal nach unten gescrollt. Die Seite sollte sich jetzt weiter unten befinden. Möchtest du noch weiter scrollen oder etwas Bestimmtes sehen?"
+    }
+  ],
+  "turn_count": 2
+}
