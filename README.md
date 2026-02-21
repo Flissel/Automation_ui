@@ -1,124 +1,91 @@
-# Trusted Login System
+# Automation UI
 
-🔐 **A secure and user-friendly login system with desktop integration and workflow automation**
-
----
-
-## 🌍 Documentation
-
-<!-- Note: German documentation has been removed. Please use the English documentation below. -->
-
-### 🇬🇧 English Documentation
-
-📖 **[Complete English Documentation](docs/en/README.md)**
-
-**Quick Access:**
-- 🏗️ [Architecture](docs/en/architecture/) - System architecture and technical documentation
-- 👨‍💻 [Development](docs/en/development/) - Developer onboarding and testing
-- ⚙️ [Operations](docs/en/operations/) - Deployment and maintenance
-- 🔒 [Security](docs/en/security/) - Security policies and error handling
-- 🔗 [Integration](docs/en/integration/) - API documentation and integration guides
-- 👤 [User](docs/en/user/) - User manual and guides
+Desktop Automation Platform with real-time streaming, workflow automation, and AI-powered screen analysis.
 
 ---
 
-## 🚀 Quick Start
+## Features
+
+- **Desktop Streaming** - Real-time multi-monitor screen capture via WebSocket
+- **AI Screen Analysis** - Video Agent (Nemotron VL) with Guardian Mode for auto-correction
+- **Workflow Automation** - Node-based workflow system (14 node types)
+- **OCR Integration** - Text extraction via Tesseract, EasyOCR, PaddleOCR
+- **Remote Desktop Control** - Mouse, keyboard, scroll actions
+- **LLM Intent Agent** - Natural language desktop commands via Claude Opus
+- **MCP Server** - 32 tools for desktop automation
+
+---
+
+## Quick Start
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - Python 3.9+
-- PostgreSQL 14+
-- Docker (optional)
+- Windows 10/11 (for desktop automation)
 
-### Installation & Setup
+### Installation
 
 ```bash
-# Clone repository / Repository klonen
-git clone <repository-url>
-cd trusted-login-system
+# Clone repository
+git clone https://github.com/Flissel/Automation_ui.git
+cd Automation_ui
 
-# Install dependencies / Abhängigkeiten installieren
+# Install dependencies
 npm install
-cd backend && pip install -r requirements.txt
+cd backend && pip install -r requirements.txt && cd ..
 
-# Setup environment / Umgebung einrichten
+# Setup environment
 cp .env.example .env
-# Edit .env with your configuration / .env mit Ihrer Konfiguration bearbeiten
+# Edit .env with your API keys
 
-# Start development servers / Entwicklungsserver starten
-npm run dev        # Frontend
-npm run dev:backend # Backend
+# Start all services
+scripts\start-all.bat
 ```
 
-### Vector Database (Qdrant)
+This starts Frontend (port 3003), Backend (port 8007), MoireServer, and Desktop Client.
 
+### Docker (optional)
+
+```bash
+docker compose up -d
+# Desktop client must run on host (needs monitor access)
+python desktop-client/dual_screen_capture_client.py
 ```
-docker compose -f docker-compose.qdrant.yml up -d
-```
-
-- Exposes the HTTP API on `http://localhost:6333`
-- Persists data inside the `qdrant_storage` Docker volume
-- Stop it with `docker compose -f docker-compose.qdrant.yml down`
-
-### Additional Information
-
-- 📚 **[Startup Guide](STARTUP_GUIDE.md)** - Detaillierte Installationsanleitung
-- 🔧 **[Development Setup](docs/en/development/developer_onboarding.md)** - Entwicklungsumgebung einrichten
-- 🐳 **[Deployment Guide](docs/en/operations/deployment_guide.md)** - Container-basierte Entwicklung
-- 🖥️ **[Live Desktop OCR + AutoGen](docs/LIVE_DESKTOP_OCR_QUICKSTART.md)** - 🆕 Screen-Capture mit KI-Analyse
 
 ---
 
-## 🎯 Project Overview
+## Architecture
 
+| Component | Tech | Port |
+| --------- | ---- | ---- |
+| Frontend | React 18 + TypeScript + Vite | 3003 |
+| Backend | FastAPI + Python 3.9+ | 8007 |
+| Desktop Client | Python (mss + pyautogui) | - |
+| MoireServer | Node.js | 8766 |
+| PostgreSQL | Docker | 5432 |
+| Redis | Docker | 6379 |
 
-
-The Trusted Login System is a modern, secure authentication solution with advanced desktop integration capabilities. It provides:
-
-- **🔐 Secure Authentication** - Multi-factor authentication and secure session management
-- **🖥️ Desktop Integration** - Seamless integration with desktop applications
-- **⚡ Workflow Automation** - Automated workflows and processes
-- **📊 Monitoring & Analytics** - Comprehensive monitoring and reporting
-- **🔧 API-First Design** - RESTful APIs for easy integration
-
----
-
-## 🛠️ Technology Stack
-
-### Frontend
-- **React 18** - Modern UI framework
-- **TypeScript** - Type-safe development
-- **Tailwind CSS** - Utility-first styling
-- **Vite** - Fast build tool
-
-### Backend
-- **FastAPI** - High-performance Python web framework
-- **PostgreSQL** - Robust relational database
-- **Redis** - Caching and session storage
-- **WebSockets** - Real-time communication
-
-### DevOps
-- **Docker** - Containerization
-- **GitHub Actions** - CI/CD pipeline
-- **Prometheus** - Monitoring and metrics
-- **Grafana** - Visualization and dashboards
+See [CLAUDE.md](CLAUDE.md) for detailed architecture documentation.
 
 ---
 
-## 📞 Support
+## Documentation
 
-- 🐛 **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/your-repo/discussions)
-- 📧 **Email**: support@trusted-login-system.com
-- 📖 **Wiki**: [Project Wiki](https://github.com/your-repo/wiki)
+- [Architecture: LLM System](docs/en/architecture/llm-architecture.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
+- [Changelog](CHANGELOG.md)
 
 ---
 
-## 📄 License
+## Support
+
+- [GitHub Issues](https://github.com/Flissel/Automation_ui/issues)
+- [GitHub Discussions](https://github.com/Flissel/Automation_ui/discussions)
+
+---
+
+## License
 
 MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-**Made with ❤️ by the Trusted Login System Team**

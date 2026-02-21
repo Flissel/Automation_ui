@@ -12,12 +12,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .database import close_db, init_db
 from .logger_config import get_logger
-from .routers import (  # Temporarily disabled routers - missing services; node_system_router,; filesystem_router,; windows_desktop_router
+from .routers import (
     api_v1_router, client_manager_router, desktop_router, health_router,
     mcp_bridge_router, node_configs_router, ocr_router, shell_router,
     websocket_router, workflows_router)
 from .routers.automation import router as automation_router
 from .routers.clawdbot import router as clawdbot_router
+from .routers.clawhub import router as clawhub_router
 from .routers.configs import router as configs_router
 from .routers.llm_intent import router as llm_intent_router
 from .services.client_manager_service import get_client_manager
@@ -187,14 +188,11 @@ def create_app() -> FastAPI:
     # Clawdbot Router - Messaging integration (WhatsApp, Telegram, Discord, etc.)
     app.include_router(clawdbot_router, prefix="/api/clawdbot", tags=["Clawdbot"])
 
+    # ClawHub Router - Skill Marketplace (ClawHub.ai integration)
+    app.include_router(clawhub_router, prefix="/api/clawhub", tags=["ClawHub"])
+
     # LLM Intent Router - Agentic Desktop Automation via Claude Opus 4.6
     app.include_router(llm_intent_router, prefix="/api/llm", tags=["LLM Intent"])
-
-    # Temporarily disabled routers - missing services
-    # app.include_router(node_system_router, prefix="/api/nodes", tags=["Nodes"])
-    # app.include_router(ocr_monitoring_router, prefix="/api/ocr-monitoring", tags=["OCR Monitoring"])
-    # app.include_router(filesystem_router, prefix="/api/filesystem", tags=["Filesystem"])
-    # app.include_router(windows_desktop_router, prefix="/api/windows-desktop", tags=["Windows Desktop"])
 
     logger.info("FastAPI application created with all routers")
 

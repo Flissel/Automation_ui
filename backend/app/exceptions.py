@@ -12,7 +12,7 @@ from fastapi import HTTPException, status
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 
-from .logging import get_logger
+from .logger_config import get_logger
 
 logger = get_logger("exceptions")
 

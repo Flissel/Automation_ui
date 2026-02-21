@@ -131,3 +131,12 @@ bash.exe.stackdump
 postgres_data/
 redis_data/
 qdrant_storage/
+
+# Log files
+*.log
+
+# Playwright MCP logs
+.playwright-mcp/
+
+# Desktop screenshots
+desktop_screenshots/

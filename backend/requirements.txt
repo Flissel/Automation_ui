@@ -11,9 +11,6 @@ websockets==12.0
 pydantic==2.5.0
 pydantic-settings==2.1.0
 
-# Async utilities
-asyncio-mqtt==0.16.1
-
 # Desktop automation and screenshots
 pyautogui==0.9.54
 Pillow==10.1.0
@@ -78,13 +75,3 @@ jinja2==3.1.2
 
 # Retry logic
 backoff==2.2.1
-
-# SSH client
-asyncssh==2.14.2
-paramiko==3.4.0
-
-# WebRTC support
-aiortc>=1.6.0
-opencv-python-headless==4.6.0.66
-numpy==1.24.4
-# pyav is automatically installed with aiortc
