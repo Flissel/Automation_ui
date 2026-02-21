@@ -25,7 +25,7 @@ class Settings(BaseSettings):
 
     # Database Settings (PostgreSQL)
     database_url: str = Field(
-        default="postgresql://trae:trae_secret_2024@localhost:5432/automation_ui",
+        default="postgresql://localhost:5432/automation_ui",
         env="DATABASE_URL"
     )
     database_pool_size: int = Field(default=5, env="DATABASE_POOL_SIZE")
@@ -165,9 +165,9 @@ class Settings(BaseSettings):
     memory_limit_mb: int = Field(default=1024, env="MEMORY_LIMIT_MB")
 
     # Proxmox VM Integration Settings
-    proxmox_host: str = Field(default="78.46.234.142", env="PROXMOX_HOST")
+    proxmox_host: str = Field(default="", env="PROXMOX_HOST")
     proxmox_port: int = Field(default=8006, env="PROXMOX_PORT")
-    proxmox_username: str = Field(default="root@pam", env="PROXMOX_USERNAME")
+    proxmox_username: str = Field(default="", env="PROXMOX_USERNAME")
     proxmox_password: str = Field(default="", env="PROXMOX_PASSWORD")
     proxmox_verify_ssl: bool = Field(default=False, env="PROXMOX_VERIFY_SSL")
     proxmox_default_node: str = Field(
@@ -191,7 +191,7 @@ class Settings(BaseSettings):
 
     # Security & Authentication Settings
     jwt_secret_key: str = Field(
-        default="your-super-secret-jwt-key-change-in-production", env="JWT_SECRET_KEY"
+        default="", env="JWT_SECRET_KEY"
     )
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
     jwt_access_token_expire_minutes: int = Field(
@@ -205,7 +205,7 @@ class Settings(BaseSettings):
     api_key_enabled: bool = Field(default=True, env="API_KEY_ENABLED")
     api_key_header_name: str = Field(default="X-API-Key", env="API_KEY_HEADER_NAME")
     default_api_keys: List[str] = Field(
-        default=["trae-default-api-key-2024"], env="DEFAULT_API_KEYS"
+        default=[], env="DEFAULT_API_KEYS"
     )
 
     # Rate Limiting
@@ -297,7 +297,7 @@ class Settings(BaseSettings):
     @validator("jwt_secret_key")
     def validate_jwt_secret_key(cls, v):
         """Validate JWT secret key length"""
-        if len(v) < 32:
+        if v and len(v) < 32:
             raise ValueError("JWT secret key must be at least 32 characters long")
         return v
 

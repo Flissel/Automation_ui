@@ -108,3 +108,26 @@ electron-app/node_modules/
 
 # All nested node_modules
 **/node_modules/
+
+# Environment files (secrets)
+**/.env
+!**/.env.example
+
+# Crash dumps
+bash.exe.stackdump
+*.stackdump
+
+# Windows artifacts
+%USERPROFILE%/
+
+# Kilocode
+.kilocode/
+
+# SQLite databases
+*.db
+*.sqlite3
+
+# Docker volumes
+postgres_data/
+redis_data/
+qdrant_storage/
