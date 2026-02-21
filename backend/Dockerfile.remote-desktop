@@ -1,7 +1,7 @@
 # Remote Desktop Automation Dockerfile
 # Provides a complete virtual desktop environment with X11, automation tools, and WebSocket streaming
 
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 # Set environment variables for X11 and automation
 ENV DISPLAY=:99
