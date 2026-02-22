@@ -1,6 +1,0 @@
-{
-  "monitor_id": "monitor_1",
-  "error": "TypeError: 'NoneType' object is not subscriptable\nTraceback:\nTraceback (most recent call last):\n\n  File \"C:\\Users\\User\\.pyenv\\pyenv-win\\versions\\3.11.0\\Lib\\site-packages\\autogen_agentchat\\teams\\_group_chat\\_chat_agent_container.py\", line 133, in handle_request\n    async for msg in self._agent.on_messages_stream(self._message_buffer, ctx.cancellation_token):\n\n  File \"C:\\Users\\User\\.pyenv\\pyenv-win\\versions\\3.11.0\\Lib\\site-packages\\autogen_agentchat\\agents\\_assistant_agent.py\", line 953, in on_messages_stream\n    async for inference_output in self._call_llm(\n\n  File \"C:\\Users\\User\\.pyenv\\pyenv-win\\versions\\3.11.0\\Lib\\site-packages\\autogen_agentchat\\agents\\_assistant_agent.py\", line 1109, in _call_llm\n    model_result = await model_client.create(\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n  File \"C:\\Users\\User\\.pyenv\\pyenv-win\\versions\\3.11.0\\Lib\\site-packages\\autogen_ext\\models\\openai\\_openai_client.py\", line 736, in create\n    choice: Union[ParsedChoice[Any], ParsedChoice[BaseModel], Choice] = result.choices[0]\n                                                                        ~~~~~~~~~~~~~~^^^\n\nTypeError: 'NoneType' object is not subscriptable\n",
-  "analysis_time": 83.93307757377625,
-  "status": "error"
-}
