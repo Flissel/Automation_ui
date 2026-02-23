@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from ..logging import get_logger, log_api_request
+from ..logger_config import get_logger, log_api_request
 
 logger = get_logger("desktop")
 

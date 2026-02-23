@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ..logging import LoggerMixin, get_logger
+from ..logger_config import LoggerMixin, get_logger
 from ..services import get_service_manager
 from ..services.click_automation_service import ClickAutomationService
 from ..services.desktop_automation_service import DesktopAutomationService

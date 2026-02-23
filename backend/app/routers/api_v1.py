@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from ..logging import get_logger, log_api_request
+from ..logger_config import get_logger, log_api_request
 from ..services import (get_desktop_automation_service,
                         get_graph_execution_service, get_service_manager)
 from ..services.desktop_service import get_desktop_service

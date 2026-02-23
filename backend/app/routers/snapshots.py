@@ -23,7 +23,7 @@ from PIL import Image, ImageGrab
 from pydantic import BaseModel, Field, field_validator
 
 from ..config import get_settings
-from ..logging import get_logger
+from ..logger_config import get_logger
 from ..services.desktop_service import DesktopService
 from ..services.manager import get_service_manager
 from ..services.ocr_service import OCRService as EnhancedOCRService

@@ -47,7 +47,7 @@ import pytesseract
 from fastapi import WebSocket, WebSocketDisconnect
 from PIL import Image, ImageGrab
 
-from ..logging import LoggerMixin
+from ..logger_config import LoggerMixin
 
 
 class DesktopAutomationService(LoggerMixin):

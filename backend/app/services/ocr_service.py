@@ -54,7 +54,7 @@ except ImportError:
     paddleocr = None
 
 from ..config import get_settings
-from ..logging import get_logger
+from ..logger_config import get_logger
 
 # ============================================================================
 # CONFIGURATION

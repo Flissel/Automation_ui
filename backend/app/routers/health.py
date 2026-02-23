@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from ..exceptions import ServiceError
-from ..logging import get_logger, log_api_request
+from ..logger_config import get_logger, log_api_request
 from ..services import get_service_manager
 
 logger = get_logger("health")

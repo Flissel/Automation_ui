@@ -12,7 +12,7 @@ from typing import Any, Dict, Set
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from ..logging import get_logger
+from ..logger_config import get_logger
 
 logger = get_logger("websocket_router")
 

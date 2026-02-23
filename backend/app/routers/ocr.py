@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from ..exceptions import OCRError
-from ..logging import get_logger, log_api_request
+from ..logger_config import get_logger, log_api_request
 from ..services import get_ocr_service
 
 logger = get_logger("ocr")
