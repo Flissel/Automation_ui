@@ -144,9 +144,6 @@ def create_app() -> FastAPI:
             "http://localhost:8007",  # Backend API port
             "http://localhost:8765",  # Voice Control (Vapi) server
             "http://localhost:18789",  # Clawdbot Gateway
-            "http://192.168.178.117:5173",  # Network IP
-            "http://192.168.178.117:5174",  # Network IP with alternative port
-            "http://192.168.178.117:5175",  # Network IP with alternative port
         ],
         allow_credentials=True,
         allow_methods=["*"],

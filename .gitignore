@@ -140,3 +140,15 @@ qdrant_storage/
 
 # Desktop screenshots
 desktop_screenshots/
+
+# Claude Code (user-specific session permissions)
+.claude/settings.local.json
+.claude/.vscode/
+
+# Runtime data caches (recreated at runtime)
+backend/conversation_memory/
+backend/training_data/
+backend/ui_memory/
+
+# Personal contacts config (use .example instead)
+config/clawdbot_contacts.json

@@ -238,7 +238,7 @@ function Create-ConfigFile {
             autoStart = $true
         }
         supabase = @{
-            url = "wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream"
+            url = if ($env:SUPABASE_WS_URL) { $env:SUPABASE_WS_URL } else { "ws://localhost:8007/ws/live-desktop" }
         }
     } | ConvertTo-Json -Depth 3
     

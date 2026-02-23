@@ -33,7 +33,7 @@ class AutoDualMonitorStarter:
 
     def __init__(
         self,
-        server_url: str = "wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream",
+        server_url: str = None,
     ):
         """
         Initialisierung des Auto-Starters
@@ -41,7 +41,7 @@ class AutoDualMonitorStarter:
         Args:
             server_url: WebSocket Server URL für Verbindung
         """
-        self.server_url = server_url
+        self.server_url = server_url or os.getenv("SUPABASE_WS_URL", "ws://localhost:8007/ws/live-desktop")
         self.websocket: Optional[websockets.WebSocketServerProtocol] = None
         self.detected_monitors: List[Dict] = []
         self.started_clients: List[subprocess.Popen] = []
@@ -472,8 +472,8 @@ async def main():
     )
     parser.add_argument(
         "--server-url",
-        default="wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream",
-        help="WebSocket Server URL (Standard: Supabase Edge Function)",
+        default=os.getenv("SUPABASE_WS_URL", "ws://localhost:8007/ws/live-desktop"),
+        help="WebSocket Server URL (default: local backend, set SUPABASE_WS_URL for cloud relay)",
     )
 
     args = parser.parse_args()

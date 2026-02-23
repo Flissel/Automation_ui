@@ -1038,8 +1038,8 @@ def main():
     parser = argparse.ArgumentParser(description="Robust Dual Screen Capture Client")
     parser.add_argument(
         "--server-url",
-        default="wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream",
-        help="Server-URL",
+        default=os.getenv("SUPABASE_WS_URL", "ws://localhost:8007/ws/live-desktop"),
+        help="WebSocket Server URL (default: local backend, set SUPABASE_WS_URL for cloud relay)",
     )
     parser.add_argument("--client-id", help="Client-ID (optional)")
     parser.add_argument("--fps", type=int, default=10, help="FPS")

@@ -16,6 +16,7 @@ The Trusted Login System is a modern authentication and desktop automation platf
 ## Technology Stack
 
 ### Frontend
+
 - **React 18** with TypeScript
 - **Vite** (dev server on port 5173)
 - **Tailwind CSS** + shadcn/ui components
@@ -25,6 +26,7 @@ The Trusted Login System is a modern authentication and desktop automation platf
 - **Playwright** for E2E testing
 
 ### Backend
+
 - **FastAPI** (Python 3.9+) on port 8007
   - Integrated WebSocket support
   - RESTful API endpoints (`/api/v1`, `/api/automation`, `/api/workflows`, etc.)
@@ -42,6 +44,7 @@ The Trusted Login System is a modern authentication and desktop automation platf
 ## Development Commands
 
 ### Quick Start (All Services)
+
 ```bash
 # Start ALL services with one command (recommended)
 scripts\start-all.bat
@@ -56,6 +59,7 @@ scripts\start-all.bat
 ```
 
 ### Frontend Commands
+
 ```bash
 # Start frontend development server (runs on http://localhost:5173 or 3003)
 npm run dev
@@ -74,6 +78,7 @@ npm run preview
 ```
 
 ### Backend Commands
+
 ```bash
 # Start FastAPI backend server (runs on http://localhost:8007)
 cd backend
@@ -93,7 +98,9 @@ pytest --cov=app tests/
 ```
 
 ### External Repository Management
+
 The project uses external repositories managed via scripts:
+
 ```bash
 # Update external repositories from config/external-repos.json
 npm run update-external
@@ -106,6 +113,7 @@ npm run update-external:verbose
 ```
 
 ### Branch Management
+
 ```bash
 # List all branches
 npm run branch:list
@@ -121,6 +129,7 @@ npm run branch:update
 ```
 
 ### Testing
+
 ```bash
 # Run Playwright E2E tests (uses http://localhost:5173 - auto-starts dev server)
 npx playwright test
@@ -149,12 +158,13 @@ The system uses **two complementary backend services**:
    - Service Manager coordinates all backend services
 
 2. **Supabase Edge Functions** (Deno runtime)
-   - Cloud-based WebSocket relay at `wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream`
+   - Cloud-based WebSocket relay at `wss://{YOUR_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/live-desktop-stream`
    - Acts as intermediary between desktop clients and web clients
    - Serverless functions for processing and routing
    - PostgreSQL database integration
 
 **Usage Decision**:
+
 - Use **FastAPI backend** when running locally with direct desktop access
 - Use **Supabase Edge Functions** for cloud-based relay or when desktop clients are remote
 
@@ -167,18 +177,21 @@ The system supports **both direct and relay architectures** for desktop streamin
 3. **Edge Function** (`live-desktop-stream`) acts as relay between desktop and web clients
 
 **Important**: All WebSocket connections MUST go through the centralized configuration in `src/config/websocketConfig.ts`. This file provides:
+
 - Base URL configuration (Supabase Edge Function URL)
 - Client factory functions (`createWebClient`, `createMultiDesktopClient`, etc.)
 - Handshake message standardization
 - Connection utilities
 
 **WebSocket Message Flow**:
+
 ```
 Desktop Client → Edge Function → Web Client (for frames)
 Web Client → Edge Function → Desktop Client (for commands)
 ```
 
 **Key Message Types**:
+
 - `handshake`: Client identification and capabilities
 - `start_capture`/`stop_capture`: Control desktop streaming
 - `frame_data`: Desktop screen frames (base64 encoded)
@@ -257,7 +270,7 @@ supabase/              # Supabase Edge Functions
 │   ├── desktop-actions/
 │   ├── ocr-processor/
 │   └── filesystem-bridge/
-└── config.toml        # Supabase configuration (project: dgzreelowtzquljhxskq)
+└── config.toml        # Supabase configuration (project: {YOUR_SUPABASE_PROJECT_ID})
 
 scripts/
 ├── update-external-repos.js    # External repo management
@@ -269,6 +282,7 @@ scripts/
 The project includes a comprehensive node-based workflow system located in `src/workflows/`. **IMPORTANT**: Read `src/workflows/README.md` for complete documentation.
 
 **Supported Node Types** (14 total):
+
 - Trigger: `manual_trigger`, `webhook_trigger`
 - Configuration: `websocket_config`
 - Interface: `live_desktop`
@@ -279,6 +293,7 @@ The project includes a comprehensive node-based workflow system located in `src/
 - Results: `workflow_result`
 
 **Key Workflow Files**:
+
 - `exampleWorkflows.ts`: Pre-designed workflow templates
 - `workflowValidator.ts`: Node compatibility validation
 - `workflowManager.ts`: Execution coordinator
@@ -290,7 +305,11 @@ Services in `src/services/` follow a static class pattern:
 
 ```typescript
 export class DesktopStreamService {
-  static startStream(websocket: WebSocket, desktopClientId: string, monitorId?: string): boolean {
+  static startStream(
+    websocket: WebSocket,
+    desktopClientId: string,
+    monitorId?: string,
+  ): boolean {
     // Send command via WebSocket
   }
 
@@ -305,10 +324,11 @@ All WebSocket communication should use `sendWebSocketMessage()` from `websocketC
 ### Import Aliases
 
 The project uses `@/` for absolute imports:
+
 ```typescript
-import { Button } from '@/components/ui/button';
-import { DesktopStreamService } from '@/services/desktopStreamService';
-import { createWebClient } from '@/config/websocketConfig';
+import { Button } from "@/components/ui/button";
+import { DesktopStreamService } from "@/services/desktopStreamService";
+import { createWebClient } from "@/config/websocketConfig";
 ```
 
 ## Key Development Patterns
@@ -320,10 +340,14 @@ import { createWebClient } from '@/config/websocketConfig';
 #### Option 1: Manual WebSocket Management (Legacy)
 
 ```typescript
-import { createWebClient, sendWebSocketMessage } from '@/config/websocketConfig';
+import {
+  createWebClient,
+  sendWebSocketMessage,
+} from "@/config/websocketConfig";
 
 // Create WebSocket client with standardized config
-const { websocket, handshakeMessage, clientId } = createWebClient('ComponentName');
+const { websocket, handshakeMessage, clientId } =
+  createWebClient("ComponentName");
 
 websocket.onopen = () => {
   sendWebSocketMessage(websocket, handshakeMessage);
@@ -333,10 +357,10 @@ websocket.onmessage = (event) => {
   const message = JSON.parse(event.data);
 
   switch (message.type) {
-    case 'frame_data':
+    case "frame_data":
       // Handle desktop frame
       break;
-    case 'desktop_clients_list':
+    case "desktop_clients_list":
       // Handle available desktop clients
       break;
   }
@@ -392,6 +416,7 @@ const MyComponent = () => {
 ```
 
 **Reconnection Features:**
+
 - Automatic reconnection with exponential backoff (5s → 10s → 20s → 40s → 60s)
 - Configurable max attempts (default: 10)
 - Preserves handshake and state across reconnections
@@ -402,24 +427,27 @@ const MyComponent = () => {
 ### Desktop Client Management
 
 To get list of available desktop clients:
+
 ```typescript
-import { DesktopStreamService } from '@/services/desktopStreamService';
+import { DesktopStreamService } from "@/services/desktopStreamService";
 
 DesktopStreamService.getDesktopClients(websocket);
 ```
 
 To start/stop streaming:
+
 ```typescript
 // Start stream from specific desktop client and monitor
-DesktopStreamService.startStream(websocket, 'desktop_001', 'monitor_0');
+DesktopStreamService.startStream(websocket, "desktop_001", "monitor_0");
 
 // Stop stream
-DesktopStreamService.stopStream(websocket, 'desktop_001');
+DesktopStreamService.stopStream(websocket, "desktop_001");
 ```
 
 ### Mock Desktop Clients
 
 The Edge Function provides mock desktop clients for testing when no real desktop clients are connected:
+
 - `desktop_001`: Main Workstation (2 monitors)
 - `desktop_002`: Development PC (1 monitor)
 - `desktop_003`: Test Machine (2 monitors)
@@ -458,16 +486,16 @@ The project includes an MCP (Model Context Protocol) server for desktop automati
 
 **Available MCP Tools (32 total)**:
 
-| Category | Tools |
-|----------|-------|
-| **Core Automation** | `handoff_plan`, `handoff_execute`, `handoff_validate`, `handoff_action`, `handoff_status` |
-| **Screen/OCR** | `handoff_read_screen`, `handoff_get_focus`, `handoff_scroll` |
-| **Event Queue** | `handoff_event_add`, `handoff_event_status`, `handoff_event_list`, `handoff_event_cancel`, `handoff_batch_execute` |
-| **User Interaction** | `handoff_clarify`, `handoff_clarify_check`, `handoff_notify` |
-| **File/System** | `handoff_shell`, `handoff_file_search`, `handoff_file_open`, `handoff_dir_list`, `handoff_file_read`, `handoff_file_write`, `handoff_process_list`, `handoff_process_kill`, `handoff_system_info` |
-| **Smart Elements** | `handoff_find_element`, `handoff_scroll_to` |
-| **Document Processing** | `handoff_doc_scan`, `handoff_doc_edit`, `handoff_doc_apply`, `handoff_doc_export`, `handoff_doc_list` |
-| **Claude CLI** | `claude_cli_run`, `claude_cli_skill`, `claude_cli_status` |
+| Category                | Tools                                                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Core Automation**     | `handoff_plan`, `handoff_execute`, `handoff_validate`, `handoff_action`, `handoff_status`                                                                                                         |
+| **Screen/OCR**          | `handoff_read_screen`, `handoff_get_focus`, `handoff_scroll`                                                                                                                                      |
+| **Event Queue**         | `handoff_event_add`, `handoff_event_status`, `handoff_event_list`, `handoff_event_cancel`, `handoff_batch_execute`                                                                                |
+| **User Interaction**    | `handoff_clarify`, `handoff_clarify_check`, `handoff_notify`                                                                                                                                      |
+| **File/System**         | `handoff_shell`, `handoff_file_search`, `handoff_file_open`, `handoff_dir_list`, `handoff_file_read`, `handoff_file_write`, `handoff_process_list`, `handoff_process_kill`, `handoff_system_info` |
+| **Smart Elements**      | `handoff_find_element`, `handoff_scroll_to`                                                                                                                                                       |
+| **Document Processing** | `handoff_doc_scan`, `handoff_doc_edit`, `handoff_doc_apply`, `handoff_doc_export`, `handoff_doc_list`                                                                                             |
+| **Claude CLI**          | `claude_cli_run`, `claude_cli_skill`, `claude_cli_status`                                                                                                                                         |
 
 ## Desktop Client
 
@@ -478,7 +506,7 @@ The Python desktop client (`desktop-client/dual_screen_capture_client.py`) captu
 python dual_screen_capture_client.py --server-url ws://localhost:8007/ws/live-desktop
 
 # Start with Supabase relay
-python dual_screen_capture_client.py --server-url wss://dgzreelowtzquljhxskq.supabase.co/functions/v1/live-desktop-stream
+python dual_screen_capture_client.py --server-url wss://{YOUR_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/live-desktop-stream
 ```
 
 **Features**:
@@ -492,35 +520,42 @@ python dual_screen_capture_client.py --server-url wss://dgzreelowtzquljhxskq.sup
 ## Important Notes
 
 ### WebSocket URLs
+
 - **DO NOT hardcode WebSocket URLs** in components
 - **ALWAYS import from** `@/config/websocketConfig.ts`
 - Edge Function URL format: `wss://{project-id}.supabase.co/functions/v1/{endpoint}`
-- Current project ID: `dgzreelowtzquljhxskq`
+- Current project ID: `{YOUR_SUPABASE_PROJECT_ID}`
 
 ### Environment Variables
 
 **Frontend (.env)**:
+
 ```bash
 VITE_BACKEND_URL=http://localhost:8007          # FastAPI backend URL
 VITE_WS_URL=ws://localhost:8007/ws              # WebSocket URL (optional)
 VITE_ENV=development                            # Environment mode
-VITE_SUPABASE_PROJECT_ID=dgzreelowtzquljhxskq   # Supabase project ID (optional)
+VITE_SUPABASE_PROJECT_ID={YOUR_SUPABASE_PROJECT_ID}   # Supabase project ID (optional)
 ```
 
 **Backend**:
+
 - Environment variables can be set in backend/.env or via system environment
 - Main variables: `HOST`, `PORT`, `WS_PORT`, `LOG_LEVEL`, `ENVIRONMENT`, `DEBUG`
 - See `.env.example` for reference
 
 ### Git Pre-commit Hooks
+
 The project uses Husky for git hooks with lint-staged:
+
 - ESLint auto-fix on `.{js,jsx,ts,tsx}` files
 - Prettier formatting on `.{js,jsx,ts,tsx,json,css,md}` files
 
 ### External Repository System
+
 The project can pull code from external repositories defined in `config/external-repos.json`. This supports selective file copying with include/exclude patterns.
 
 ### Testing Considerations
+
 - Playwright tests expect dev server on `http://localhost:5173` (Vite default port)
 - Tests automatically start dev server via `webServer` config in `playwright.config.ts`
 - Tests run against Chromium, Firefox, and WebKit
@@ -529,22 +564,26 @@ The project can pull code from external repositories defined in `config/external
 ## Common Tasks
 
 ### Adding a New Page/Route
+
 1. Create component in `src/pages/`
 2. Add route in `src/App.tsx` ABOVE the catch-all `*` route
 3. Add navigation link in `src/components/layout/Navigation.tsx`
 
 ### Adding a New Desktop Command
+
 1. Add command type to `DesktopStreamService` in `src/services/desktopStreamService.ts`
 2. Implement handler in `supabase/functions/live-desktop-stream/index.ts`
 3. Update desktop client (external) to handle new command
 
 ### Working with Workflows
+
 1. Review `src/workflows/README.md` for comprehensive documentation
 2. Use pre-designed templates from `exampleWorkflows.ts`
 3. Validate workflows with `WorkflowValidator` before execution
 4. Reference node compatibility matrix for valid connections
 
 ### Adding a New Backend API Endpoint
+
 1. Create route handler in `backend/app/routers/` (e.g., `my_feature.py`)
 2. Define Pydantic schemas in `backend/app/schemas/` if needed
 3. Implement business logic in `backend/app/services/`
@@ -552,6 +591,7 @@ The project can pull code from external repositories defined in `config/external
 5. Add tests in `backend/tests/test_my_feature.py`
 
 ### Adding a New Service to Backend
+
 1. Create service class in `backend/app/services/`
 2. Implement service lifecycle methods (`initialize()`, `cleanup()`)
 3. Register service in `backend/app/services/manager.py` (ServiceManager)
@@ -560,6 +600,7 @@ The project can pull code from external repositories defined in `config/external
 ### Debugging WebSocket Issues
 
 **Frontend WebSocket Debugging**:
+
 1. Check `websocketConfig.ts` for correct base URL
 2. Verify Edge Function is deployed and accessible (for Supabase)
 3. Check browser console for WebSocket connection errors
@@ -568,6 +609,7 @@ The project can pull code from external repositories defined in `config/external
 6. Check if `VITE_WS_URL` environment variable is set correctly
 
 **Backend WebSocket Debugging**:
+
 1. Verify FastAPI server is running on port 8007
 2. Check WebSocket endpoint at `ws://localhost:8007/ws/live-desktop`
 3. Review backend logs for connection errors
@@ -575,6 +617,7 @@ The project can pull code from external repositories defined in `config/external
 5. Ensure CORS is properly configured in `backend/app/main.py`
 
 **Debugging Backend API Issues**:
+
 1. Check FastAPI interactive docs at `http://localhost:8007/docs`
 2. Review backend logs for errors (logged via loguru)
 3. Verify service initialization in ServiceManager
