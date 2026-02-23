@@ -5,21 +5,27 @@
  * active sessions, message history, and allows testing commands.
  */
 
-import { useEffect, useState, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from 'sonner';
+import { useEffect, useState, useCallback } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import {
   ClawdbotService,
   type ClawdbotStatus,
   type ClawdbotSession,
   type ClawdbotMessage,
-} from '@/services/clawdbotService';
+} from "@/services/clawdbotService";
 import {
   RefreshCw,
   Send,
@@ -30,18 +36,24 @@ import {
   Wifi,
   WifiOff,
   Smartphone,
-} from 'lucide-react';
+  Package,
+} from "lucide-react";
+import { InstalledSkillsPanel } from "./InstalledSkillsPanel";
+import { SkillMarketplace } from "./SkillMarketplace";
 
 // Platform icons/labels
-const PLATFORM_INFO: Record<string, { icon: string; label: string; color: string }> = {
-  whatsapp: { icon: '📱', label: 'WhatsApp', color: 'bg-green-500' },
-  telegram: { icon: '✈️', label: 'Telegram', color: 'bg-blue-500' },
-  discord: { icon: '🎮', label: 'Discord', color: 'bg-indigo-500' },
-  slack: { icon: '💼', label: 'Slack', color: 'bg-purple-500' },
-  signal: { icon: '🔒', label: 'Signal', color: 'bg-blue-600' },
-  imessage: { icon: '💬', label: 'iMessage', color: 'bg-blue-400' },
-  web: { icon: '🌐', label: 'Web', color: 'bg-gray-500' },
-  api: { icon: '⚡', label: 'API', color: 'bg-yellow-500' },
+const PLATFORM_INFO: Record<
+  string,
+  { icon: string; label: string; color: string }
+> = {
+  whatsapp: { icon: "📱", label: "WhatsApp", color: "bg-green-500" },
+  telegram: { icon: "✈️", label: "Telegram", color: "bg-blue-500" },
+  discord: { icon: "🎮", label: "Discord", color: "bg-indigo-500" },
+  slack: { icon: "💼", label: "Slack", color: "bg-purple-500" },
+  signal: { icon: "🔒", label: "Signal", color: "bg-blue-600" },
+  imessage: { icon: "💬", label: "iMessage", color: "bg-blue-400" },
+  web: { icon: "🌐", label: "Web", color: "bg-gray-500" },
+  api: { icon: "⚡", label: "API", color: "bg-yellow-500" },
 };
 
 export function ClawdbotStatusPanel() {
@@ -50,8 +62,11 @@ export function ClawdbotStatusPanel() {
   const [messages, setMessages] = useState<ClawdbotMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [command, setCommand] = useState('');
+  const [command, setCommand] = useState("");
   const [executing, setExecuting] = useState(false);
+  const [skillsView, setSkillsView] = useState<"installed" | "marketplace">(
+    "installed",
+  );
 
   // Fetch status
   const fetchStatus = useCallback(async () => {
@@ -64,7 +79,7 @@ export function ClawdbotStatusPanel() {
       setSessions(sessionsData);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connection failed');
+      setError(err instanceof Error ? err.message : "Connection failed");
     } finally {
       setLoading(false);
     }
@@ -89,26 +104,28 @@ export function ClawdbotStatusPanel() {
 
   // Execute command
   const handleExecute = async () => {
-    if (!command.trim()) return;
+    if (!command.trim()) {
+      return;
+    }
 
     setExecuting(true);
     try {
       const result = await ClawdbotService.executeCommand({
         command: command.trim(),
-        platform: 'web',
-        user_id: 'web_user',
+        platform: "web",
+        user_id: "web_user",
       });
 
       if (result.success) {
         toast.success(result.message);
       } else {
-        toast.error(result.message || 'Command failed');
+        toast.error(result.message || "Command failed");
       }
 
-      setCommand('');
+      setCommand("");
       setMessages(ClawdbotService.getMessageHistory(50));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Execution failed');
+      toast.error(err instanceof Error ? err.message : "Execution failed");
     } finally {
       setExecuting(false);
     }
@@ -119,19 +136,19 @@ export function ClawdbotStatusPanel() {
     setExecuting(true);
     try {
       const result = await ClawdbotService.executeCommand({
-        command: 'screenshot',
-        platform: 'web',
-        user_id: 'web_user',
+        command: "screenshot",
+        platform: "web",
+        user_id: "web_user",
       });
 
       if (result.success) {
-        toast.success('Screenshot aufgenommen');
+        toast.success("Screenshot aufgenommen");
         setMessages(ClawdbotService.getMessageHistory(50));
       } else {
-        toast.error(result.message || 'Screenshot failed');
+        toast.error(result.message || "Screenshot failed");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Screenshot failed');
+      toast.error(err instanceof Error ? err.message : "Screenshot failed");
     } finally {
       setExecuting(false);
     }
@@ -186,7 +203,9 @@ export function ClawdbotStatusPanel() {
               onClick={fetchStatus}
               disabled={loading}
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+              />
             </Button>
           </div>
         </div>
@@ -194,10 +213,14 @@ export function ClawdbotStatusPanel() {
 
       <CardContent>
         <Tabs defaultValue="status" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="status">
               <Activity className="w-4 h-4 mr-1" />
               Status
+            </TabsTrigger>
+            <TabsTrigger value="skills">
+              <Package className="w-4 h-4 mr-1" />
+              Skills
             </TabsTrigger>
             <TabsTrigger value="sessions">
               <Users className="w-4 h-4 mr-1" />
@@ -251,7 +274,7 @@ export function ClawdbotStatusPanel() {
                       value={command}
                       onChange={(e) => setCommand(e.target.value)}
                       placeholder="z.B. 'öffne chrome' oder 'screenshot'"
-                      onKeyDown={(e) => e.key === 'Enter' && handleExecute()}
+                      onKeyDown={(e) => e.key === "Enter" && handleExecute()}
                       disabled={executing}
                     />
                     <Button
@@ -273,8 +296,43 @@ export function ClawdbotStatusPanel() {
               </>
             ) : (
               <div className="py-8 text-center text-muted-foreground">
-                {error || 'Unable to connect to Clawdbot bridge'}
+                {error || "Unable to connect to Clawdbot bridge"}
               </div>
+            )}
+          </TabsContent>
+
+          {/* Skills Tab */}
+          <TabsContent value="skills" className="mt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={() => setSkillsView("installed")}
+                className={`text-sm px-3 py-1 rounded-md transition-colors ${
+                  skillsView === "installed"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Installed
+              </button>
+              <button
+                onClick={() => setSkillsView("marketplace")}
+                className={`text-sm px-3 py-1 rounded-md transition-colors ${
+                  skillsView === "marketplace"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Marketplace
+              </button>
+            </div>
+
+            {skillsView === "installed" ? (
+              <InstalledSkillsPanel
+                onBrowseMarketplace={() => setSkillsView("marketplace")}
+                maxHeight="350px"
+              />
+            ) : (
+              <SkillMarketplace maxHeight="350px" />
             )}
           </TabsContent>
 
@@ -303,8 +361,8 @@ export function ClawdbotStatusPanel() {
                             {session.user_id}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {platformInfo.label} •{' '}
-                            {session.last_command || 'No commands yet'}
+                            {platformInfo.label} •{" "}
+                            {session.last_command || "No commands yet"}
                           </div>
                         </div>
                         <Badge variant="outline" className="text-xs">
@@ -335,18 +393,18 @@ export function ClawdbotStatusPanel() {
                     <div
                       key={msg.id}
                       className={`p-3 rounded-lg ${
-                        msg.direction === 'outgoing'
-                          ? 'bg-primary/10 ml-8'
-                          : 'bg-muted mr-8'
+                        msg.direction === "outgoing"
+                          ? "bg-primary/10 ml-8"
+                          : "bg-muted mr-8"
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <span className="text-xs">
-                            {PLATFORM_INFO[msg.platform]?.icon || '🌐'}
+                            {PLATFORM_INFO[msg.platform]?.icon || "🌐"}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            {msg.direction === 'outgoing' ? 'You' : 'Response'}
+                            {msg.direction === "outgoing" ? "You" : "Response"}
                           </span>
                         </div>
                         <span className="text-xs text-muted-foreground">
@@ -363,10 +421,10 @@ export function ClawdbotStatusPanel() {
                       )}
                       {msg.success !== undefined && (
                         <Badge
-                          variant={msg.success ? 'default' : 'destructive'}
+                          variant={msg.success ? "default" : "destructive"}
                           className="mt-1 text-xs"
                         >
-                          {msg.success ? 'Success' : 'Failed'}
+                          {msg.success ? "Success" : "Failed"}
                         </Badge>
                       )}
                     </div>

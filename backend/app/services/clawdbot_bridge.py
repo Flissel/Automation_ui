@@ -215,6 +215,16 @@ class ClawdbotBridgeService:
             ]):
                 return await self._handle_send_to_contact(message.text, message.platform)
 
+            # Handle skill execution commands
+            if any(text_lower.startswith(p) for p in [
+                "führe ", "fuehre ", "execute ", "skill ", "run skill "
+            ]):
+                return await self._handle_skill_command(message.text)
+
+            # Handle skill listing
+            if text_lower in ["skills", "meine skills", "my skills", "installed skills"]:
+                return await self._handle_list_skills()
+
             # Resolve variables in message text
             registry = get_contact_registry()
             resolved_text = registry.resolve_variables(message.text)
@@ -383,12 +393,17 @@ Verfügbare Befehle:
 • "scrolle [hoch/runter]" - Scrollen
 • Tastenkombinationen: "strg+c", "strg+v", etc.
 
+Skills (ClawHub):
+• "skills" - Installierte Skills anzeigen
+• "führe [skill-name] aus" - Skill ausführen
+• "skill [name]" - Skill ausführen
+
 Beispiele:
 • "öffne chrome"
 • "öffne google.com"
 • "tippe Hallo Welt"
-• "scrolle nach unten"
-• "drücke strg+s"
+• "führe browser-automation aus"
+• "skills"
 
 Status: ✅ Verbunden"""
 
@@ -667,6 +682,105 @@ Status: ✅ Verbunden"""
                 error="Platform not available for contact",
                 data={"contact": contact, "available_platforms": available},
                 execution_time_ms=(time.time() - start_time) * 1000
+            )
+
+    async def _handle_skill_command(self, text: str) -> ClawdbotResponse:
+        """
+        Handle skill execution commands from messaging.
+
+        Examples:
+            "führe browser-automation aus" -> Executes browser-automation skill
+            "skill screenshot-ocr" -> Executes screenshot-ocr skill
+            "execute github-manager" -> Executes github-manager skill
+        """
+        import time
+        start_time = time.time()
+
+        # Extract skill name from command
+        text_lower = text.lower().strip()
+        skill_name = None
+
+        for prefix in ["führe ", "fuehre ", "execute ", "skill ", "run skill "]:
+            if text_lower.startswith(prefix):
+                rest = text[len(prefix):].strip()
+                # Remove trailing " aus" (German)
+                if rest.lower().endswith(" aus"):
+                    rest = rest[:-4].strip()
+                skill_name = rest
+                break
+
+        if not skill_name:
+            return ClawdbotResponse(
+                success=False,
+                message="Format: 'führe [skill-name] aus' oder 'skill [name]'",
+                error="Invalid skill command",
+                execution_time_ms=(time.time() - start_time) * 1000,
+            )
+
+        try:
+            from ..services.skill_manager import get_skill_manager
+
+            manager = get_skill_manager()
+            result = await manager.execute_skill(skill_name, {})
+
+            return ClawdbotResponse(
+                success=result.success,
+                message=result.message,
+                data=result.data,
+                error=result.error,
+                execution_time_ms=(time.time() - start_time) * 1000,
+            )
+
+        except Exception as e:
+            logger.error(f"Skill execution failed: {e}")
+            return ClawdbotResponse(
+                success=False,
+                message=f"Skill-Ausführung fehlgeschlagen: {str(e)}",
+                error=str(e),
+                execution_time_ms=(time.time() - start_time) * 1000,
+            )
+
+    async def _handle_list_skills(self) -> ClawdbotResponse:
+        """List all installed skills."""
+        import time
+        start_time = time.time()
+
+        try:
+            from ..services.skill_manager import get_skill_manager
+
+            manager = get_skill_manager()
+            installed = manager.list_installed()
+
+            if not installed:
+                return ClawdbotResponse(
+                    success=True,
+                    message="Keine Skills installiert.\n\nInstalliere Skills über die Web-UI unter /api/clawhub/search",
+                    data={"skills": []},
+                    execution_time_ms=(time.time() - start_time) * 1000,
+                )
+
+            lines = ["📦 Installierte Skills:\n"]
+            for skill in installed:
+                status = "✅" if skill.enabled else "⏸️"
+                lines.append(f"{status} {skill.name} v{skill.version}")
+                if skill.execution_count > 0:
+                    lines.append(f"   Ausführungen: {skill.execution_count}")
+
+            lines.append(f"\nGesamt: {len(installed)} Skills")
+
+            return ClawdbotResponse(
+                success=True,
+                message="\n".join(lines),
+                data={"skills": [s.model_dump() for s in installed]},
+                execution_time_ms=(time.time() - start_time) * 1000,
+            )
+
+        except Exception as e:
+            return ClawdbotResponse(
+                success=False,
+                message=f"Fehler: {str(e)}",
+                error=str(e),
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
     def _get_or_create_session(self, user_id: str, platform: str) -> UserSession:
