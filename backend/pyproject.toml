@@ -93,7 +93,7 @@ dev = [
     "pytest-cov==4.0.0",
     "pytest-timeout==2.1.0",
     "pytest-mock==3.10.0",
-    "pytest-xdist==3.2.1",
+    "pytest-xdist==3.8.0",
     "black",
     "flake8",
     "mypy",
