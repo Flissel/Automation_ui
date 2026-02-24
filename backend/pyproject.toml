@@ -29,7 +29,7 @@ dependencies = [
     
     # Data handling
     "pydantic==2.5.0",
-    "pydantic-settings==2.1.0",
+    "pydantic-settings==2.13.1",
     
     # Async utilities
     "asyncio-mqtt==0.16.1",
