@@ -50,7 +50,7 @@ psutil==5.9.6
 # Database (optional)
 redis==5.0.1
 psycopg2-binary==2.9.9
-sqlalchemy==2.0.23
+sqlalchemy==2.0.47
 alembic==1.13.1
 
 # Retry Logic
