@@ -9,7 +9,7 @@ websockets==12.0
 
 # Data handling
 pydantic==2.5.0
-pydantic-settings==2.1.0
+pydantic-settings==2.13.1
 
 # Desktop automation and screenshots
 pyautogui==0.9.54
