@@ -126,13 +126,17 @@ import importlib.util
 MCP_PATH = os.path.abspath(os.path.join(
     os.path.dirname(__file__), "..", "..", "moire_agents"
 ))
-_handoff_path = os.path.join(MCP_PATH, "mcp_server_handoff.py")
-_spec = importlib.util.spec_from_file_location("mcp_server_handoff_local", _handoff_path)
-_handoff_mod = importlib.util.module_from_spec(_spec)
-# Add moire_agents to sys.path for its own imports
-if MCP_PATH not in sys.path:
-    sys.path.insert(0, MCP_PATH)
-_spec.loader.exec_module(_handoff_mod)
+_handoff_mod = None
+try:
+    _handoff_path = os.path.join(MCP_PATH, "mcp_server_handoff.py")
+    _spec = importlib.util.spec_from_file_location("mcp_server_handoff_local", _handoff_path)
+    _handoff_mod = importlib.util.module_from_spec(_spec)
+    # Add moire_agents to sys.path for its own imports
+    if MCP_PATH not in sys.path:
+        sys.path.insert(0, MCP_PATH)
+    _spec.loader.exec_module(_handoff_mod)
+except Exception as e:
+    logging.getLogger(__name__).warning(f"mcp_server_handoff not loaded: {e}")
 
 # ============================================
 # Config

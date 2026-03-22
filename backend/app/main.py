@@ -20,6 +20,7 @@ from .routers.automation import router as automation_router
 from .routers.clawdbot import router as clawdbot_router
 from .routers.clawhub import router as clawhub_router
 from .routers.configs import router as configs_router
+from .routers.eyeterm import router as eyeterm_router
 from .routers.llm_intent import router as llm_intent_router
 from .services.client_manager_service import get_client_manager
 from .services.manager import ServiceManager
@@ -67,20 +68,26 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"Task Queue Bridge setup failed: {e}")
 
-        # Initialize service manager
+        # Initialize service manager (non-critical: graceful degradation)
         service_manager = ServiceManager()
-        await service_manager.initialize()
+        try:
+            await service_manager.initialize()
+        except Exception as svc_err:
+            logger.warning(f"ServiceManager partially initialized (non-critical): {svc_err}")
 
         # Store in app state for router access
         app.state.service_manager = service_manager
 
         # Wire ActionRouter with WebSocket manager
-        from .services.action_router import action_router
-        from .routers.websocket import manager as ws_manager
-        action_router.set_ws_manager(ws_manager)
-        action_router.configure(settings)
-        if settings.execution_mode == "remote":
-            logger.info("ActionRouter: REMOTE mode - desktop actions delegated to client")
+        try:
+            from .services.action_router import action_router
+            from .routers.websocket import manager as ws_manager
+            action_router.set_ws_manager(ws_manager)
+            action_router.configure(settings)
+            if settings.execution_mode == "remote":
+                logger.info("ActionRouter: REMOTE mode - desktop actions delegated to client")
+        except Exception as ar_err:
+            logger.warning(f"ActionRouter setup failed (non-critical): {ar_err}")
 
         logger.info("All services initialized successfully")
 
@@ -162,6 +169,9 @@ def create_app() -> FastAPI:
     # Enable automation router for click functionality
     app.include_router(automation_router, prefix="/api/automation", tags=["Automation"])
 
+    # eyeTerm camera/gaze control
+    app.include_router(eyeterm_router)
+
     # Enable workflow and API v1 routers
     app.include_router(workflows_router, prefix="/api/workflows", tags=["Workflows"])
 
@@ -190,6 +200,28 @@ def create_app() -> FastAPI:
 
     # LLM Intent Router - Agentic Desktop Automation via Claude Opus 4.6
     app.include_router(llm_intent_router, prefix="/api/llm", tags=["LLM Intent"])
+
+    # Temporarily disabled routers - missing services
+    # app.include_router(node_system_router, prefix="/api/nodes", tags=["Nodes"])
+    # app.include_router(ocr_monitoring_router, prefix="/api/ocr-monitoring", tags=["OCR Monitoring"])
+    # app.include_router(filesystem_router, prefix="/api/filesystem", tags=["Filesystem"])
+    # app.include_router(windows_desktop_router, prefix="/api/windows-desktop", tags=["Windows Desktop"])
+
+    # Voice Dashboard - Serve Vapi web interface
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+    _vapi_html = Path(__file__).parent.parent / "moire_agents" / "voice" / "vapi_web.html"
+
+    @app.get("/voice/dashboard")
+    async def voice_dashboard():
+        """Serve the Vapi voice control dashboard."""
+        if _vapi_html.exists():
+            return FileResponse(
+                str(_vapi_html),
+                media_type="text/html",
+                headers={"Cache-Control": "no-cache"},
+            )
+        return {"error": "vapi_web.html not found"}
 
     logger.info("FastAPI application created with all routers")
 

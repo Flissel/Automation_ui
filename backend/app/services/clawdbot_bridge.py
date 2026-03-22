@@ -90,6 +90,12 @@ class ClawdbotBridgeService:
         self._intent_parser = None
         self._executor = None
         self._initialized = False
+        self._incoming_handler = None  # Set by messaging bridge startup
+
+    def set_incoming_handler(self, handler):
+        """Register an IncomingMessageHandler for voice-messaging pipeline."""
+        self._incoming_handler = handler
+        logger.info("ClawdbotBridge: IncomingMessageHandler registered")
 
     async def initialize(self):
         """Initialize the bridge service with lazy-loaded components."""
@@ -191,6 +197,23 @@ class ClawdbotBridgeService:
         session = self._get_or_create_session(message.user_id, message.platform)
         session.last_command = message.text
         session.updated_at = datetime.utcnow()
+
+        # --- Messaging Pipeline Hook ---
+        # Forward incoming messages to IncomingMessageHandler for relevance
+        # checking, Rowboat storage, and voice notification.
+        # This runs in the background so it doesn't block command execution.
+        if self._incoming_handler:
+            try:
+                asyncio.create_task(
+                    self._incoming_handler.on_message(
+                        user_id=message.user_id,
+                        platform=message.platform,
+                        text=message.text,
+                        metadata={"message_id": message.message_id},
+                    )
+                )
+            except Exception as e:
+                logger.warning(f"IncomingHandler hook error: {e}")
 
         try:
             # Handle special commands

@@ -158,20 +158,26 @@ class LiveDesktopService:
             return None
 
     async def _capture_desktop(self) -> Optional[bytes]:
-        """Capture desktop screenshot (mock implementation)"""
+        """Capture desktop screenshot using mss (real screen capture)."""
         try:
-            # Mock implementation - in a real scenario, this would use
-            # libraries like PIL, opencv, or platform-specific APIs
+            import io
+            import mss
+            from PIL import Image
 
-            # Simulate screenshot capture delay
-            await asyncio.sleep(0.01)
+            loop = asyncio.get_event_loop()
 
-            # Return mock image data (1x1 pixel PNG)
-            mock_png_data = base64.b64decode(
-                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
-            )
+            def _grab():
+                with mss.mss() as sct:
+                    # Grab the primary monitor (index 1); index 0 is "all monitors combined"
+                    monitor = sct.monitors[1]
+                    sct_img = sct.grab(monitor)
+                    # Convert to PIL Image → JPEG bytes (smaller than PNG, faster for streaming)
+                    img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=70)
+                    return buf.getvalue()
 
-            return mock_png_data
+            return await loop.run_in_executor(None, _grab)
 
         except Exception as e:
             logger.error(f"❌ Desktop capture failed: {e}")

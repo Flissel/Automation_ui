@@ -52,7 +52,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsm6 \
     libxext6 \
     libxrender-dev \
-    libgl1-mesa-glx \
+    libgl1 \
     # Für Pillow
     libjpeg-dev \
     libpng-dev \
@@ -85,14 +85,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-eng \
     tesseract-ocr-deu \
     tesseract-ocr-osd \
-    libtesseract5 \
-    liblept5 \
     curl \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
-    libgl1-mesa-glx \
+    libgl1 \
     libjpeg62-turbo \
     libpng16-16 \
     poppler-utils \
@@ -132,4 +130,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8008/health || exit 1
 
 # Starte OCR HTTP Server
-CMD ["uvicorn", "autogen_service.http_server:app", "--host", "0.0.0.0", "--port", "8008"]
+CMD ["uvicorn", "autogen_service.api_server:app", "--host", "0.0.0.0", "--port", "8008"]

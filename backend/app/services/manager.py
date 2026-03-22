@@ -34,11 +34,14 @@ class ServiceManager:
             await self.services["live_desktop"].initialize()
             logger.info("✅ LiveDesktopService initialized")
 
-            # Initialize OCR service (initializes itself in __init__)
-            from .ocr_service import OCRService
+            # Initialize OCR service (optional - requires cv2/numpy/PIL)
+            try:
+                from .ocr_service import OCRService
 
-            self.services["ocr"] = OCRService()
-            logger.info("✅ OCRService initialized")
+                self.services["ocr"] = OCRService()
+                logger.info("✅ OCRService initialized")
+            except Exception as ocr_err:
+                logger.warning(f"⚠️ OCRService unavailable (non-critical): {ocr_err}")
 
             self.initialized = True
             logger.info(

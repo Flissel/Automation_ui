@@ -4,6 +4,7 @@ Desktop Router for TRAE Backend
 Provides endpoints for live desktop streaming and screen information.
 """
 
+import base64
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Request
@@ -33,6 +34,14 @@ class HostFrameData(BaseModel):
     timestamp: str
     status: str
     metadata: Dict[str, Any] = {}
+
+
+class HostFrameRequest(BaseModel):
+    """Request model for fetching a desktop frame"""
+
+    monitor_id: int = 0
+    quality: int = 60
+    max_width: int = 1920
 
 
 @router.get("/status")
@@ -180,19 +189,29 @@ async def take_desktop_screenshot(request: Request):
                 status_code=503, detail="Desktop service does not support screenshots"
             )
 
-        # Take screenshot
-        screenshot_data = await desktop_service.take_screenshot()
+        # Take screenshot (returns bytes or base64 string)
+        screenshot_data = await desktop_service.take_screenshot(encode_base64=True)
 
         if screenshot_data:
+            # Handle both dict (legacy) and str/bytes (current) return types
+            if isinstance(screenshot_data, dict):
+                frame_b64 = screenshot_data.get("data", "")
+                width = screenshot_data.get("width", 0)
+                height = screenshot_data.get("height", 0)
+            else:
+                frame_b64 = screenshot_data if isinstance(screenshot_data, str) else base64.b64encode(screenshot_data).decode("utf-8")
+                width = 0
+                height = 0
+
             return JSONResponse(
                 content={
                     "success": True,
+                    "frame": frame_b64,
                     "screenshot": {
-                        "data": screenshot_data.get("data", ""),
-                        "format": screenshot_data.get("format", "png"),
-                        "width": screenshot_data.get("width", 0),
-                        "height": screenshot_data.get("height", 0),
-                        "timestamp": screenshot_data.get("timestamp"),
+                        "data": frame_b64,
+                        "format": "jpeg",
+                        "width": width,
+                        "height": height,
                     },
                     "message": "Screenshot captured successfully",
                 }
@@ -216,68 +235,132 @@ async def take_desktop_screenshot(request: Request):
 
 @router.post("/host-frame")
 @log_api_request(logger)
-async def receive_host_frame(request: Request, frame_data: HostFrameData):
-    """Receive desktop frame from Windows host capture service"""
+async def host_frame(request: Request):
+    """Handle host-frame requests: fetch a frame (Electron) or receive a frame (capture client).
+
+    - Request with 'monitor_id'/'quality' fields → capture and return a screenshot
+    - Request with 'image'/'resolution' fields → store an incoming frame
+    """
     try:
-        # Access service through FastAPI app state
-        app = request.app
-        if (
-            not app
-            or not hasattr(app, "state")
-            or not hasattr(app.state, "service_manager")
-        ):
-            raise HTTPException(status_code=503, detail="Service manager not available")
+        body = await request.json()
 
-        service_manager = app.state.service_manager
-        desktop_service = service_manager.get_service("live_desktop")
+        # Detect request type: if body has 'image' field, it's a frame push from capture client
+        if "image" in body:
+            return await _receive_host_frame(request, body)
+        else:
+            return await _fetch_host_frame(request, body)
 
-        if not desktop_service:
-            raise HTTPException(
-                status_code=503, detail="Live desktop service not available"
-            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Host frame error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
-        # Convert frame data to expected format
-        processed_frame = {
-            "image": frame_data.image,
+
+async def _fetch_host_frame(request: Request, body: dict):
+    """Capture a screenshot and return it as base64 (called by Electron renderer)."""
+    monitor_id = body.get("monitor_id", 0)
+    quality = body.get("quality", 60)
+    max_width = body.get("max_width", 1920)
+
+    app = request.app
+
+    # Try cached frame first (from StreamFrameCache)
+    try:
+        import sys
+        import os
+        moire_agents_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "moire_agents"
+        )
+        if moire_agents_path not in sys.path:
+            sys.path.insert(0, moire_agents_path)
+
+        from stream_frame_cache import StreamFrameCache
+        frame = StreamFrameCache.get_fresh_frame(monitor_id=monitor_id, max_age_ms=2000)
+        if frame:
+            return JSONResponse(content={
+                "success": True,
+                "frame": frame.data,
+                "width": frame.width,
+                "height": frame.height,
+            })
+    except Exception:
+        pass  # StreamFrameCache not available, fall through to live capture
+
+    # Fall back to live screenshot via desktop service
+    if (
+        not app
+        or not hasattr(app, "state")
+        or not hasattr(app.state, "service_manager")
+    ):
+        raise HTTPException(status_code=503, detail="Service manager not available")
+
+    service_manager = app.state.service_manager
+    desktop_service = service_manager.get_service("live_desktop")
+
+    if not desktop_service:
+        raise HTTPException(status_code=503, detail="Live desktop service not available")
+
+    if hasattr(desktop_service, "take_screenshot"):
+        screenshot_data = await desktop_service.take_screenshot()
+        if screenshot_data:
+            return JSONResponse(content={
+                "success": True,
+                "frame": screenshot_data.get("data", ""),
+                "width": screenshot_data.get("width", 0),
+                "height": screenshot_data.get("height", 0),
+            })
+
+    raise HTTPException(status_code=503, detail="No frame source available")
+
+
+async def _receive_host_frame(request: Request, body: dict):
+    """Store an incoming frame from a desktop capture client."""
+    frame_data = HostFrameData(**body)
+    app = request.app
+
+    if (
+        not app
+        or not hasattr(app, "state")
+        or not hasattr(app.state, "service_manager")
+    ):
+        raise HTTPException(status_code=503, detail="Service manager not available")
+
+    service_manager = app.state.service_manager
+    desktop_service = service_manager.get_service("live_desktop")
+
+    if not desktop_service:
+        raise HTTPException(
+            status_code=503, detail="Live desktop service not available"
+        )
+
+    processed_frame = {
+        "image": frame_data.image,
+        "resolution": frame_data.resolution,
+        "timestamp": frame_data.timestamp,
+        "status": frame_data.status,
+        "metadata": frame_data.metadata,
+    }
+
+    if hasattr(desktop_service, "set_host_frame"):
+        await desktop_service.set_host_frame(processed_frame)
+        logger.info(
+            f"Host frame received and processed: {frame_data.resolution['width']}x{frame_data.resolution['height']}"
+        )
+    else:
+        logger.warning(
+            f"Host frame received but service lacks set_host_frame method: {frame_data.resolution['width']}x{frame_data.resolution['height']}"
+        )
+
+    return JSONResponse(
+        content={
+            "success": True,
+            "message": "Host frame received successfully",
             "resolution": frame_data.resolution,
             "timestamp": frame_data.timestamp,
-            "status": frame_data.status,
-            "metadata": frame_data.metadata,
         }
-
-        # Store frame for WebSocket streaming
-        if hasattr(desktop_service, "set_host_frame"):
-            await desktop_service.set_host_frame(processed_frame)
-            logger.info(
-                f"✅ Host frame received and processed: {frame_data.resolution['width']}x{frame_data.resolution['height']}"
-            )
-
-            return JSONResponse(
-                content={
-                    "success": True,
-                    "message": "Host frame received successfully",
-                    "resolution": frame_data.resolution,
-                    "timestamp": frame_data.timestamp,
-                }
-            )
-        else:
-            # Fallback: log that we received the frame
-            logger.warning(
-                f"⚠️  Host frame received but service lacks set_host_frame method: {frame_data.resolution['width']}x{frame_data.resolution['height']}"
-            )
-
-            return JSONResponse(
-                content={
-                    "success": True,
-                    "message": "Host frame received (stored for future processing)",
-                    "resolution": frame_data.resolution,
-                    "timestamp": frame_data.timestamp,
-                }
-            )
-
-    except Exception as e:
-        logger.error(f"Receive host frame error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    )
 
 
 @router.get("/cached-frame/{monitor_id}")
