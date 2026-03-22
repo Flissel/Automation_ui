@@ -303,13 +303,17 @@ async def _fetch_host_frame(request: Request, body: dict):
         raise HTTPException(status_code=503, detail="Live desktop service not available")
 
     if hasattr(desktop_service, "take_screenshot"):
-        screenshot_data = await desktop_service.take_screenshot()
+        screenshot_data = await desktop_service.take_screenshot(encode_base64=True)
         if screenshot_data:
+            if isinstance(screenshot_data, dict):
+                frame_b64 = screenshot_data.get("data", "")
+            else:
+                frame_b64 = screenshot_data if isinstance(screenshot_data, str) else base64.b64encode(screenshot_data).decode("utf-8")
             return JSONResponse(content={
                 "success": True,
-                "frame": screenshot_data.get("data", ""),
-                "width": screenshot_data.get("width", 0),
-                "height": screenshot_data.get("height", 0),
+                "frame": frame_b64,
+                "width": 0,
+                "height": 0,
             })
 
     raise HTTPException(status_code=503, detail="No frame source available")

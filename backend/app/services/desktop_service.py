@@ -171,16 +171,20 @@ class LiveDesktopService:
                     # Grab the primary monitor (index 1); index 0 is "all monitors combined"
                     monitor = sct.monitors[1]
                     sct_img = sct.grab(monitor)
-                    # Convert to PIL Image → JPEG bytes (smaller than PNG, faster for streaming)
-                    img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+                    # Convert to PIL Image using .rgb (already in RGB byte order)
+                    img = Image.frombytes("RGB", sct_img.size, sct_img.rgb)
                     buf = io.BytesIO()
                     img.save(buf, format="JPEG", quality=70)
-                    return buf.getvalue()
+                    result = buf.getvalue()
+                    logger.debug(
+                        f"📸 Captured {sct_img.size.width}x{sct_img.size.height} → {len(result)} bytes JPEG"
+                    )
+                    return result
 
             return await loop.run_in_executor(None, _grab)
 
         except Exception as e:
-            logger.error(f"❌ Desktop capture failed: {e}")
+            logger.error(f"❌ Desktop capture failed: {e}", exc_info=True)
             return None
 
     async def start_streaming(

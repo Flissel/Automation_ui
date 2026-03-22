@@ -14,6 +14,7 @@ pydantic-settings==2.1.0
 # Desktop automation and screenshots
 pyautogui==0.9.54
 Pillow==10.1.0
+mss>=9.0.0
 
 # OCR (Optical Character Recognition)
 pytesseract==0.3.10
