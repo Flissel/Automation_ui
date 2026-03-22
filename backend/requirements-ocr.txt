@@ -28,7 +28,7 @@ easyocr==1.7.0
 # paddleocr==2.7.0.3
 
 # HTTP Client
-httpx==0.25.2
+httpx==0.28.1
 requests==2.31.0
 aiohttp==3.9.1
 
