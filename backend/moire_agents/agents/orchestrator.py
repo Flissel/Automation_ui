@@ -18,7 +18,11 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
+try:
+    from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
+except ImportError:
+    # autogen-agentchat v0.7+ uses a different API; stub for now
+    AssistantAgent = UserProxyAgent = GroupChat = GroupChatManager = None
 
 # Logging
 logging.basicConfig(level=logging.INFO)

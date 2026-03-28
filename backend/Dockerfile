@@ -45,6 +45,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     libxrender-dev \
     libgl1 \
+<<<<<<< HEAD
+=======
+    # Für PyAV (aiortc dependency)
+    pkg-config \
+    libavformat-dev \
+    libavcodec-dev \
+    libavdevice-dev \
+    libavutil-dev \
+    libswscale-dev \
+    libswresample-dev \
+    libavfilter-dev \
+>>>>>>> 8df31a1d44ad033e99adfe4ddd8c290de7a40ad0
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================
@@ -109,7 +121,7 @@ EXPOSE 8007
 
 # Health Check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8007/api/health || exit 1
+    CMD curl -f http://localhost:8007/api/health/health || exit 1
 
 # Starte Uvicorn Server
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8007", "--workers", "1"]

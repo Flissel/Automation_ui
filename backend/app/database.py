@@ -45,28 +45,44 @@ class DatabaseManager:
             logger.warning("Database already initialized, skipping")
             return
 
-        # Sync engine for migrations and sync operations
-        self._sync_engine = create_engine(
-            database_url,
-            pool_size=pool_size,
-            max_overflow=max_overflow,
-            pool_timeout=pool_timeout,
-            echo=echo
-        )
+        is_sqlite = database_url.startswith("sqlite")
 
-        # Async engine for FastAPI operations
-        async_url = database_url.replace(
-            "postgresql://", "postgresql+asyncpg://"
-        ).replace(
-            "postgres://", "postgresql+asyncpg://"
-        )
-
-        self._async_engine = create_async_engine(
-            async_url,
-            pool_size=pool_size,
-            max_overflow=max_overflow,
-            echo=echo
-        )
+        if is_sqlite:
+            # SQLite: single-threaded, no pool config, use StaticPool
+            self._sync_engine = create_engine(
+                database_url,
+                connect_args={"check_same_thread": False},
+                poolclass=StaticPool,
+                echo=echo,
+            )
+            # Async SQLite via aiosqlite
+            async_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
+            self._async_engine = create_async_engine(
+                async_url,
+                connect_args={"check_same_thread": False},
+                poolclass=StaticPool,
+                echo=echo,
+            )
+        else:
+            # PostgreSQL: full pool support
+            self._sync_engine = create_engine(
+                database_url,
+                pool_size=pool_size,
+                max_overflow=max_overflow,
+                pool_timeout=pool_timeout,
+                echo=echo
+            )
+            async_url = database_url.replace(
+                "postgresql://", "postgresql+asyncpg://"
+            ).replace(
+                "postgres://", "postgresql+asyncpg://"
+            )
+            self._async_engine = create_async_engine(
+                async_url,
+                pool_size=pool_size,
+                max_overflow=max_overflow,
+                echo=echo
+            )
 
         # Session factories
         self._sync_session_factory = sessionmaker(
