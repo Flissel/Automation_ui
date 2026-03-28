@@ -82,6 +82,14 @@ async def lifespan(app: FastAPI):
         if settings.execution_mode == "remote":
             logger.info("ActionRouter: REMOTE mode - desktop actions delegated to client")
 
+        # Start Discord Analyzer Listener (polls #fixes, posts fix suggestions to #dev-tasks)
+        try:
+            from .services.discord_listener import start_analyzer_listener
+            await start_analyzer_listener()
+            logger.info("Discord Analyzer Listener started")
+        except Exception as e:
+            logger.warning(f"Discord Analyzer Listener failed to start (non-critical): {e}")
+
         logger.info("All services initialized successfully")
 
         yield
@@ -190,6 +198,13 @@ def create_app() -> FastAPI:
 
     # LLM Intent Router - Agentic Desktop Automation via Claude Opus 4.6
     app.include_router(llm_intent_router, prefix="/api/llm", tags=["LLM Intent"])
+
+    # E2E Test Runner - Autonomous testing via Playwright MCP
+    try:
+        from app.routers.e2e_tests import router as e2e_router
+        app.include_router(e2e_router, tags=["E2E Tests"])
+    except ImportError as e:
+        logger.warning(f"E2E test router not available: {e}")
 
     logger.info("FastAPI application created with all routers")
 
