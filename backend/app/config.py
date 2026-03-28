@@ -215,15 +215,13 @@ class Settings(BaseSettings):
     )
     rate_limit_burst_size: int = Field(default=10, env="RATE_LIMIT_BURST_SIZE")
 
-    # Paths
-    data_dir: Path = Field(default=Path("data"), env="DATA_DIR")
-    logs_dir: Path = Field(default=Path("logs"), env="LOGS_DIR")
-    temp_dir: Path = Field(default=Path("temp"), env="TEMP_DIR")
-    screenshots_dir: Path = Field(
-        default=Path("desktop_screenshots"), env="SCREENSHOTS_DIR"
-    )
-    vm_configs_dir: Path = Field(default=Path("vm_configs"), env="VM_CONFIGS_DIR")
-    auth_keys_dir: Path = Field(default=Path("auth_keys"), env="AUTH_KEYS_DIR")
+    # Paths (use str to avoid Pydantic/Path compatibility issues)
+    data_dir: str = Field(default="data", env="DATA_DIR")
+    logs_dir: str = Field(default="logs", env="LOGS_DIR")
+    temp_dir: str = Field(default="temp", env="TEMP_DIR")
+    screenshots_dir: str = Field(default="desktop_screenshots", env="SCREENSHOTS_DIR")
+    vm_configs_dir: str = Field(default="vm_configs", env="VM_CONFIGS_DIR")
+    auth_keys_dir: str = Field(default="auth_keys", env="AUTH_KEYS_DIR")
 
     @validator("cors_origins", pre=True)
     def parse_cors_origins(cls, v):
@@ -380,8 +378,8 @@ class Settings(BaseSettings):
     def create_directories(self):
         """Create necessary directories"""
         for path_attr in ["data_dir", "logs_dir", "temp_dir", "screenshots_dir"]:
-            path = getattr(self, path_attr)
-            path.mkdir(parents=True, exist_ok=True)
+            p = getattr(self, path_attr)
+            Path(p).mkdir(parents=True, exist_ok=True)
 
     def get_logging_config(self) -> Dict[str, Any]:
         """Get logging configuration"""

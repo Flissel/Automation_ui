@@ -132,7 +132,12 @@ _handoff_mod = importlib.util.module_from_spec(_spec)
 # Add moire_agents to sys.path for its own imports
 if MCP_PATH not in sys.path:
     sys.path.insert(0, MCP_PATH)
-_spec.loader.exec_module(_handoff_mod)
+try:
+    _spec.loader.exec_module(_handoff_mod)
+except Exception as _e:
+    import logging as _logging
+    _logging.getLogger(__name__).warning(f"mcp_server_handoff not available: {_e}")
+    _handoff_mod = None
 
 # ============================================
 # Config

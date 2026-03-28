@@ -40,10 +40,13 @@ try:
     from mcp.types import Tool, TextContent
 except ImportError:
     print("MCP package not installed. Run: pip install mcp", file=sys.stderr)
-    sys.exit(1)
+    Server = None
+    stdio_server = None
+    Tool = None
+    TextContent = None
 
 # Create server instance
-server = Server("git-mcp")
+server = Server("git-mcp") if Server else None
 
 
 async def run_command(cmd: List[str], cwd: Optional[str] = None) -> Dict[str, Any]:

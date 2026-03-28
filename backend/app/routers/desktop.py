@@ -184,16 +184,33 @@ async def take_desktop_screenshot(request: Request):
         screenshot_data = await desktop_service.take_screenshot()
 
         if screenshot_data:
+            # Handle both dict and raw bytes responses
+            if isinstance(screenshot_data, dict):
+                result = {
+                    "data": screenshot_data.get("data", ""),
+                    "format": screenshot_data.get("format", "png"),
+                    "width": screenshot_data.get("width", 0),
+                    "height": screenshot_data.get("height", 0),
+                    "timestamp": screenshot_data.get("timestamp"),
+                }
+            elif isinstance(screenshot_data, (bytes, bytearray)):
+                import base64
+                from datetime import datetime
+                result = {
+                    "data": base64.b64encode(screenshot_data).decode("ascii"),
+                    "format": "png",
+                    "width": 0,
+                    "height": 0,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            else:
+                result = {"data": str(screenshot_data), "format": "png",
+                          "width": 0, "height": 0, "timestamp": None}
+
             return JSONResponse(
                 content={
                     "success": True,
-                    "screenshot": {
-                        "data": screenshot_data.get("data", ""),
-                        "format": screenshot_data.get("format", "png"),
-                        "width": screenshot_data.get("width", 0),
-                        "height": screenshot_data.get("height", 0),
-                        "timestamp": screenshot_data.get("timestamp"),
-                    },
+                    "screenshot": result,
                     "message": "Screenshot captured successfully",
                 }
             )

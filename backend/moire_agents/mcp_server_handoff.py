@@ -54,7 +54,10 @@ try:
     from mcp.types import Tool, TextContent
 except ImportError:
     print("MCP package not installed. Run: pip install mcp", file=sys.stderr)
-    sys.exit(1)
+    Server = None
+    stdio_server = None
+    Tool = None
+    TextContent = None
 
 # Handoff system imports
 from agents.handoff import (

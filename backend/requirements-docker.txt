@@ -52,6 +52,7 @@ redis==5.0.1
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.23
 alembic==1.13.1
+asyncpg>=0.29.0
 
 # Retry Logic
 backoff==2.2.1
@@ -60,8 +61,15 @@ backoff==2.2.1
 asyncssh==2.14.2
 paramiko==3.4.0
 
-# WebRTC Support (optional)
-aiortc>=1.6.0
+# WebRTC Support (disabled - requires ffmpeg/av build deps)
+# aiortc>=1.6.0
+
+# OCR
+pytesseract>=0.3.10
+
+# Async File IO
+aiofiles>=23.2.1
+
 
 # Template Engine
 jinja2==3.1.2
