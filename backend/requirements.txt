@@ -17,7 +17,7 @@ Pillow==10.1.0
 mss>=9.0.0
 
 # OCR (Optical Character Recognition)
-pytesseract==0.3.10
+pytesseract==0.3.13
 opencv-python==4.6.0.66
 easyocr==1.7.0
 paddlepaddle==2.5.2
