@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 class SubagentType(Enum):
     """Types of subagents."""
+
     PLANNING = "planning"
     VISION = "vision"
     SPECIALIST = "specialist"
@@ -38,6 +39,7 @@ class SubagentType(Enum):
 
 class SubagentState(Enum):
     """Subagent worker states."""
+
     IDLE = "idle"
     PROCESSING = "processing"
     STOPPED = "stopped"
@@ -47,6 +49,7 @@ class SubagentState(Enum):
 @dataclass
 class SubagentTask:
     """A task received from the Redis stream."""
+
     task_id: str
     params: Dict[str, Any]
     requester: str
@@ -64,13 +67,14 @@ class SubagentTask:
             requester=data.get("requester", "unknown"),
             timeout=data.get("timeout", 30.0),
             received_at=message.timestamp,
-            stream_message_id=message.message_id
+            stream_message_id=message.message_id,
         )
 
 
 @dataclass
 class SubagentResult:
     """Result from processing a subagent task."""
+
     success: bool
     result: Any
     error: Optional[str] = None
@@ -97,7 +101,7 @@ class SubagentRunner(ABC):
         redis_client: RedisStreamClient,
         agent_type: SubagentType,
         worker_id: Optional[str] = None,
-        max_concurrent: int = 1
+        max_concurrent: int = 1,
     ):
         """
         Initialize the subagent runner.
@@ -122,7 +126,7 @@ class SubagentRunner(ABC):
             "tasks_processed": 0,
             "tasks_succeeded": 0,
             "tasks_failed": 0,
-            "total_execution_time_ms": 0
+            "total_execution_time_ms": 0,
         }
 
     @abstractmethod
@@ -162,10 +166,7 @@ class SubagentRunner(ABC):
         while self._running:
             try:
                 # Read message from stream
-                message = await self.redis.read_with_timeout(
-                    self.stream,
-                    timeout=1.0
-                )
+                message = await self.redis.read_with_timeout(self.stream, timeout=1.0)
 
                 if message:
                     # Process task with concurrency limit
@@ -203,10 +204,7 @@ class SubagentRunner(ABC):
 
         try:
             # Execute the task
-            result = await asyncio.wait_for(
-                self.execute(task),
-                timeout=task.timeout
-            )
+            result = await asyncio.wait_for(self.execute(task), timeout=task.timeout)
 
             execution_time = (time.time() - start_time) * 1000
             result.execution_time_ms = execution_time
@@ -221,9 +219,9 @@ class SubagentRunner(ABC):
                     "metadata": result.metadata,
                     "worker_id": self.worker_id,
                     "agent_type": self.agent_type.value,
-                    "execution_time_ms": execution_time
+                    "execution_time_ms": execution_time,
                 },
-                error=result.error
+                error=result.error,
             )
 
             # Update stats
@@ -247,7 +245,7 @@ class SubagentRunner(ABC):
                 task_id=task.task_id,
                 success=False,
                 result=None,
-                error=f"Task timed out after {task.timeout}s"
+                error=f"Task timed out after {task.timeout}s",
             )
 
             self._stats["tasks_processed"] += 1
@@ -258,10 +256,7 @@ class SubagentRunner(ABC):
             logger.error(f"Task {task.task_id} failed: {e}", exc_info=True)
 
             await self.redis.publish_result(
-                task_id=task.task_id,
-                success=False,
-                result=None,
-                error=str(e)
+                task_id=task.task_id, success=False, result=None, error=str(e)
             )
 
             self._stats["tasks_processed"] += 1
@@ -275,8 +270,7 @@ class SubagentRunner(ABC):
         avg_time = 0
         if self._stats["tasks_processed"] > 0:
             avg_time = (
-                self._stats["total_execution_time_ms"] /
-                self._stats["tasks_processed"]
+                self._stats["total_execution_time_ms"] / self._stats["tasks_processed"]
             )
 
         return {
@@ -284,7 +278,7 @@ class SubagentRunner(ABC):
             "worker_id": self.worker_id,
             "agent_type": self.agent_type.value,
             "state": self.state.value,
-            "average_execution_time_ms": avg_time
+            "average_execution_time_ms": avg_time,
         }
 
     async def health_check(self) -> Dict[str, Any]:
@@ -298,7 +292,7 @@ class SubagentRunner(ABC):
             "agent_type": self.agent_type.value,
             "stream": self.stream,
             "stats": self.get_stats(),
-            "redis": redis_health
+            "redis": redis_health,
         }
 
 
@@ -316,7 +310,7 @@ class MultiWorkerRunner:
         redis_client: RedisStreamClient,
         agent_type: SubagentType,
         num_workers: int = 3,
-        **runner_kwargs
+        **runner_kwargs,
     ):
         """
         Initialize multi-worker runner.
@@ -337,7 +331,7 @@ class MultiWorkerRunner:
                 redis_client=redis_client,
                 agent_type=agent_type,
                 worker_id=worker_id,
-                **runner_kwargs
+                **runner_kwargs,
             )
             self.runners.append(runner)
 
@@ -345,8 +339,7 @@ class MultiWorkerRunner:
         """Start all workers."""
         logger.info(f"Starting {len(self.runners)} workers")
         self._tasks = [
-            asyncio.create_task(runner.run_forever())
-            for runner in self.runners
+            asyncio.create_task(runner.run_forever()) for runner in self.runners
         ]
 
     async def stop_all(self):

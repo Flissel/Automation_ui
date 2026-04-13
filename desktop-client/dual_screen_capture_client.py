@@ -763,12 +763,19 @@ class RobustDualScreenCaptureClient:
                 button = args.get("button", "left")
                 pyautogui.moveTo(x, y, duration=0.3)
                 pyautogui.click(button=button)
-                result = {"success": True, "action": "click", "x": x, "y": y, "button": button}
+                result = {
+                    "success": True,
+                    "action": "click",
+                    "x": x,
+                    "y": y,
+                    "button": button,
+                }
 
             elif tool == "action_type":
                 text = args.get("text", "")
                 try:
                     import pyperclip
+
                     pyperclip.copy(text)
                     pyautogui.hotkey("ctrl", "v")
                 except ImportError:
@@ -799,11 +806,17 @@ class RobustDualScreenCaptureClient:
                     pyautogui.scroll(clicks, int(x), int(y))
                 else:
                     pyautogui.scroll(clicks)
-                result = {"success": True, "action": "scroll", "direction": direction, "amount": amount}
+                result = {
+                    "success": True,
+                    "action": "scroll",
+                    "direction": direction,
+                    "amount": amount,
+                }
 
             elif tool == "get_focus":
                 try:
                     import win32gui
+
                     hwnd = win32gui.GetForegroundWindow()
                     title = win32gui.GetWindowText(hwnd)
                     result = {"success": True, "title": title, "hwnd": hwnd}
@@ -814,37 +827,56 @@ class RobustDualScreenCaptureClient:
                 title_query = args.get("title", "")
                 try:
                     import win32gui
+
                     found = []
+
                     def _enum_cb(hwnd, results):
                         if win32gui.IsWindowVisible(hwnd):
                             t = win32gui.GetWindowText(hwnd)
                             if title_query.lower() in t.lower():
                                 results.append(hwnd)
                         return True
+
                     win32gui.EnumWindows(_enum_cb, found)
                     if found:
                         hwnd = found[0]
                         win32gui.ShowWindow(hwnd, 9)  # SW_RESTORE
                         win32gui.SetForegroundWindow(hwnd)
                         actual_title = win32gui.GetWindowText(hwnd)
-                        result = {"success": True, "is_focused": True, "recovered": True, "hwnd": hwnd, "title": actual_title}
+                        result = {
+                            "success": True,
+                            "is_focused": True,
+                            "recovered": True,
+                            "hwnd": hwnd,
+                            "title": actual_title,
+                        }
                     else:
-                        result = {"success": False, "error": f"Window '{title_query}' not found"}
+                        result = {
+                            "success": False,
+                            "error": f"Window '{title_query}' not found",
+                        }
                 except ImportError:
                     result = {"success": False, "error": "win32gui not available"}
 
             elif tool == "list_windows":
                 try:
                     import win32gui
+
                     windows = []
+
                     def _enum_cb2(hwnd, results):
                         if win32gui.IsWindowVisible(hwnd):
                             t = win32gui.GetWindowText(hwnd)
                             if t.strip():
                                 results.append({"hwnd": hwnd, "title": t})
                         return True
+
                     win32gui.EnumWindows(_enum_cb2, windows)
-                    result = {"success": True, "windows": windows, "count": len(windows)}
+                    result = {
+                        "success": True,
+                        "windows": windows,
+                        "count": len(windows),
+                    }
                 except ImportError:
                     result = {"success": False, "error": "win32gui not available"}
 
@@ -856,11 +888,14 @@ class RobustDualScreenCaptureClient:
 
             elif tool == "shell_exec":
                 import subprocess
+
                 cmd = args.get("command", "")
                 timeout = int(args.get("timeout", 30))
                 proc = subprocess.Popen(
                     ["powershell", "-Command", cmd],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
                     creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
                 )
                 try:
@@ -901,7 +936,9 @@ class RobustDualScreenCaptureClient:
                     "timestamp": time.time(),
                 }
                 await self.websocket.send(json.dumps(ack))
-                logger.info(f"[ACTION] ACK sent: {tool} success={result.get('success')} ({elapsed_ms}ms)")
+                logger.info(
+                    f"[ACTION] ACK sent: {tool} success={result.get('success')} ({elapsed_ms}ms)"
+                )
         except Exception as e:
             logger.error(f"[ACTION] Failed to send ACK: {e}")
 

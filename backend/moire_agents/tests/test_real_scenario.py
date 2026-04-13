@@ -19,12 +19,12 @@ Usage:
 """
 
 import asyncio
+import os
 import sys
 import time
-import os
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 # Add parent to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Try to import PyAutoGUI
 try:
     import pyautogui
+
     pyautogui.FAILSAFE = True  # Move mouse to corner to abort
     pyautogui.PAUSE = 0.1  # Small pause between actions
     HAS_PYAUTOGUI = True
@@ -41,8 +42,10 @@ except ImportError:
 
 # Try to import PIL for screenshots
 try:
-    from PIL import Image
     import io
+
+    from PIL import Image
+
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
@@ -53,9 +56,11 @@ except ImportError:
 # Data Classes
 # ============================================================
 
+
 @dataclass
 class PlanAction:
     """A single action in a plan."""
+
     action_type: str  # "hotkey", "type", "click", "wait"
     params: Dict[str, Any]
     description: str
@@ -64,6 +69,7 @@ class PlanAction:
 @dataclass
 class Plan:
     """A complete plan from a planning subagent."""
+
     approach: str  # "keyboard", "mouse", "hybrid"
     actions: List[PlanAction]
     confidence: float
@@ -73,6 +79,7 @@ class Plan:
 @dataclass
 class ExecutionResult:
     """Result of executing a plan."""
+
     success: bool
     steps_completed: int
     total_steps: int
@@ -83,6 +90,7 @@ class ExecutionResult:
 # ============================================================
 # Mock Subagent Workers (Simulating Redis-based subagents)
 # ============================================================
+
 
 class MockPlanningSubagent:
     """Simulates a planning subagent that generates action plans."""
@@ -106,13 +114,15 @@ class MockPlanningSubagent:
                     PlanAction("wait", {"seconds": 1.0}, "Wait for Notepad"),
                 ],
                 confidence=0.92,
-                reasoning="Win+R is fastest for launching apps by name"
+                reasoning="Win+R is fastest for launching apps by name",
             )
         elif self.approach == "mouse":
             return Plan(
                 approach="mouse",
                 actions=[
-                    PlanAction("click", {"target": "start_button"}, "Click Start button"),
+                    PlanAction(
+                        "click", {"target": "start_button"}, "Click Start button"
+                    ),
                     PlanAction("wait", {"seconds": 0.5}, "Wait for menu"),
                     PlanAction("type", {"text": "notepad"}, "Type to search"),
                     PlanAction("wait", {"seconds": 0.5}, "Wait for results"),
@@ -120,7 +130,7 @@ class MockPlanningSubagent:
                     PlanAction("wait", {"seconds": 1.0}, "Wait for Notepad"),
                 ],
                 confidence=0.78,
-                reasoning="Click-based approach, more steps required"
+                reasoning="Click-based approach, more steps required",
             )
         else:  # hybrid
             return Plan(
@@ -134,7 +144,7 @@ class MockPlanningSubagent:
                     PlanAction("wait", {"seconds": 1.0}, "Wait for Notepad"),
                 ],
                 confidence=0.85,
-                reasoning="Uses keyboard for speed with visual confirmation"
+                reasoning="Uses keyboard for speed with visual confirmation",
             )
 
 
@@ -148,14 +158,23 @@ class MockSpecialistSubagent:
                 "shortcuts": {
                     "run_dialog": {"keys": "Win+R", "description": "Open Run dialog"},
                     "start_menu": {"keys": "Win", "description": "Open Start menu"},
-                    "close_window": {"keys": "Alt+F4", "description": "Close active window"},
-                    "task_manager": {"keys": "Ctrl+Shift+Esc", "description": "Open Task Manager"},
-                    "file_explorer": {"keys": "Win+E", "description": "Open File Explorer"},
+                    "close_window": {
+                        "keys": "Alt+F4",
+                        "description": "Close active window",
+                    },
+                    "task_manager": {
+                        "keys": "Ctrl+Shift+Esc",
+                        "description": "Open Task Manager",
+                    },
+                    "file_explorer": {
+                        "keys": "Win+E",
+                        "description": "Open File Explorer",
+                    },
                 },
                 "workflows": {
                     "open_app_fast": ["Win+R", "type app name", "Enter"],
                     "search_app": ["Win", "type to search", "Enter or click"],
-                }
+                },
             }
         }
 
@@ -168,7 +187,7 @@ class MockSpecialistSubagent:
             "domain": self.domain,
             "shortcuts": domain_data.get("shortcuts", {}),
             "workflows": domain_data.get("workflows", {}),
-            "answer": f"For {self.domain}: Use keyboard shortcuts for fastest results"
+            "answer": f"For {self.domain}: Use keyboard shortcuts for fastest results",
         }
 
 
@@ -186,7 +205,7 @@ class MockVisionSubagent:
             "prompt": prompt,
             "elements_detected": [],
             "analysis": "Unable to analyze - mock implementation",
-            "confidence": 0.5
+            "confidence": 0.5,
         }
 
         if HAS_PIL and screenshot_bytes:
@@ -202,16 +221,28 @@ class MockVisionSubagent:
                 # Check if image has any white regions (Notepad background)
                 # This is a very crude approximation
                 pixels = list(img.getdata())
-                white_count = sum(1 for p in pixels if isinstance(p, tuple) and len(p) >= 3 and p[0] > 240 and p[1] > 240 and p[2] > 240)
+                white_count = sum(
+                    1
+                    for p in pixels
+                    if isinstance(p, tuple)
+                    and len(p) >= 3
+                    and p[0] > 240
+                    and p[1] > 240
+                    and p[2] > 240
+                )
                 white_ratio = white_count / len(pixels) if pixels else 0
 
                 if white_ratio > 0.3:
-                    analysis["elements_detected"].append({
-                        "type": "window",
-                        "likely_app": "Notepad or similar",
-                        "has_white_background": True
-                    })
-                    analysis["analysis"] = "Detected window with white background - likely Notepad"
+                    analysis["elements_detected"].append(
+                        {
+                            "type": "window",
+                            "likely_app": "Notepad or similar",
+                            "has_white_background": True,
+                        }
+                    )
+                    analysis["analysis"] = (
+                        "Detected window with white background - likely Notepad"
+                    )
                     analysis["confidence"] = 0.8
 
             except Exception as e:
@@ -246,7 +277,7 @@ class MockBackgroundMonitor:
                             return {
                                 "met": True,
                                 "window_title": windows[0].title,
-                                "elapsed": time.time() - start_time
+                                "elapsed": time.time() - start_time,
                             }
                     except Exception:
                         pass
@@ -263,6 +294,7 @@ class MockBackgroundMonitor:
 # ============================================================
 # Action Executor
 # ============================================================
+
 
 class ActionExecutor:
     """Executes plan actions using PyAutoGUI."""
@@ -328,7 +360,7 @@ class ActionExecutor:
                     success=False,
                     steps_completed=steps_completed,
                     total_steps=len(plan.actions),
-                    error=f"Failed at step {steps_completed + 1}: {action.description}"
+                    error=f"Failed at step {steps_completed + 1}: {action.description}",
                 )
 
         # Capture final screenshot
@@ -337,7 +369,7 @@ class ActionExecutor:
             try:
                 screenshot = pyautogui.screenshot()
                 buffer = io.BytesIO()
-                screenshot.save(buffer, format='PNG')
+                screenshot.save(buffer, format="PNG")
                 screenshot_bytes = buffer.getvalue()
             except Exception as e:
                 print(f"      > Screenshot capture failed: {e}")
@@ -346,13 +378,14 @@ class ActionExecutor:
             success=True,
             steps_completed=steps_completed,
             total_steps=len(plan.actions),
-            screenshot=screenshot_bytes
+            screenshot=screenshot_bytes,
         )
 
 
 # ============================================================
 # Main Test Runner
 # ============================================================
+
 
 async def run_real_test(dry_run: bool = False):
     """Run the full interactive test scenario."""
@@ -391,7 +424,7 @@ async def run_real_test(dry_run: bool = False):
     planners = [
         MockPlanningSubagent("keyboard"),
         MockPlanningSubagent("mouse"),
-        MockPlanningSubagent("hybrid")
+        MockPlanningSubagent("hybrid"),
     ]
 
     goal = "Open Notepad application"
@@ -408,14 +441,20 @@ async def run_real_test(dry_run: bool = False):
 
     # Display all plans
     for plan in plans:
-        print(f"      - {plan.approach.capitalize()} approach: confidence {plan.confidence:.2f}")
-        print(f"        Actions: {' -> '.join(a.description for a in plan.actions[:3])}...")
+        print(
+            f"      - {plan.approach.capitalize()} approach: confidence {plan.confidence:.2f}"
+        )
+        print(
+            f"        Actions: {' -> '.join(a.description for a in plan.actions[:3])}..."
+        )
         print(f"        Reasoning: {plan.reasoning}")
         print()
 
     # Select best plan
     best_plan = max(plans, key=lambda p: p.confidence)
-    print(f"      Selected: {best_plan.approach.capitalize()} approach (highest confidence)")
+    print(
+        f"      Selected: {best_plan.approach.capitalize()} approach (highest confidence)"
+    )
     print()
 
     # -------------------- Phase 3: Specialist Query --------------------
@@ -427,7 +466,7 @@ async def run_real_test(dry_run: bool = False):
     print(f"      Domain: {advice['domain']}")
     print(f"      Advice: {advice['answer']}")
     print("      Available shortcuts:")
-    for name, shortcut in list(advice['shortcuts'].items())[:3]:
+    for name, shortcut in list(advice["shortcuts"].items())[:3]:
         print(f"        - {name}: {shortcut['keys']}")
     print()
 
@@ -446,7 +485,9 @@ async def run_real_test(dry_run: bool = False):
 
     if result.success:
         print()
-        print(f"      Plan executed: {result.steps_completed}/{result.total_steps} steps")
+        print(
+            f"      Plan executed: {result.steps_completed}/{result.total_steps} steps"
+        )
 
         # Wait for Notepad window
         print("      > Waiting for Notepad window...", end=" ", flush=True)
@@ -459,7 +500,11 @@ async def run_real_test(dry_run: bool = False):
 
         # Type the message
         if HAS_PYAUTOGUI and not dry_run:
-            print("      > Typing 'Hello World from MoireTracker!'...", end=" ", flush=True)
+            print(
+                "      > Typing 'Hello World from MoireTracker!'...",
+                end=" ",
+                flush=True,
+            )
             await asyncio.sleep(0.5)  # Wait for window focus
             pyautogui.write("Hello World from MoireTracker!", interval=0.03)
             print("done")
@@ -480,14 +525,16 @@ async def run_real_test(dry_run: bool = False):
         print("      Screenshot captured")
 
         vision = MockVisionSubagent()
-        analysis = await vision.analyze(result.screenshot, "Verify Notepad is open with text")
+        analysis = await vision.analyze(
+            result.screenshot, "Verify Notepad is open with text"
+        )
 
         print(f"      Analysis: {analysis['analysis']}")
         print(f"      Confidence: {analysis['confidence']:.2f}")
 
-        if analysis['elements_detected']:
+        if analysis["elements_detected"]:
             print("      Elements detected:")
-            for elem in analysis['elements_detected']:
+            for elem in analysis["elements_detected"]:
                 print(f"        - {elem}")
     else:
         print("      [SKIP] No screenshot available for verification")
@@ -505,7 +552,9 @@ async def run_real_test(dry_run: bool = False):
 
     print("Summary:")
     print(f"  - Planning approaches tested: {len(plans)}")
-    print(f"  - Best approach: {best_plan.approach} (confidence: {best_plan.confidence:.2f})")
+    print(
+        f"  - Best approach: {best_plan.approach} (confidence: {best_plan.confidence:.2f})"
+    )
     print(f"  - Actions executed: {result.steps_completed}/{result.total_steps}")
     print(f"  - Specialist domain: {advice['domain']}")
     if result.screenshot:
@@ -519,7 +568,9 @@ async def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="MoireTracker Real Interactive Test")
-    parser.add_argument("--dry-run", action="store_true", help="Don't execute real actions")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Don't execute real actions"
+    )
     args = parser.parse_args()
 
     print()
@@ -543,6 +594,7 @@ async def main():
     except Exception as e:
         print(f"\n\n[ERROR] {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

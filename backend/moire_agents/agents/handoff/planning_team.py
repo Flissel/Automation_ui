@@ -15,13 +15,15 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from .base_agent import BaseHandoffAgent, AgentConfig
-from .messages import UserTask, AgentResponse
-from .team_agent import TeamAgent, TeamConfig, SubAgentResult, SynthesisStrategy
+from .base_agent import AgentConfig, BaseHandoffAgent
+from .messages import AgentResponse, UserTask
+from .team_agent import (SubAgentResult, SynthesisStrategy, TeamAgent,
+                         TeamConfig)
 
 # Import LLM client
 try:
-    from core.openrouter_client import OpenRouterClient, ModelType
+    from core.openrouter_client import ModelType, OpenRouterClient
+
     HAS_LLM = True
 except ImportError:
     HAS_LLM = False
@@ -43,7 +45,7 @@ class PlannerAgent(BaseHandoffAgent):
         config = AgentConfig(
             name="planner",
             description="Creates action plans for desktop automation",
-            topic_type="planning"
+            topic_type="planning",
         )
         super().__init__(config)
         self.llm_client = llm_client
@@ -79,17 +81,16 @@ class PlannerAgent(BaseHandoffAgent):
             result = {
                 "plan": result,
                 "confidence": 0.8 if not critic_feedback else 0.9,
-                "revised": debate_round > 1
+                "revised": debate_round > 1,
             }
 
-        await self.report_progress(task, 100.0, f"Plan created: {len(result.get('plan', []))} steps")
+        await self.report_progress(
+            task, 100.0, f"Plan created: {len(result.get('plan', []))} steps"
+        )
         return result
 
     async def _create_plan_with_llm(
-        self,
-        goal: str,
-        context: Dict[str, Any],
-        critic_feedback: Optional[Dict] = None
+        self, goal: str, context: Dict[str, Any], critic_feedback: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """Create a plan using LLM."""
         # Build the prompt
@@ -158,23 +159,26 @@ Return ONLY valid JSON:
                 model=ModelType.QUICK,  # Use fast model for planning
                 temperature=0.3,
                 max_tokens=2048,
-                json_mode=True
+                json_mode=True,
             )
 
             result = json.loads(response.content)
-            logger.info(f"LLM Planner: {len(result.get('plan', []))} steps, confidence: {result.get('confidence')}")
+            logger.info(
+                f"LLM Planner: {len(result.get('plan', []))} steps, confidence: {result.get('confidence')}"
+            )
             return result
 
         except Exception as e:
             logger.error(f"LLM planning failed: {e}, falling back to rule-based")
             plan = self._create_plan(goal, context, critic_feedback)
-            return {"plan": plan, "confidence": 0.5, "reasoning": f"Fallback due to: {e}"}
+            return {
+                "plan": plan,
+                "confidence": 0.5,
+                "reasoning": f"Fallback due to: {e}",
+            }
 
     def _create_plan(
-        self,
-        goal: str,
-        context: Dict[str, Any],
-        critic_feedback: Optional[Dict] = None
+        self, goal: str, context: Dict[str, Any], critic_feedback: Optional[Dict] = None
     ) -> List[Dict[str, Any]]:
         """
         Create a plan based on the goal.
@@ -197,7 +201,9 @@ Return ONLY valid JSON:
                 if "wait" in suggestion.lower() or "sleep" in suggestion.lower():
                     improvements.append({"type": "add_wait", "reason": suggestion})
                 if "verify" in suggestion.lower() or "check" in suggestion.lower():
-                    improvements.append({"type": "add_verification", "reason": suggestion})
+                    improvements.append(
+                        {"type": "add_verification", "reason": suggestion}
+                    )
 
         # Claude Desktop workflow
         if "claude" in goal_lower and "desktop" in goal_lower:
@@ -207,46 +213,51 @@ Return ONLY valid JSON:
                     "type": "hotkey",
                     "keys": ["ctrl", "alt", "space"],
                     "description": "Open Claude Desktop",
-                    "rationale": "Standard hotkey to activate Claude Desktop"
+                    "rationale": "Standard hotkey to activate Claude Desktop",
                 },
                 {
                     "type": "sleep",
                     "seconds": 1.5,
                     "description": "Wait for window",
-                    "rationale": "Allow time for Claude Desktop to appear"
+                    "rationale": "Allow time for Claude Desktop to appear",
                 },
                 {
                     "type": "write",
                     "text": message,
                     "description": "Type message",
-                    "rationale": "Input field is auto-focused on open"
+                    "rationale": "Input field is auto-focused on open",
                 },
                 {
                     "type": "press",
                     "key": "enter",
                     "description": "Send message",
-                    "rationale": "Submit the message"
-                }
+                    "rationale": "Submit the message",
+                },
             ]
 
             # Apply improvements from critic
             for imp in improvements:
                 if imp["type"] == "add_wait":
                     # Add extra wait before typing
-                    plan.insert(2, {
-                        "type": "sleep",
-                        "seconds": 0.5,
-                        "description": "Extra wait for stability",
-                        "rationale": imp["reason"]
-                    })
+                    plan.insert(
+                        2,
+                        {
+                            "type": "sleep",
+                            "seconds": 0.5,
+                            "description": "Extra wait for stability",
+                            "rationale": imp["reason"],
+                        },
+                    )
                 elif imp["type"] == "add_verification":
                     # Add verification step
-                    plan.append({
-                        "type": "verify",
-                        "target": "message sent",
-                        "description": "Verify message was sent",
-                        "rationale": imp["reason"]
-                    })
+                    plan.append(
+                        {
+                            "type": "verify",
+                            "target": "message sent",
+                            "description": "Verify message was sent",
+                            "rationale": imp["reason"],
+                        }
+                    )
 
             return plan
 
@@ -258,18 +269,21 @@ Return ONLY valid JSON:
                     "type": "find_and_click",
                     "target": target,
                     "description": f"Find and click {target}",
-                    "rationale": "Locate element visually then click"
+                    "rationale": "Locate element visually then click",
                 }
             ]
 
         # Default: return context actions if provided
-        return context.get("actions", [
-            {
-                "type": "unknown",
-                "description": f"Unable to plan for: {goal}",
-                "rationale": "Goal not recognized"
-            }
-        ])
+        return context.get(
+            "actions",
+            [
+                {
+                    "type": "unknown",
+                    "description": f"Unable to plan for: {goal}",
+                    "rationale": "Goal not recognized",
+                }
+            ],
+        )
 
 
 class CriticAgent(BaseHandoffAgent):
@@ -284,7 +298,7 @@ class CriticAgent(BaseHandoffAgent):
         config = AgentConfig(
             name="critic",
             description="Reviews and critiques action plans",
-            topic_type="planning"
+            topic_type="planning",
         )
         super().__init__(config)
         self.llm_client = llm_client
@@ -326,7 +340,7 @@ class CriticAgent(BaseHandoffAgent):
             return {
                 "approved": False,
                 "issues": ["No plan provided to review"],
-                "suggestions": []
+                "suggestions": [],
             }
 
         # Use LLM if available, otherwise fall back to rule-based
@@ -336,13 +350,13 @@ class CriticAgent(BaseHandoffAgent):
         else:
             critique = self._critique_plan(planner_result, task)
 
-        await self.report_progress(task, 100.0, f"Review complete: {len(critique['issues'])} issues")
+        await self.report_progress(
+            task, 100.0, f"Review complete: {len(critique['issues'])} issues"
+        )
         return critique
 
     async def _critique_plan_with_llm(
-        self,
-        plan_result: Dict,
-        task: UserTask
+        self, plan_result: Dict, task: UserTask
     ) -> Dict[str, Any]:
         """Critique a plan using LLM."""
         prompt = f"""You are a desktop automation plan critic. Review this plan for CRITICAL issues only.
@@ -387,12 +401,14 @@ Return ONLY valid JSON:
                 model=ModelType.QUICK,
                 temperature=0.2,  # Lower temperature for more consistent critiques
                 max_tokens=1024,
-                json_mode=True
+                json_mode=True,
             )
 
             result = json.loads(response.content)
             result["plan_length"] = len(plan_result.get("plan", []))
-            logger.info(f"LLM Critic: {result.get('verdict')}, {len(result.get('issues', []))} issues")
+            logger.info(
+                f"LLM Critic: {result.get('verdict')}, {len(result.get('issues', []))} issues"
+            )
             return result
 
         except Exception as e:
@@ -421,18 +437,22 @@ Return ONLY valid JSON:
             if step_type == "hotkey" and i < len(plan) - 1:
                 next_step = plan[i + 1]
                 if next_step.get("type") != "sleep":
-                    issues.append(f"Step {i+1}: No wait after hotkey - window may not be ready")
-                    suggestions.append("Add a sleep step after hotkey to ensure window is ready")
+                    issues.append(
+                        f"Step {i+1}: No wait after hotkey - window may not be ready"
+                    )
+                    suggestions.append(
+                        "Add a sleep step after hotkey to ensure window is ready"
+                    )
                     risk_score += 0.2
 
             # Issue: Typing without verification
             if step_type == "write":
-                has_verification = any(
-                    s.get("type") == "verify" for s in plan[i+1:]
-                )
+                has_verification = any(s.get("type") == "verify" for s in plan[i + 1 :])
                 if not has_verification:
                     issues.append(f"Step {i+1}: No verification after typing")
-                    suggestions.append("Consider adding verification to confirm text was entered")
+                    suggestions.append(
+                        "Consider adding verification to confirm text was entered"
+                    )
                     risk_score += 0.1
 
             # Issue: Click without target
@@ -465,7 +485,7 @@ Return ONLY valid JSON:
             "suggestions": suggestions,
             "risk_score": risk_score,
             "plan_length": len(plan),
-            "verdict": "APPROVED" if approved else "NEEDS_REVISION"
+            "verdict": "APPROVED" if approved else "NEEDS_REVISION",
         }
 
 
@@ -489,7 +509,7 @@ class PlanningTeam(TeamAgent):
         self,
         max_debate_rounds: int = 3,
         use_llm: bool = False,
-        llm_client: Optional["OpenRouterClient"] = None
+        llm_client: Optional["OpenRouterClient"] = None,
     ):
         config = TeamConfig(
             name="planning_team",
@@ -498,7 +518,7 @@ class PlanningTeam(TeamAgent):
             synthesis_strategy=SynthesisStrategy.CUSTOM,  # Use our custom _synthesize
             max_debate_rounds=max_debate_rounds,
             parallel_execution=False,  # Sequential for debate
-            timeout_per_agent=60.0 if use_llm else 30.0  # More time for LLM calls
+            timeout_per_agent=60.0 if use_llm else 30.0,  # More time for LLM calls
         )
         super().__init__(config)
 
@@ -518,12 +538,12 @@ class PlanningTeam(TeamAgent):
         self.set_synthesizer(self._custom_planning_synthesize)
 
         self._use_llm = use_llm
-        logger.info(f"PlanningTeam initialized with LLM={'enabled' if use_llm else 'disabled'}")
+        logger.info(
+            f"PlanningTeam initialized with LLM={'enabled' if use_llm else 'disabled'}"
+        )
 
     async def _custom_planning_synthesize(
-        self,
-        results: List[SubAgentResult],
-        task: UserTask
+        self, results: List[SubAgentResult], task: UserTask
     ) -> Dict[str, Any]:
         """Custom synthesizer that wraps _synthesize."""
         return await self._synthesize(results)
@@ -557,13 +577,23 @@ class PlanningTeam(TeamAgent):
             "plan": plan,
             "approved": approved,
             "planner_confidence": planner_result.get("confidence", 0.5),
-            "critic_verdict": critic_result.get("verdict", "NOT_REVIEWED") if critic_result else "NOT_REVIEWED",
+            "critic_verdict": (
+                critic_result.get("verdict", "NOT_REVIEWED")
+                if critic_result
+                else "NOT_REVIEWED"
+            ),
             "issues": critic_result.get("issues", []) if critic_result else [],
-            "suggestions": critic_result.get("suggestions", []) if critic_result else [],
-            "risk_score": critic_result.get("risk_score", 0.0) if critic_result else 0.0
+            "suggestions": (
+                critic_result.get("suggestions", []) if critic_result else []
+            ),
+            "risk_score": (
+                critic_result.get("risk_score", 0.0) if critic_result else 0.0
+            ),
         }
 
-    async def create_plan(self, goal: str, context: Optional[Dict] = None) -> Dict[str, Any]:
+    async def create_plan(
+        self, goal: str, context: Optional[Dict] = None
+    ) -> Dict[str, Any]:
         """
         Convenience method to create a plan for a goal.
 
@@ -574,10 +604,56 @@ class PlanningTeam(TeamAgent):
         Returns:
             Synthesized planning result
         """
-        task = UserTask(
-            goal=goal,
-            context=context or {}
-        )
+        task = UserTask(goal=goal, context=context or {})
 
         result = await self._process_task(task)
         return result
+
+    async def replan_from(
+        self,
+        goal: str,
+        failed_step: Dict[str, Any],
+        full_plan: List[Dict[str, Any]],
+        error_context: str = "",
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Phase 2: replan from a failed step.
+
+        Wraps `create_plan` with a focused context that tells the planner
+        which step blew up and why. The planner is asked for a fresh tail
+        starting from that point — the runtime then splices the new tail
+        into the working plan.
+
+        Returns the new step list, or None if planning failed.
+        """
+        try:
+            failed_idx = full_plan.index(failed_step)
+        except ValueError:
+            failed_idx = 0
+
+        context = {
+            "replan_origin": "execute_with_recovery",
+            "failed_step": failed_step,
+            "failed_index": failed_idx,
+            "error_context": error_context,
+            "completed_steps": full_plan[:failed_idx],
+            "remaining_steps": full_plan[failed_idx:],
+            "instruction": (
+                "The previous plan failed at the step shown in 'failed_step'. "
+                "Generate a new sequence of steps that recovers from that failure "
+                "and completes the original goal. Do NOT repeat the steps in "
+                "'completed_steps' — they already ran successfully."
+            ),
+        }
+
+        try:
+            result = await self.create_plan(goal, context=context)
+        except Exception as e:
+            logger.warning(f"replan_from create_plan crashed: {e}")
+            return None
+
+        if not isinstance(result, dict):
+            return None
+        new_plan = result.get("plan")
+        if isinstance(new_plan, list) and new_plan:
+            return new_plan
+        return None

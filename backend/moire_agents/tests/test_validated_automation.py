@@ -24,11 +24,11 @@ Safety:
     - Use --dry-run to preview the plan without executing
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
-import sys
 import os
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -38,8 +38,7 @@ from core.validated_executor import ValidatedExecutor
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -54,44 +53,39 @@ Examples:
     python test_validated_automation.py "Open Chrome and search for Python tutorials"
     python test_validated_automation.py "Open Word, write a poem, make title bold"
     python test_validated_automation.py --dry-run "Open Calculator"
-        """
+        """,
     )
     parser.add_argument(
         "goal",
         nargs="?",
         default="Open Notepad and type Hello World from AI",
-        help="Natural language description of the task to perform"
+        help="Natural language description of the task to perform",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Preview the plan without executing (no desktop actions, no MoireServer)"
+        help="Preview the plan without executing (no desktop actions, no MoireServer)",
     )
     parser.add_argument(
         "--no-countdown",
         action="store_true",
-        help="Skip the 3-second countdown before execution"
+        help="Skip the 3-second countdown before execution",
     )
     parser.add_argument(
         "--no-validation",
         action="store_true",
-        help="Skip visual validation (faster but no error detection)"
+        help="Skip visual validation (faster but no error detection)",
     )
     parser.add_argument(
         "--moire-host",
         default="localhost",
-        help="MoireServer host (default: localhost)"
+        help="MoireServer host (default: localhost)",
     )
     parser.add_argument(
-        "--moire-port",
-        type=int,
-        default=8765,
-        help="MoireServer port (default: 8765)"
+        "--moire-port", type=int, default=8765, help="MoireServer port (default: 8765)"
     )
     parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose logging"
+        "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )
 
     args = parser.parse_args()
@@ -143,7 +137,9 @@ Examples:
 
         # Countdown before execution
         if not args.no_countdown:
-            print("\n[WARNING] Executing in 3 seconds... (move mouse to corner to abort)")
+            print(
+                "\n[WARNING] Executing in 3 seconds... (move mouse to corner to abort)"
+            )
             for i in range(3, 0, -1):
                 print(f"  {i}...")
                 await asyncio.sleep(1)
@@ -151,6 +147,7 @@ Examples:
         if args.no_validation:
             # Use simple executor without validation
             from core.action_executor import ActionExecutor
+
             executor = ActionExecutor()
 
             print("\n[EXEC] Executing without validation...")
@@ -166,20 +163,23 @@ Examples:
             return 0 if success else 1
 
         # Use validated executor with MoireServer
-        print(f"\n[MOIRE] Connecting to MoireServer at {args.moire_host}:{args.moire_port}...")
+        print(
+            f"\n[MOIRE] Connecting to MoireServer at {args.moire_host}:{args.moire_port}..."
+        )
         executor = ValidatedExecutor(
-            moire_host=args.moire_host,
-            moire_port=args.moire_port,
-            dry_run=False
+            moire_host=args.moire_host, moire_port=args.moire_port, dry_run=False
         )
 
         try:
             # Connect to MoireServer
             connected = await executor.connect()
             if not connected:
-                print("[WARNING] Could not connect to MoireServer - running without validation")
+                print(
+                    "[WARNING] Could not connect to MoireServer - running without validation"
+                )
                 # Fall back to non-validated execution
                 from core.action_executor import ActionExecutor
+
                 simple_executor = ActionExecutor()
 
                 print("\n[EXEC] Executing without validation...")
@@ -203,9 +203,7 @@ Examples:
                 pass
 
             result = await executor.execute_with_validation(
-                subtasks=subtasks,
-                goal=args.goal,
-                on_progress=on_progress
+                subtasks=subtasks, goal=args.goal, on_progress=on_progress
             )
 
             print("-" * 50)

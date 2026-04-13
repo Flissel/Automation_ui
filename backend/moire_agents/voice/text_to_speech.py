@@ -6,25 +6,27 @@ Supports multiple TTS backends:
 - Edge TTS (Microsoft, free)
 """
 
-import os
-import sys
 import asyncio
 import logging
+import os
+import sys
 import tempfile
-from typing import Optional, Callable
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
+from typing import Callable, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(__file__), '../../../.env'))
+
+load_dotenv(os.path.join(os.path.dirname(__file__), "../../../.env"))
 
 logger = logging.getLogger(__name__)
 
 
 class TTSBackend(Enum):
     """Text-to-speech backend options."""
+
     PYTTSX3 = "pyttsx3"
     OPENAI = "openai"
     EDGE_TTS = "edge_tts"
@@ -33,6 +35,7 @@ class TTSBackend(Enum):
 @dataclass
 class TTSConfig:
     """TTS configuration."""
+
     backend: TTSBackend = TTSBackend.PYTTSX3
     voice: Optional[str] = None  # Voice ID or name
     rate: int = 150  # Words per minute
@@ -60,17 +63,21 @@ class TextToSpeech:
         if self.config.backend == TTSBackend.PYTTSX3:
             try:
                 import pyttsx3
+
                 self._engine = pyttsx3.init()
 
                 # Configure voice
-                self._engine.setProperty('rate', self.config.rate)
-                self._engine.setProperty('volume', self.config.volume)
+                self._engine.setProperty("rate", self.config.rate)
+                self._engine.setProperty("volume", self.config.volume)
 
                 # Try to find German voice
-                voices = self._engine.getProperty('voices')
+                voices = self._engine.getProperty("voices")
                 for voice in voices:
-                    if self.config.language in voice.languages or 'german' in voice.name.lower():
-                        self._engine.setProperty('voice', voice.id)
+                    if (
+                        self.config.language in voice.languages
+                        or "german" in voice.name.lower()
+                    ):
+                        self._engine.setProperty("voice", voice.id)
                         break
 
                 logger.info("pyttsx3 TTS initialized")
@@ -85,6 +92,7 @@ class TextToSpeech:
             else:
                 try:
                     import openai
+
                     self._openai_client = openai.OpenAI(api_key=self.openai_key)
                     logger.info("OpenAI TTS initialized")
                 except ImportError:
@@ -93,6 +101,7 @@ class TextToSpeech:
         elif self.config.backend == TTSBackend.EDGE_TTS:
             try:
                 import edge_tts
+
                 logger.info("Edge TTS initialized")
             except ImportError:
                 logger.warning("edge-tts not installed. Run: pip install edge-tts")
@@ -153,7 +162,7 @@ class TextToSpeech:
 
     async def _speak_openai(self, text: str):
         """Speak using OpenAI TTS API."""
-        if not hasattr(self, '_openai_client'):
+        if not hasattr(self, "_openai_client"):
             logger.warning("OpenAI client not available")
             return
 
@@ -164,8 +173,8 @@ class TextToSpeech:
                 lambda: self._openai_client.audio.speech.create(
                     model="tts-1",
                     voice="alloy",  # Options: alloy, echo, fable, onyx, nova, shimmer
-                    input=text
-                )
+                    input=text,
+                ),
             )
 
             # Save to temp file and play
@@ -210,6 +219,7 @@ class TextToSpeech:
         try:
             # Try playsound (simple cross-platform)
             from playsound import playsound
+
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, lambda: playsound(file_path))
             return
@@ -219,6 +229,7 @@ class TextToSpeech:
         try:
             # Try pygame
             import pygame
+
             pygame.mixer.init()
             pygame.mixer.music.load(file_path)
             pygame.mixer.music.play()
@@ -229,8 +240,8 @@ class TextToSpeech:
             pass
 
         # Fallback: system command
-        import subprocess
         import platform
+        import subprocess
 
         system = platform.system()
         if system == "Windows":
@@ -246,13 +257,13 @@ class TextToSpeech:
     def list_voices(self) -> list:
         """List available voices for current backend."""
         if self.config.backend == TTSBackend.PYTTSX3 and self._engine:
-            voices = self._engine.getProperty('voices')
+            voices = self._engine.getProperty("voices")
             return [
                 {
-                    'id': v.id,
-                    'name': v.name,
-                    'languages': v.languages,
-                    'gender': v.gender
+                    "id": v.id,
+                    "name": v.name,
+                    "languages": v.languages,
+                    "gender": v.gender,
                 }
                 for v in voices
             ]
@@ -261,16 +272,17 @@ class TextToSpeech:
             # Edge TTS voices can be listed with edge_tts.list_voices()
             try:
                 import edge_tts
+
                 voices = asyncio.run(edge_tts.list_voices())
                 return [
                     {
-                        'id': v['ShortName'],
-                        'name': v['FriendlyName'],
-                        'language': v['Locale'],
-                        'gender': v['Gender']
+                        "id": v["ShortName"],
+                        "name": v["FriendlyName"],
+                        "language": v["Locale"],
+                        "gender": v["Gender"],
                     }
                     for v in voices
-                    if v['Locale'].startswith('de')  # German voices only
+                    if v["Locale"].startswith("de")  # German voices only
                 ]
             except ImportError:
                 return []
@@ -278,12 +290,12 @@ class TextToSpeech:
         elif self.config.backend == TTSBackend.OPENAI:
             # OpenAI voices are fixed
             return [
-                {'id': 'alloy', 'name': 'Alloy', 'description': 'Neutral'},
-                {'id': 'echo', 'name': 'Echo', 'description': 'Male'},
-                {'id': 'fable', 'name': 'Fable', 'description': 'British'},
-                {'id': 'onyx', 'name': 'Onyx', 'description': 'Deep male'},
-                {'id': 'nova', 'name': 'Nova', 'description': 'Female'},
-                {'id': 'shimmer', 'name': 'Shimmer', 'description': 'Female'},
+                {"id": "alloy", "name": "Alloy", "description": "Neutral"},
+                {"id": "echo", "name": "Echo", "description": "Male"},
+                {"id": "fable", "name": "Fable", "description": "British"},
+                {"id": "onyx", "name": "Onyx", "description": "Deep male"},
+                {"id": "nova", "name": "Nova", "description": "Female"},
+                {"id": "shimmer", "name": "Shimmer", "description": "Female"},
             ]
 
         return []
@@ -300,13 +312,13 @@ class VoiceFeedback:
 
     # Pre-defined feedback messages (German)
     MESSAGES = {
-        'listening': "Ich höre zu...",
-        'thinking': "Moment, ich denke nach...",
-        'executing': "Wird ausgeführt...",
-        'done': "Fertig!",
-        'error': "Da ist ein Fehler aufgetreten.",
-        'not_understood': "Das habe ich nicht verstanden.",
-        'ready': "Bereit für den nächsten Befehl.",
+        "listening": "Ich höre zu...",
+        "thinking": "Moment, ich denke nach...",
+        "executing": "Wird ausgeführt...",
+        "done": "Fertig!",
+        "error": "Da ist ein Fehler aufgetreten.",
+        "not_understood": "Das habe ich nicht verstanden.",
+        "ready": "Bereit für den nächsten Befehl.",
     }
 
     def __init__(self, tts: Optional[TextToSpeech] = None):
@@ -338,6 +350,7 @@ class VoiceFeedback:
 
 # Test/demo code
 if __name__ == "__main__":
+
     async def main():
         print("=== Text-to-Speech Test ===\n")
 
@@ -365,6 +378,6 @@ if __name__ == "__main__":
 
         print("\n=== Voice Feedback Test ===")
         feedback = VoiceFeedback()
-        await feedback.say('ready')
+        await feedback.say("ready")
 
     asyncio.run(main())

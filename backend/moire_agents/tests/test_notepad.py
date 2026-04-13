@@ -3,6 +3,7 @@ Notepad Test - Verify pyautogui is working correctly
 """
 
 import asyncio
+
 import pyautogui
 
 # Safety settings

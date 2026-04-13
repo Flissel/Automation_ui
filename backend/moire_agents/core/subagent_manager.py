@@ -30,11 +30,11 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Awaitable
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import uuid4
 
 from .redis_streams import RedisStreamClient, ToolCallResult
-from .result_aggregator import ResultAggregator, AggregationStrategy
+from .result_aggregator import AggregationStrategy, ResultAggregator
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SubagentConfig:
     """Configuration for the SubagentManager."""
+
     # Concurrency limits
     max_planning_subagents: int = 3
     max_vision_subagents: int = 5
@@ -61,6 +62,7 @@ class SubagentConfig:
 @dataclass
 class PlanningResult:
     """Result from a planning subagent."""
+
     approach: str
     actions: List[Dict[str, Any]]
     confidence: float
@@ -73,6 +75,7 @@ class PlanningResult:
 @dataclass
 class VisionResult:
     """Result from a vision subagent."""
+
     region_name: str
     elements: List[Dict[str, Any]]
     analysis: str
@@ -85,6 +88,7 @@ class VisionResult:
 @dataclass
 class SpecialistResult:
     """Result from a specialist subagent."""
+
     domain: str
     answer: Any
     shortcuts: Optional[Dict[str, str]] = None
@@ -97,6 +101,7 @@ class SpecialistResult:
 @dataclass
 class BackgroundMonitor:
     """A running background monitor."""
+
     monitor_id: str
     condition_type: str
     target: str
@@ -118,9 +123,7 @@ class SubagentManager:
     """
 
     def __init__(
-        self,
-        redis_client: RedisStreamClient,
-        config: Optional[SubagentConfig] = None
+        self, redis_client: RedisStreamClient, config: Optional[SubagentConfig] = None
     ):
         """
         Initialize the SubagentManager.
@@ -141,7 +144,7 @@ class SubagentManager:
             "planning_calls": 0,
             "vision_calls": 0,
             "specialist_calls": 0,
-            "background_monitors": 0
+            "background_monitors": 0,
         }
 
     # ==================== Planning Subagents ====================
@@ -151,7 +154,7 @@ class SubagentManager:
         approach: str,
         goal: str,
         context: Dict[str, Any],
-        screenshot_ref: Optional[str] = None
+        screenshot_ref: Optional[str] = None,
     ) -> PlanningResult:
         """
         Call a planning subagent with a specific approach.
@@ -173,9 +176,9 @@ class SubagentManager:
                 "approach": approach,
                 "goal": goal,
                 "context": context,
-                "screenshot_ref": screenshot_ref
+                "screenshot_ref": screenshot_ref,
             },
-            timeout=self.config.planning_timeout
+            timeout=self.config.planning_timeout,
         )
 
         if result.success:
@@ -186,7 +189,7 @@ class SubagentManager:
                 confidence=data.get("confidence", 0.0),
                 reasoning=data.get("reasoning", ""),
                 execution_time_ms=result.execution_time_ms,
-                success=True
+                success=True,
             )
         else:
             return PlanningResult(
@@ -196,7 +199,7 @@ class SubagentManager:
                 reasoning="",
                 execution_time_ms=result.execution_time_ms,
                 success=False,
-                error=result.error
+                error=result.error,
             )
 
     async def spawn_parallel_planners(
@@ -204,7 +207,7 @@ class SubagentManager:
         goal: str,
         approaches: List[str] = None,
         context: Dict[str, Any] = None,
-        screenshot_ref: Optional[str] = None
+        screenshot_ref: Optional[str] = None,
     ) -> PlanningResult:
         """
         Spawn multiple planning subagents in parallel and select best result.
@@ -226,7 +229,7 @@ class SubagentManager:
         # Create tasks for parallel execution
         tasks = [
             self.tool_call_planning(approach, goal, context, screenshot_ref)
-            for approach in approaches[:self.config.max_planning_subagents]
+            for approach in approaches[: self.config.max_planning_subagents]
         ]
 
         # Execute in parallel
@@ -249,7 +252,7 @@ class SubagentManager:
                 reasoning="All planning approaches failed",
                 execution_time_ms=0,
                 success=False,
-                error="All approaches failed"
+                error="All approaches failed",
             )
 
         # Aggregate results
@@ -266,7 +269,7 @@ class SubagentManager:
         region: Dict[str, int],
         prompt: str,
         screenshot_ref: Optional[str] = None,
-        screenshot_bytes: Optional[bytes] = None
+        screenshot_bytes: Optional[bytes] = None,
     ) -> VisionResult:
         """
         Call a vision subagent to analyze a screen region.
@@ -290,7 +293,7 @@ class SubagentManager:
                 "screenshot_ref": screenshot_ref,
                 # Note: screenshot_bytes would need base64 encoding for Redis
             },
-            timeout=self.config.vision_timeout
+            timeout=self.config.vision_timeout,
         )
 
         region_name = region.get("name", "unknown")
@@ -303,7 +306,7 @@ class SubagentManager:
                 analysis=data.get("analysis", ""),
                 confidence=data.get("confidence", 0.0),
                 execution_time_ms=result.execution_time_ms,
-                success=True
+                success=True,
             )
         else:
             return VisionResult(
@@ -313,14 +316,14 @@ class SubagentManager:
                 confidence=0.0,
                 execution_time_ms=result.execution_time_ms,
                 success=False,
-                error=result.error
+                error=result.error,
             )
 
     async def spawn_parallel_vision(
         self,
         regions: List[Dict[str, Any]],
         prompts: Optional[List[str]] = None,
-        screenshot_ref: Optional[str] = None
+        screenshot_ref: Optional[str] = None,
     ) -> Dict[str, VisionResult]:
         """
         Spawn multiple vision subagents to analyze different regions in parallel.
@@ -340,8 +343,8 @@ class SubagentManager:
         # Create tasks for parallel execution
         tasks = []
         for region, prompt in zip(
-            regions[:self.config.max_vision_subagents],
-            prompts[:self.config.max_vision_subagents]
+            regions[: self.config.max_vision_subagents],
+            prompts[: self.config.max_vision_subagents],
         ):
             tasks.append(self.tool_call_vision(region, prompt, screenshot_ref))
 
@@ -363,7 +366,7 @@ class SubagentManager:
                     confidence=0.0,
                     execution_time_ms=0,
                     success=False,
-                    error=str(r)
+                    error=str(r),
                 )
 
         return merged
@@ -371,10 +374,7 @@ class SubagentManager:
     # ==================== Specialist Subagents ====================
 
     async def query_specialist(
-        self,
-        domain: str,
-        query: str,
-        context: Optional[Dict[str, Any]] = None
+        self, domain: str, query: str, context: Optional[Dict[str, Any]] = None
     ) -> SpecialistResult:
         """
         Query a domain specialist subagent.
@@ -392,12 +392,8 @@ class SubagentManager:
 
         result = await self.redis.call_tool(
             tool_name="specialist",
-            params={
-                "domain": domain,
-                "query": query,
-                "context": context
-            },
-            timeout=self.config.specialist_timeout
+            params={"domain": domain, "query": query, "context": context},
+            timeout=self.config.specialist_timeout,
         )
 
         if result.success:
@@ -408,21 +404,14 @@ class SubagentManager:
                 shortcuts=data.get("shortcuts"),
                 workflow=data.get("workflow"),
                 confidence=data.get("confidence", 1.0),
-                success=True
+                success=True,
             )
         else:
             return SpecialistResult(
-                domain=domain,
-                answer=None,
-                success=False,
-                error=result.error
+                domain=domain, answer=None, success=False, error=result.error
             )
 
-    async def get_shortcut(
-        self,
-        domain: str,
-        action: str
-    ) -> Optional[str]:
+    async def get_shortcut(self, domain: str, action: str) -> Optional[str]:
         """
         Get a keyboard shortcut from a specialist.
 
@@ -434,19 +423,14 @@ class SubagentManager:
             Shortcut string or None
         """
         result = await self.query_specialist(
-            domain=domain,
-            query=f"What is the keyboard shortcut for '{action}'?"
+            domain=domain, query=f"What is the keyboard shortcut for '{action}'?"
         )
 
         if result.success and result.shortcuts:
             return result.shortcuts.get(action)
         return None
 
-    async def get_workflow(
-        self,
-        domain: str,
-        task: str
-    ) -> Optional[List[str]]:
+    async def get_workflow(self, domain: str, task: str) -> Optional[List[str]]:
         """
         Get a workflow for a task from a specialist.
 
@@ -458,8 +442,7 @@ class SubagentManager:
             List of workflow steps or None
         """
         result = await self.query_specialist(
-            domain=domain,
-            query=f"What are the steps to '{task}'?"
+            domain=domain, query=f"What are the steps to '{task}'?"
         )
 
         if result.success:
@@ -474,7 +457,7 @@ class SubagentManager:
         target: str,
         callback: Callable[[bool, Dict], Awaitable[None]],
         check_interval: float = None,
-        timeout: Optional[float] = None
+        timeout: Optional[float] = None,
     ) -> str:
         """
         Start a background monitor that watches for a condition.
@@ -498,13 +481,11 @@ class SubagentManager:
             target=target,
             callback=callback,
             check_interval=check_interval,
-            timeout=timeout
+            timeout=timeout,
         )
 
         # Start the monitoring task
-        monitor._task = asyncio.create_task(
-            self._run_background_monitor(monitor)
-        )
+        monitor._task = asyncio.create_task(self._run_background_monitor(monitor))
 
         self._background_monitors[monitor_id] = monitor
         self._stats["background_monitors"] += 1
@@ -527,10 +508,9 @@ class SubagentManager:
                     elapsed = time.time() - start_time
                     if elapsed >= monitor.timeout:
                         logger.info(f"Monitor {monitor.monitor_id} timed out")
-                        await monitor.callback(False, {
-                            "reason": "timeout",
-                            "elapsed": elapsed
-                        })
+                        await monitor.callback(
+                            False, {"reason": "timeout", "elapsed": elapsed}
+                        )
                         break
 
                 # Call background subagent to check condition
@@ -539,9 +519,9 @@ class SubagentManager:
                     params={
                         "check_type": monitor.condition_type,
                         "target": monitor.target,
-                        "monitor_id": monitor.monitor_id
+                        "monitor_id": monitor.monitor_id,
                     },
-                    timeout=monitor.check_interval + 5.0
+                    timeout=monitor.check_interval + 5.0,
                 )
 
                 if result.success:
@@ -549,9 +529,7 @@ class SubagentManager:
                     condition_met = data.get("condition_met", False)
 
                     if condition_met:
-                        logger.info(
-                            f"Monitor {monitor.monitor_id}: condition met!"
-                        )
+                        logger.info(f"Monitor {monitor.monitor_id}: condition met!")
                         await monitor.callback(True, data)
                         break
 
@@ -599,10 +577,7 @@ class SubagentManager:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get manager statistics."""
-        return {
-            **self._stats,
-            "active_monitors": len(self._background_monitors)
-        }
+        return {**self._stats, "active_monitors": len(self._background_monitors)}
 
     async def health_check(self) -> Dict[str, Any]:
         """Check manager and Redis health."""
@@ -615,9 +590,9 @@ class SubagentManager:
                 "max_planning": self.config.max_planning_subagents,
                 "max_vision": self.config.max_vision_subagents,
                 "max_specialist": self.config.max_specialist_subagents,
-                "aggregation_strategy": self.config.aggregation_strategy.value
+                "aggregation_strategy": self.config.aggregation_strategy.value,
             },
-            "redis": redis_health
+            "redis": redis_health,
         }
 
 
@@ -625,7 +600,7 @@ class SubagentManager:
 async def create_subagent_manager(
     redis_host: str = "localhost",
     redis_port: int = 6379,
-    config: Optional[SubagentConfig] = None
+    config: Optional[SubagentConfig] = None,
 ) -> SubagentManager:
     """
     Create and initialize a SubagentManager.

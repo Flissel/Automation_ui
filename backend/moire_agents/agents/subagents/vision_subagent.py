@@ -20,11 +20,11 @@ Example:
     - TITLE_BAR worker finds: "Untitled - Notepad", close button
 """
 
+import base64
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
-import base64
 
 from .base_subagent import BaseSubagent, SubagentContext, SubagentOutput
 
@@ -33,12 +33,13 @@ logger = logging.getLogger(__name__)
 
 class ScreenRegion(Enum):
     """Screen regions for analysis."""
-    TASKBAR = "taskbar"          # Windows taskbar
+
+    TASKBAR = "taskbar"  # Windows taskbar
     MAIN_CONTENT = "main_content"  # Primary window content
-    TITLE_BAR = "title_bar"      # Window title and controls
-    SIDEBAR = "sidebar"          # Side panels, navigation
-    MENU = "menu"                # Open menus, dropdowns
-    DIALOG = "dialog"            # Popup dialogs, modals
+    TITLE_BAR = "title_bar"  # Window title and controls
+    SIDEBAR = "sidebar"  # Side panels, navigation
+    MENU = "menu"  # Open menus, dropdowns
+    DIALOG = "dialog"  # Popup dialogs, modals
     SYSTEM_TRAY = "system_tray"  # System notification area
     FULL_SCREEN = "full_screen"  # Entire screen analysis
 
@@ -46,6 +47,7 @@ class ScreenRegion(Enum):
 @dataclass
 class RegionBounds:
     """Bounding box for a screen region."""
+
     x: int
     y: int
     width: int
@@ -60,20 +62,21 @@ class RegionBounds:
             x=data.get("x", 0),
             y=data.get("y", 0),
             width=data.get("width", 0),
-            height=data.get("height", 0)
+            height=data.get("height", 0),
         )
 
 
 @dataclass
 class DetectedElement:
     """A UI element detected in a region."""
-    element_type: str       # button, text, icon, input, link, image, etc.
-    label: str              # Text or description
-    bounds: RegionBounds    # Position within region
+
+    element_type: str  # button, text, icon, input, link, image, etc.
+    label: str  # Text or description
+    bounds: RegionBounds  # Position within region
     confidence: float = 1.0
     clickable: bool = False
     editable: bool = False
-    state: str = "normal"   # normal, focused, disabled, selected
+    state: str = "normal"  # normal, focused, disabled, selected
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -85,7 +88,7 @@ class DetectedElement:
             "clickable": self.clickable,
             "editable": self.editable,
             "state": self.state,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
 
@@ -112,7 +115,6 @@ OUTPUT FORMAT (JSON):
     "notifications": 2,
     "confidence": 0.9
 }""",
-
     ScreenRegion.MAIN_CONTENT: """Analyze the main content area of this window.
 
 IDENTIFY:
@@ -134,7 +136,6 @@ OUTPUT FORMAT (JSON):
     "focus_element": "Search field",
     "confidence": 0.85
 }""",
-
     ScreenRegion.TITLE_BAR: """Analyze this window title bar.
 
 IDENTIFY:
@@ -157,7 +158,6 @@ OUTPUT FORMAT (JSON):
     "is_maximized": false,
     "confidence": 0.95
 }""",
-
     ScreenRegion.DIALOG: """Analyze this dialog or modal window.
 
 IDENTIFY:
@@ -180,7 +180,6 @@ OUTPUT FORMAT (JSON):
     "is_blocking": true,
     "confidence": 0.9
 }""",
-
     ScreenRegion.MENU: """Analyze this menu or dropdown.
 
 IDENTIFY:
@@ -201,7 +200,7 @@ OUTPUT FORMAT (JSON):
     ],
     "has_submenu": false,
     "confidence": 0.9
-}"""
+}""",
 }
 
 
@@ -229,7 +228,7 @@ class VisionSubagent(BaseSubagent):
         subagent_id: str,
         region: ScreenRegion,
         openrouter_client: Optional[Any] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the vision subagent.
@@ -250,7 +249,7 @@ class VisionSubagent(BaseSubagent):
             "type": "vision",
             "region": self.region.value,
             "can_handle": ["element_detection", "text_extraction", "state_analysis"],
-            "requires_screenshot": True
+            "requires_screenshot": True,
         }
 
     async def execute(self, context: SubagentContext) -> SubagentOutput:
@@ -279,7 +278,7 @@ class VisionSubagent(BaseSubagent):
                 success=False,
                 result=None,
                 error="No screenshot provided",
-                confidence=0.0
+                confidence=0.0,
             )
 
         # Crop region if not full screen
@@ -302,7 +301,9 @@ class VisionSubagent(BaseSubagent):
         screen_height = params.get("screen_height", 1080)
 
         # Scale default bounds to screen resolution
-        default = DEFAULT_REGION_BOUNDS.get(self.region, DEFAULT_REGION_BOUNDS[ScreenRegion.FULL_SCREEN])
+        default = DEFAULT_REGION_BOUNDS.get(
+            self.region, DEFAULT_REGION_BOUNDS[ScreenRegion.FULL_SCREEN]
+        )
 
         scale_x = screen_width / 1920
         scale_y = screen_height / 1080
@@ -311,43 +312,45 @@ class VisionSubagent(BaseSubagent):
             x=int(default.x * scale_x),
             y=int(default.y * scale_y),
             width=int(default.width * scale_x),
-            height=int(default.height * scale_y)
+            height=int(default.height * scale_y),
         )
 
-    async def _crop_region(self, screenshot_bytes: bytes, bounds: RegionBounds) -> bytes:
+    async def _crop_region(
+        self, screenshot_bytes: bytes, bounds: RegionBounds
+    ) -> bytes:
         """Crop the screenshot to the region bounds."""
         try:
-            from PIL import Image
             import io
+
+            from PIL import Image
 
             # Load image
             image = Image.open(io.BytesIO(screenshot_bytes))
 
             # Crop to bounds
-            cropped = image.crop((
-                bounds.x,
-                bounds.y,
-                bounds.x + bounds.width,
-                bounds.y + bounds.height
-            ))
+            cropped = image.crop(
+                (bounds.x, bounds.y, bounds.x + bounds.width, bounds.y + bounds.height)
+            )
 
             # Convert back to bytes
             output = io.BytesIO()
-            cropped.save(output, format='PNG')
+            cropped.save(output, format="PNG")
             return output.getvalue()
 
         except Exception as e:
             logger.warning(f"Failed to crop region: {e}, using full image")
             return screenshot_bytes
 
-    async def _analyze_with_llm(self, image_bytes: bytes, context: SubagentContext) -> SubagentOutput:
+    async def _analyze_with_llm(
+        self, image_bytes: bytes, context: SubagentContext
+    ) -> SubagentOutput:
         """Use LLM vision to analyze the region."""
         try:
             import json
             import re
 
             # Encode image as base64
-            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+            image_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
             # Build prompt
             user_prompt = f"""Analyze this {self.region.value} region screenshot.
@@ -364,7 +367,10 @@ Return ONLY valid JSON with the analysis."""
             response = await self.client.chat_completion(
                 model="openai/gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "You are a UI analysis expert. Analyze screenshots and identify UI elements precisely."},
+                    {
+                        "role": "system",
+                        "content": "You are a UI analysis expert. Analyze screenshots and identify UI elements precisely.",
+                    },
                     {
                         "role": "user",
                         "content": [
@@ -373,36 +379,42 @@ Return ONLY valid JSON with the analysis."""
                                 "type": "image_url",
                                 "image_url": {
                                     "url": f"data:image/png;base64,{image_b64}"
-                                }
-                            }
-                        ]
-                    }
+                                },
+                            },
+                        ],
+                    },
                 ],
                 temperature=0.2,
-                max_tokens=1000
+                max_tokens=1000,
             )
 
             # Parse response
-            content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            content = (
+                response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            )
 
             # Extract JSON from response
-            json_match = re.search(r'\{[\s\S]*\}', content)
+            json_match = re.search(r"\{[\s\S]*\}", content)
             if json_match:
                 analysis_data = json.loads(json_match.group())
 
                 # Convert to DetectedElement objects
                 elements = []
                 for elem_data in analysis_data.get("elements", []):
-                    elements.append(DetectedElement(
-                        element_type=elem_data.get("type", "unknown"),
-                        label=elem_data.get("label", ""),
-                        bounds=RegionBounds(0, 0, 0, 0),  # Position from LLM if available
-                        confidence=elem_data.get("confidence", 0.8),
-                        clickable=elem_data.get("clickable", False),
-                        editable=elem_data.get("editable", False),
-                        state=elem_data.get("state", "normal"),
-                        metadata=elem_data
-                    ))
+                    elements.append(
+                        DetectedElement(
+                            element_type=elem_data.get("type", "unknown"),
+                            label=elem_data.get("label", ""),
+                            bounds=RegionBounds(
+                                0, 0, 0, 0
+                            ),  # Position from LLM if available
+                            confidence=elem_data.get("confidence", 0.8),
+                            clickable=elem_data.get("clickable", False),
+                            editable=elem_data.get("editable", False),
+                            state=elem_data.get("state", "normal"),
+                            metadata=elem_data,
+                        )
+                    )
 
                 return SubagentOutput(
                     success=True,
@@ -410,10 +422,10 @@ Return ONLY valid JSON with the analysis."""
                         "region": self.region.value,
                         "elements": [e.to_dict() for e in elements],
                         "analysis": analysis_data,
-                        "element_count": len(elements)
+                        "element_count": len(elements),
                     },
                     confidence=analysis_data.get("confidence", 0.8),
-                    reasoning=f"LLM analysis of {self.region.value}"
+                    reasoning=f"LLM analysis of {self.region.value}",
                 )
             else:
                 raise ValueError("No JSON found in LLM response")
@@ -431,14 +443,24 @@ Return ONLY valid JSON with the analysis."""
         # Region-specific basic analysis
         if self.region == ScreenRegion.TASKBAR:
             elements = [
-                DetectedElement("button", "Start", RegionBounds(0, 0, 50, 50), clickable=True),
-                DetectedElement("icon", "Search", RegionBounds(50, 0, 50, 50), clickable=True),
+                DetectedElement(
+                    "button", "Start", RegionBounds(0, 0, 50, 50), clickable=True
+                ),
+                DetectedElement(
+                    "icon", "Search", RegionBounds(50, 0, 50, 50), clickable=True
+                ),
             ]
         elif self.region == ScreenRegion.TITLE_BAR:
             elements = [
-                DetectedElement("button", "minimize", RegionBounds(1800, 0, 40, 40), clickable=True),
-                DetectedElement("button", "maximize", RegionBounds(1840, 0, 40, 40), clickable=True),
-                DetectedElement("button", "close", RegionBounds(1880, 0, 40, 40), clickable=True),
+                DetectedElement(
+                    "button", "minimize", RegionBounds(1800, 0, 40, 40), clickable=True
+                ),
+                DetectedElement(
+                    "button", "maximize", RegionBounds(1840, 0, 40, 40), clickable=True
+                ),
+                DetectedElement(
+                    "button", "close", RegionBounds(1880, 0, 40, 40), clickable=True
+                ),
             ]
         elif self.region == ScreenRegion.SYSTEM_TRAY:
             elements = [
@@ -455,15 +477,16 @@ Return ONLY valid JSON with the analysis."""
                 "region": self.region.value,
                 "elements": [e.to_dict() for e in elements],
                 "element_count": len(elements),
-                "analysis_type": "basic"
+                "analysis_type": "basic",
             },
             confidence=0.5,
-            reasoning="Basic analysis without LLM"
+            reasoning="Basic analysis without LLM",
         )
 
 
 # Runner for the vision subagent
-from core.subagent_runner import SubagentRunner, SubagentType, SubagentTask, SubagentResult
+from core.subagent_runner import (SubagentResult, SubagentRunner, SubagentTask,
+                                  SubagentType)
 
 
 class VisionSubagentRunner(SubagentRunner):
@@ -478,18 +501,18 @@ class VisionSubagentRunner(SubagentRunner):
         redis_client,
         region: ScreenRegion,
         worker_id: Optional[str] = None,
-        openrouter_client: Optional[Any] = None
+        openrouter_client: Optional[Any] = None,
     ):
         super().__init__(
             redis_client=redis_client,
             agent_type=SubagentType.VISION,
-            worker_id=worker_id or f"vision_{region.value}"
+            worker_id=worker_id or f"vision_{region.value}",
         )
         self.region = region
         self.subagent = VisionSubagent(
             subagent_id=self.worker_id,
             region=region,
-            openrouter_client=openrouter_client
+            openrouter_client=openrouter_client,
         )
 
     async def execute(self, task: SubagentTask) -> SubagentResult:
@@ -502,7 +525,7 @@ class VisionSubagentRunner(SubagentRunner):
             screenshot_bytes=task.params.get("screenshot_bytes"),
             screenshot_ref=task.params.get("screenshot_ref"),
             active_app=task.params.get("active_app"),
-            timeout=task.timeout
+            timeout=task.timeout,
         )
 
         # Execute vision analysis
@@ -512,15 +535,13 @@ class VisionSubagentRunner(SubagentRunner):
             success=output.success,
             result=output.result,
             confidence=output.confidence,
-            error=output.error
+            error=output.error,
         )
 
 
 # Convenience function to start vision workers
 async def start_vision_workers(
-    redis_client,
-    openrouter_client=None,
-    regions: List[ScreenRegion] = None
+    redis_client, openrouter_client=None, regions: List[ScreenRegion] = None
 ) -> List[VisionSubagentRunner]:
     """
     Start vision subagent workers for specified regions.
@@ -541,7 +562,7 @@ async def start_vision_workers(
             ScreenRegion.TASKBAR,
             ScreenRegion.MAIN_CONTENT,
             ScreenRegion.TITLE_BAR,
-            ScreenRegion.SYSTEM_TRAY
+            ScreenRegion.SYSTEM_TRAY,
         ]
 
     runners = []
@@ -550,7 +571,7 @@ async def start_vision_workers(
         runner = VisionSubagentRunner(
             redis_client=redis_client,
             region=region,
-            openrouter_client=openrouter_client
+            openrouter_client=openrouter_client,
         )
         runners.append(runner)
         asyncio.create_task(runner.run_forever())

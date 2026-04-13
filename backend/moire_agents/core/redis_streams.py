@@ -12,7 +12,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Awaitable
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import uuid4
 
 import redis.asyncio as redis
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StreamMessage:
     """A message from a Redis stream."""
+
     message_id: str
     stream: str
     data: Dict[str, Any]
@@ -32,6 +33,7 @@ class StreamMessage:
 @dataclass
 class ToolCallResult:
     """Result from a tool call."""
+
     task_id: str
     success: bool
     result: Any
@@ -66,7 +68,7 @@ class RedisStreamClient:
         db: int = 0,
         password: Optional[str] = None,
         consumer_group: str = "moire_agents",
-        consumer_name: Optional[str] = None
+        consumer_name: Optional[str] = None,
     ):
         self.host = host
         self.port = port
@@ -90,7 +92,7 @@ class RedisStreamClient:
                 port=self.port,
                 db=self.db,
                 password=self.password,
-                decode_responses=True
+                decode_responses=True,
             )
             # Test connection
             await self._redis.ping()
@@ -101,9 +103,7 @@ class RedisStreamClient:
 
             # Start result listener for tool calls
             self._running = True
-            self._result_listener_task = asyncio.create_task(
-                self._listen_for_results()
-            )
+            self._result_listener_task = asyncio.create_task(self._listen_for_results())
 
             return True
         except Exception as e:
@@ -134,7 +134,7 @@ class RedisStreamClient:
             self.STREAM_SPECIALIST,
             self.STREAM_BACKGROUND,
             self.STREAM_RESULTS,
-            self.STREAM_EVENTS
+            self.STREAM_EVENTS,
         ]
 
         for stream in streams:
@@ -142,26 +142,24 @@ class RedisStreamClient:
                 # Create stream if not exists (by adding a dummy message and deleting it)
                 # Then create consumer group
                 await self._redis.xgroup_create(
-                    stream,
-                    self.consumer_group,
-                    id="0",
-                    mkstream=True
+                    stream, self.consumer_group, id="0", mkstream=True
                 )
-                logger.debug(f"Created consumer group '{self.consumer_group}' for stream '{stream}'")
+                logger.debug(
+                    f"Created consumer group '{self.consumer_group}' for stream '{stream}'"
+                )
             except redis.ResponseError as e:
                 if "BUSYGROUP" in str(e):
                     # Group already exists, that's fine
-                    logger.debug(f"Consumer group '{self.consumer_group}' already exists for '{stream}'")
+                    logger.debug(
+                        f"Consumer group '{self.consumer_group}' already exists for '{stream}'"
+                    )
                 else:
                     logger.warning(f"Error creating consumer group for {stream}: {e}")
 
     # ==================== Publishing ====================
 
     async def publish(
-        self,
-        stream: str,
-        message: Dict[str, Any],
-        max_len: int = 10000
+        self, stream: str, message: Dict[str, Any], max_len: int = 10000
     ) -> str:
         """
         Publish a message to a stream.
@@ -178,34 +176,24 @@ class RedisStreamClient:
             raise RuntimeError("Not connected to Redis")
 
         # Serialize message to JSON string for Redis
-        serialized = {
-            "data": json.dumps(message),
-            "timestamp": str(time.time())
-        }
+        serialized = {"data": json.dumps(message), "timestamp": str(time.time())}
 
-        message_id = await self._redis.xadd(
-            stream,
-            serialized,
-            maxlen=max_len
-        )
+        message_id = await self._redis.xadd(stream, serialized, maxlen=max_len)
 
         logger.debug(f"Published to {stream}: {message_id}")
         return message_id
 
     async def publish_event(self, event_type: str, data: Dict[str, Any]):
         """Publish a broadcast event to all agents."""
-        await self.publish(self.STREAM_EVENTS, {
-            "event_type": event_type,
-            "data": data,
-            "source": self.consumer_name
-        })
+        await self.publish(
+            self.STREAM_EVENTS,
+            {"event_type": event_type, "data": data, "source": self.consumer_name},
+        )
 
     # ==================== Subscribing ====================
 
     async def subscribe(
-        self,
-        stream: str,
-        handler: Callable[[StreamMessage], Awaitable[None]]
+        self, stream: str, handler: Callable[[StreamMessage], Awaitable[None]]
     ):
         """
         Subscribe to a stream with a handler function.
@@ -221,21 +209,17 @@ class RedisStreamClient:
         """Ensure consumer group exists for a stream (create if needed)."""
         try:
             await self._redis.xgroup_create(
-                stream,
-                self.consumer_group,
-                id="0",
-                mkstream=True
+                stream, self.consumer_group, id="0", mkstream=True
             )
-            logger.debug(f"Created consumer group '{self.consumer_group}' for stream '{stream}'")
+            logger.debug(
+                f"Created consumer group '{self.consumer_group}' for stream '{stream}'"
+            )
         except redis.ResponseError as e:
             if "BUSYGROUP" not in str(e):
                 raise
 
     async def read_stream(
-        self,
-        stream: str,
-        count: int = 1,
-        block_ms: int = 1000
+        self, stream: str, count: int = 1, block_ms: int = 1000
     ) -> List[StreamMessage]:
         """
         Read messages from a stream using consumer group.
@@ -263,7 +247,7 @@ class RedisStreamClient:
                 consumername=self.consumer_name,
                 streams={stream: ">"},  # ">" = only new messages
                 count=count,
-                block=block_ms
+                block=block_ms,
             )
 
             if result:
@@ -273,20 +257,26 @@ class RedisStreamClient:
                             data = json.loads(msg_data.get("data", "{}"))
                             timestamp = float(msg_data.get("timestamp", time.time()))
 
-                            messages.append(StreamMessage(
-                                message_id=msg_id,
-                                stream=stream_name,
-                                data=data,
-                                timestamp=timestamp
-                            ))
+                            messages.append(
+                                StreamMessage(
+                                    message_id=msg_id,
+                                    stream=stream_name,
+                                    data=data,
+                                    timestamp=timestamp,
+                                )
+                            )
 
                             # Acknowledge message
-                            await self._redis.xack(stream_name, self.consumer_group, msg_id)
+                            await self._redis.xack(
+                                stream_name, self.consumer_group, msg_id
+                            )
 
                         except json.JSONDecodeError as e:
                             logger.error(f"Failed to parse message {msg_id}: {e}")
                             # Still acknowledge to prevent reprocessing
-                            await self._redis.xack(stream_name, self.consumer_group, msg_id)
+                            await self._redis.xack(
+                                stream_name, self.consumer_group, msg_id
+                            )
 
         except Exception as e:
             logger.error(f"Error reading from stream {stream}: {e}")
@@ -294,9 +284,7 @@ class RedisStreamClient:
         return messages
 
     async def read_with_timeout(
-        self,
-        stream: str,
-        timeout: float = 1.0
+        self, stream: str, timeout: float = 1.0
     ) -> Optional[StreamMessage]:
         """
         Read a single message with timeout.
@@ -308,20 +296,13 @@ class RedisStreamClient:
         Returns:
             StreamMessage or None if timeout
         """
-        messages = await self.read_stream(
-            stream,
-            count=1,
-            block_ms=int(timeout * 1000)
-        )
+        messages = await self.read_stream(stream, count=1, block_ms=int(timeout * 1000))
         return messages[0] if messages else None
 
     # ==================== Tool Call Pattern ====================
 
     async def call_tool(
-        self,
-        tool_name: str,
-        params: Dict[str, Any],
-        timeout: float = 30.0
+        self, tool_name: str, params: Dict[str, Any], timeout: float = 30.0
     ) -> ToolCallResult:
         """
         Call a tool/subagent and wait for result.
@@ -349,12 +330,15 @@ class RedisStreamClient:
 
         try:
             # Publish request
-            await self.publish(stream, {
-                "task_id": task_id,
-                "params": params,
-                "requester": self.consumer_name,
-                "timeout": timeout
-            })
+            await self.publish(
+                stream,
+                {
+                    "task_id": task_id,
+                    "params": params,
+                    "requester": self.consumer_name,
+                    "timeout": timeout,
+                },
+            )
 
             logger.debug(f"Tool call {task_id} to {tool_name}: {params}")
 
@@ -368,17 +352,19 @@ class RedisStreamClient:
                     success=result.get("success", False),
                     result=result.get("result"),
                     error=result.get("error"),
-                    execution_time_ms=execution_time
+                    execution_time_ms=execution_time,
                 )
 
             except asyncio.TimeoutError:
-                logger.warning(f"Tool call {task_id} to {tool_name} timed out after {timeout}s")
+                logger.warning(
+                    f"Tool call {task_id} to {tool_name} timed out after {timeout}s"
+                )
                 return ToolCallResult(
                     task_id=task_id,
                     success=False,
                     result=None,
                     error=f"Timeout after {timeout}s",
-                    execution_time_ms=timeout * 1000
+                    execution_time_ms=timeout * 1000,
                 )
 
         finally:
@@ -402,7 +388,7 @@ class RedisStreamClient:
                 result = await self._redis.xread(
                     streams={self.STREAM_RESULTS: last_id},
                     count=10,
-                    block=500  # 500ms block
+                    block=500,  # 500ms block
                 )
 
                 if result:
@@ -419,10 +405,14 @@ class RedisStreamClient:
                                     future = self._pending_results[task_id]
                                     if not future.done():
                                         future.set_result(data)
-                                        logger.debug(f"Received result for task {task_id}")
+                                        logger.debug(
+                                            f"Received result for task {task_id}"
+                                        )
 
                             except json.JSONDecodeError as e:
-                                logger.error(f"Failed to parse result message {msg_id}: {e}")
+                                logger.error(
+                                    f"Failed to parse result message {msg_id}: {e}"
+                                )
 
             except asyncio.CancelledError:
                 break
@@ -433,11 +423,7 @@ class RedisStreamClient:
         logger.info("Result listener stopped")
 
     async def publish_result(
-        self,
-        task_id: str,
-        success: bool,
-        result: Any,
-        error: Optional[str] = None
+        self, task_id: str, success: bool, result: Any, error: Optional[str] = None
     ):
         """
         Publish a result for a tool call.
@@ -450,14 +436,17 @@ class RedisStreamClient:
             result: Result data
             error: Error message if failed
         """
-        await self.publish(self.STREAM_RESULTS, {
-            "task_id": task_id,
-            "success": success,
-            "result": result,
-            "error": error,
-            "responder": self.consumer_name,
-            "timestamp": time.time()
-        })
+        await self.publish(
+            self.STREAM_RESULTS,
+            {
+                "task_id": task_id,
+                "success": success,
+                "result": result,
+                "error": error,
+                "responder": self.consumer_name,
+                "timestamp": time.time(),
+            },
+        )
 
     # ==================== Utility Methods ====================
 
@@ -472,7 +461,7 @@ class RedisStreamClient:
                 "length": info.get("length", 0),
                 "first_entry": info.get("first-entry"),
                 "last_entry": info.get("last-entry"),
-                "groups": info.get("groups", 0)
+                "groups": info.get("groups", 0),
             }
         except redis.ResponseError:
             return {"length": 0, "error": "Stream does not exist"}
@@ -501,7 +490,7 @@ class RedisStreamClient:
                 self.STREAM_PLANNING,
                 self.STREAM_VISION,
                 self.STREAM_SPECIALIST,
-                self.STREAM_RESULTS
+                self.STREAM_RESULTS,
             ]:
                 streams_info[stream] = await self.get_stream_info(stream)
 
@@ -511,7 +500,7 @@ class RedisStreamClient:
                 "port": self.port,
                 "consumer_group": self.consumer_group,
                 "consumer_name": self.consumer_name,
-                "streams": streams_info
+                "streams": streams_info,
             }
         except Exception as e:
             return {"healthy": False, "error": str(e)}
@@ -522,8 +511,7 @@ _redis_client: Optional[RedisStreamClient] = None
 
 
 async def get_redis_client(
-    host: str = "localhost",
-    port: int = 6379
+    host: str = "localhost", port: int = 6379
 ) -> RedisStreamClient:
     """Get or create the Redis client singleton."""
     global _redis_client

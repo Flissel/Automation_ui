@@ -19,13 +19,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
-from ..models.skill import (
-    SkillCategory,
-    SkillDetail,
-    SkillPermission,
-    SkillSearchResponse,
-    SkillSummary,
-)
+from ..models.skill import (SkillCategory, SkillDetail, SkillPermission,
+                            SkillSearchResponse, SkillSummary)
 
 logger = logging.getLogger(__name__)
 
@@ -46,20 +41,16 @@ class ClawHubClient(ABC):
         limit: int = 20,
         offset: int = 0,
         sort_by: str = "relevance",
-    ) -> SkillSearchResponse:
-        ...
+    ) -> SkillSearchResponse: ...
 
     @abstractmethod
-    async def get_skill(self, skill_id: str) -> Optional[SkillDetail]:
-        ...
+    async def get_skill(self, skill_id: str) -> Optional[SkillDetail]: ...
 
     @abstractmethod
-    async def get_categories(self) -> List[Dict[str, int]]:
-        ...
+    async def get_categories(self) -> List[Dict[str, int]]: ...
 
     @abstractmethod
-    async def get_trending(self, limit: int = 10) -> List[SkillSummary]:
-        ...
+    async def get_trending(self, limit: int = 10) -> List[SkillSummary]: ...
 
 
 # ============================================================================
@@ -81,7 +72,9 @@ class LiveClawHubClient(ClawHubClient):
         self.api_key = api_key
         self._fallback = MockClawHubClient()
 
-    async def search_skills(self, query, category=None, limit=20, offset=0, sort_by="relevance"):
+    async def search_skills(
+        self, query, category=None, limit=20, offset=0, sort_by="relevance"
+    ):
         try:
             import httpx
 
@@ -93,7 +86,9 @@ class LiveClawHubClient(ClawHubClient):
                 if self.api_key:
                     headers["Authorization"] = f"Bearer {self.api_key}"
 
-                resp = await client.get(f"{self.BASE_URL}/skills/search", params=params, headers=headers)
+                resp = await client.get(
+                    f"{self.BASE_URL}/skills/search", params=params, headers=headers
+                )
 
                 if resp.status_code == 200:
                     data = resp.json()
@@ -106,14 +101,18 @@ class LiveClawHubClient(ClawHubClient):
                         limit=limit,
                     )
 
-                logger.warning(f"ClawHub API returned {resp.status_code}, using mock data")
+                logger.warning(
+                    f"ClawHub API returned {resp.status_code}, using mock data"
+                )
 
         except ImportError:
             logger.warning("httpx not installed, using mock data")
         except Exception as e:
             logger.warning(f"ClawHub API unavailable ({e}), using mock data")
 
-        return await self._fallback.search_skills(query, category, limit, offset, sort_by)
+        return await self._fallback.search_skills(
+            query, category, limit, offset, sort_by
+        )
 
     async def get_skill(self, skill_id):
         try:
@@ -124,7 +123,9 @@ class LiveClawHubClient(ClawHubClient):
                 if self.api_key:
                     headers["Authorization"] = f"Bearer {self.api_key}"
 
-                resp = await client.get(f"{self.BASE_URL}/skills/{skill_id}", headers=headers)
+                resp = await client.get(
+                    f"{self.BASE_URL}/skills/{skill_id}", headers=headers
+                )
                 if resp.status_code == 200:
                     return SkillDetail(**resp.json())
 
@@ -159,10 +160,18 @@ MOCK_SKILLS: List[SkillDetail] = [
         install_count=8432,
         rating=4.7,
         icon="globe",
-        permissions=[SkillPermission.NETWORK, SkillPermission.BROWSER, SkillPermission.SCREENSHOT],
+        permissions=[
+            SkillPermission.NETWORK,
+            SkillPermission.BROWSER,
+            SkillPermission.SCREENSHOT,
+        ],
         parameters={
             "url": {"type": "string", "description": "Target URL", "required": True},
-            "action": {"type": "string", "description": "Action to perform", "enum": ["navigate", "click", "fill", "extract", "screenshot"]},
+            "action": {
+                "type": "string",
+                "description": "Action to perform",
+                "enum": ["navigate", "click", "fill", "extract", "screenshot"],
+            },
         },
         created_at=datetime.utcnow() - timedelta(days=180),
         updated_at=datetime.utcnow() - timedelta(days=5),
@@ -181,8 +190,16 @@ MOCK_SKILLS: List[SkillDetail] = [
         icon="folder",
         permissions=[SkillPermission.FILESYSTEM],
         parameters={
-            "directory": {"type": "string", "description": "Target directory", "required": True},
-            "strategy": {"type": "string", "description": "Organization strategy", "enum": ["by_type", "by_date", "by_size", "custom"]},
+            "directory": {
+                "type": "string",
+                "description": "Target directory",
+                "required": True,
+            },
+            "strategy": {
+                "type": "string",
+                "description": "Organization strategy",
+                "enum": ["by_type", "by_date", "by_size", "custom"],
+            },
         },
         created_at=datetime.utcnow() - timedelta(days=120),
         updated_at=datetime.utcnow() - timedelta(days=15),
@@ -199,9 +216,17 @@ MOCK_SKILLS: List[SkillDetail] = [
         install_count=12450,
         rating=4.8,
         icon="git-branch",
-        permissions=[SkillPermission.NETWORK, SkillPermission.SHELL, SkillPermission.FILESYSTEM],
+        permissions=[
+            SkillPermission.NETWORK,
+            SkillPermission.SHELL,
+            SkillPermission.FILESYSTEM,
+        ],
         parameters={
-            "command": {"type": "string", "description": "GitHub command", "required": True},
+            "command": {
+                "type": "string",
+                "description": "GitHub command",
+                "required": True,
+            },
             "repo": {"type": "string", "description": "Repository (owner/name)"},
         },
         created_at=datetime.utcnow() - timedelta(days=300),
@@ -219,9 +244,17 @@ MOCK_SKILLS: List[SkillDetail] = [
         install_count=7890,
         rating=4.6,
         icon="camera",
-        permissions=[SkillPermission.SCREENSHOT, SkillPermission.OCR, SkillPermission.DESKTOP_CONTROL],
+        permissions=[
+            SkillPermission.SCREENSHOT,
+            SkillPermission.OCR,
+            SkillPermission.DESKTOP_CONTROL,
+        ],
         parameters={
-            "action": {"type": "string", "description": "Action", "enum": ["capture", "ocr", "analyze"]},
+            "action": {
+                "type": "string",
+                "description": "Action",
+                "enum": ["capture", "ocr", "analyze"],
+            },
             "region": {"type": "object", "description": "Screen region (optional)"},
         },
         created_at=datetime.utcnow() - timedelta(days=200),
@@ -241,7 +274,11 @@ MOCK_SKILLS: List[SkillDetail] = [
         icon="mail",
         permissions=[SkillPermission.NETWORK],
         parameters={
-            "action": {"type": "string", "description": "Email action", "enum": ["draft", "send", "list", "search"]},
+            "action": {
+                "type": "string",
+                "description": "Email action",
+                "enum": ["draft", "send", "list", "search"],
+            },
             "to": {"type": "string", "description": "Recipient email"},
             "subject": {"type": "string", "description": "Email subject"},
         },
@@ -262,8 +299,16 @@ MOCK_SKILLS: List[SkillDetail] = [
         icon="database",
         permissions=[SkillPermission.NETWORK, SkillPermission.FILESYSTEM],
         parameters={
-            "source": {"type": "string", "description": "URL or file path", "required": True},
-            "format": {"type": "string", "description": "Output format", "enum": ["json", "csv", "markdown"]},
+            "source": {
+                "type": "string",
+                "description": "URL or file path",
+                "required": True,
+            },
+            "format": {
+                "type": "string",
+                "description": "Output format",
+                "enum": ["json", "csv", "markdown"],
+            },
         },
         created_at=datetime.utcnow() - timedelta(days=150),
         updated_at=datetime.utcnow() - timedelta(days=8),
@@ -282,8 +327,16 @@ MOCK_SKILLS: List[SkillDetail] = [
         icon="terminal",
         permissions=[SkillPermission.SHELL],
         parameters={
-            "command": {"type": "string", "description": "Shell command", "required": True},
-            "shell": {"type": "string", "description": "Shell type", "enum": ["auto", "bash", "powershell", "cmd"]},
+            "command": {
+                "type": "string",
+                "description": "Shell command",
+                "required": True,
+            },
+            "shell": {
+                "type": "string",
+                "description": "Shell type",
+                "enum": ["auto", "bash", "powershell", "cmd"],
+            },
         },
         created_at=datetime.utcnow() - timedelta(days=250),
         updated_at=datetime.utcnow() - timedelta(days=3),
@@ -302,8 +355,16 @@ MOCK_SKILLS: List[SkillDetail] = [
         icon="home",
         permissions=[SkillPermission.NETWORK],
         parameters={
-            "device": {"type": "string", "description": "Device name or ID", "required": True},
-            "action": {"type": "string", "description": "Action", "enum": ["on", "off", "toggle", "set", "status"]},
+            "device": {
+                "type": "string",
+                "description": "Device name or ID",
+                "required": True,
+            },
+            "action": {
+                "type": "string",
+                "description": "Action",
+                "enum": ["on", "off", "toggle", "set", "status"],
+            },
             "value": {"type": "string", "description": "Value for 'set' action"},
         },
         created_at=datetime.utcnow() - timedelta(days=60),
@@ -324,8 +385,15 @@ MOCK_SKILLS: List[SkillDetail] = [
         permissions=[SkillPermission.NETWORK, SkillPermission.CLIPBOARD],
         parameters={
             "text": {"type": "string", "description": "Input text", "required": True},
-            "action": {"type": "string", "description": "Transform action", "enum": ["translate", "summarize", "reformat", "fix_grammar"]},
-            "target_lang": {"type": "string", "description": "Target language for translation"},
+            "action": {
+                "type": "string",
+                "description": "Transform action",
+                "enum": ["translate", "summarize", "reformat", "fix_grammar"],
+            },
+            "target_lang": {
+                "type": "string",
+                "description": "Target language for translation",
+            },
         },
         created_at=datetime.utcnow() - timedelta(days=100),
         updated_at=datetime.utcnow() - timedelta(days=1),
@@ -344,7 +412,11 @@ MOCK_SKILLS: List[SkillDetail] = [
         icon="play-circle",
         permissions=[SkillPermission.DESKTOP_CONTROL, SkillPermission.SCREENSHOT],
         parameters={
-            "action": {"type": "string", "description": "Macro action", "enum": ["record", "replay", "list", "delete"]},
+            "action": {
+                "type": "string",
+                "description": "Macro action",
+                "enum": ["record", "replay", "list", "delete"],
+            },
             "macro_name": {"type": "string", "description": "Name of the macro"},
             "repeat": {"type": "integer", "description": "Number of times to replay"},
         },
@@ -360,7 +432,9 @@ class MockClawHubClient(ClawHubClient):
     def __init__(self):
         self._skills = {s.id: s for s in MOCK_SKILLS}
 
-    async def search_skills(self, query, category=None, limit=20, offset=0, sort_by="relevance"):
+    async def search_skills(
+        self, query, category=None, limit=20, offset=0, sort_by="relevance"
+    ):
         query_lower = query.lower()
         results = []
 
@@ -396,11 +470,23 @@ class MockClawHubClient(ClawHubClient):
             results = [(0, s) for s in MOCK_SKILLS]
 
         skills = [
-            SkillSummary(**s.model_dump(include={
-                "id", "name", "description", "version", "author",
-                "category", "tags", "install_count", "rating", "icon",
-            }))
-            for _, s in results[offset:offset + limit]
+            SkillSummary(
+                **s.model_dump(
+                    include={
+                        "id",
+                        "name",
+                        "description",
+                        "version",
+                        "author",
+                        "category",
+                        "tags",
+                        "install_count",
+                        "rating",
+                        "icon",
+                    }
+                )
+            )
+            for _, s in results[offset : offset + limit]
         ]
 
         return SkillSearchResponse(
@@ -424,10 +510,22 @@ class MockClawHubClient(ClawHubClient):
     async def get_trending(self, limit=10):
         sorted_skills = sorted(MOCK_SKILLS, key=lambda s: s.install_count, reverse=True)
         return [
-            SkillSummary(**s.model_dump(include={
-                "id", "name", "description", "version", "author",
-                "category", "tags", "install_count", "rating", "icon",
-            }))
+            SkillSummary(
+                **s.model_dump(
+                    include={
+                        "id",
+                        "name",
+                        "description",
+                        "version",
+                        "author",
+                        "category",
+                        "tags",
+                        "install_count",
+                        "rating",
+                        "icon",
+                    }
+                )
+            )
             for s in sorted_skills[:limit]
         ]
 
@@ -439,7 +537,9 @@ class MockClawHubClient(ClawHubClient):
 _client: Optional[ClawHubClient] = None
 
 
-def get_clawhub_client(use_live: bool = True, api_key: Optional[str] = None) -> ClawHubClient:
+def get_clawhub_client(
+    use_live: bool = True, api_key: Optional[str] = None
+) -> ClawHubClient:
     """Get the ClawHub client singleton."""
     global _client
 

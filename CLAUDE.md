@@ -484,18 +484,24 @@ The project includes an MCP (Model Context Protocol) server for desktop automati
 }
 ```
 
-**Available MCP Tools (32 total)**:
+**Available MCP Tools (58 total)**:
 
-| Category                | Tools                                                                                                                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Core Automation**     | `handoff_plan`, `handoff_execute`, `handoff_validate`, `handoff_action`, `handoff_status`                                                                                                         |
-| **Screen/OCR**          | `handoff_read_screen`, `handoff_get_focus`, `handoff_scroll`                                                                                                                                      |
-| **Event Queue**         | `handoff_event_add`, `handoff_event_status`, `handoff_event_list`, `handoff_event_cancel`, `handoff_batch_execute`                                                                                |
-| **User Interaction**    | `handoff_clarify`, `handoff_clarify_check`, `handoff_notify`                                                                                                                                      |
-| **File/System**         | `handoff_shell`, `handoff_file_search`, `handoff_file_open`, `handoff_dir_list`, `handoff_file_read`, `handoff_file_write`, `handoff_process_list`, `handoff_process_kill`, `handoff_system_info` |
-| **Smart Elements**      | `handoff_find_element`, `handoff_scroll_to`                                                                                                                                                       |
-| **Document Processing** | `handoff_doc_scan`, `handoff_doc_edit`, `handoff_doc_apply`, `handoff_doc_export`, `handoff_doc_list`                                                                                             |
-| **Claude CLI**          | `claude_cli_run`, `claude_cli_skill`, `claude_cli_status`                                                                                                                                         |
+| Category                                                               | Tools                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Core Automation**                                                    | `handoff_plan`, `handoff_execute` (with optional `recovery=True`), `handoff_validate`, `handoff_action`, `handoff_status`                                                                                     |
+| **Screen/OCR**                                                         | `handoff_read_screen`, `handoff_get_focus`, `handoff_scroll`                                                                                                                                                  |
+| **Event Queue**                                                        | `handoff_event_add`, `handoff_event_status`, `handoff_event_list`, `handoff_event_cancel`, `handoff_batch_execute`                                                                                            |
+| **User Interaction**                                                   | `handoff_clarify`, `handoff_clarify_check`, `handoff_notify`                                                                                                                                                  |
+| **File/System**                                                        | `handoff_shell` (allowlist), `handoff_file_search`, `handoff_file_open`, `handoff_dir_list`, `handoff_file_read`, `handoff_file_write`, `handoff_process_list`, `handoff_process_kill`, `handoff_system_info` |
+| **Smart Elements**                                                     | `handoff_find_element`, `handoff_scroll_to`                                                                                                                                                                   |
+| **Document Processing**                                                | `handoff_doc_scan`, `handoff_doc_edit`, `handoff_doc_apply`, `handoff_doc_export`, `handoff_doc_list`                                                                                                         |
+| **Claude CLI**                                                         | `claude_cli_run`, `claude_cli_skill`, `claude_cli_status`                                                                                                                                                     |
+| **Vision**                                                             | `vision_analyze`                                                                                                                                                                                              |
+| **Clawdbot Messaging**                                                 | `clawdbot_send_message`, `clawdbot_get_contacts`, `clawdbot_get_status`, `clawdbot_get_variables`, `clawdbot_report_findings`                                                                                 |
+| **Clawdbot Browser**                                                   | `clawdbot_browser_open`, `clawdbot_browser_search`, `clawdbot_browser_read_page`                                                                                                                              |
+| **eyeTerm Collaboration** _(Phase 4.1)_                                | `handoff_eyeterm_status`, `handoff_eyeterm_get_gaze`, `handoff_eyeterm_dwell_request`, `handoff_eyeterm_calibrate`, `handoff_collaborative_select` (click or gaze mode)                                       |
+| **Screen Description** _(Phase 4.2 — for blind-user-style navigation)_ | `handoff_describe_screen`, `handoff_describe_focus`, `handoff_get_window_tree`, `handoff_get_selection`, `handoff_get_cursor_context`, `handoff_list_actionable`                                              |
+| **Screen Subscription** _(Phase 4.3)_                                  | `handoff_subscribe_screen_changes`, `handoff_unsubscribe_screen_changes`, `handoff_get_screen_changes`                                                                                                        |
 
 ## Desktop Client
 

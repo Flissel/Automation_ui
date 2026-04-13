@@ -12,15 +12,15 @@ Supported Platforms:
 
 from .health_monitor import HealthMonitor
 from .process_manager import ProcessManager
-from .service_manager import ServiceManager, ServiceConfig, Platform
+from .service_manager import Platform, ServiceConfig, ServiceManager
 
 __all__ = [
-    'HealthMonitor',
-    'ProcessManager',
-    'ServiceManager',
-    'ServiceConfig',
-    'Platform'
+    "HealthMonitor",
+    "ProcessManager",
+    "ServiceManager",
+    "ServiceConfig",
+    "Platform",
 ]
 
 # Version info
-__version__ = '1.0.0'
+__version__ = "1.0.0"

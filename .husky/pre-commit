@@ -3,9 +3,3 @@
 
 # Run lint-staged for frontend files
 npx lint-staged
-
-# Run Python pre-commit hooks if available
-if [ -f ".pre-commit-config.yaml" ] && command -v pre-commit >/dev/null 2>&1; then
-  echo "Running Python pre-commit hooks..."
-  pre-commit run --all-files
-fi

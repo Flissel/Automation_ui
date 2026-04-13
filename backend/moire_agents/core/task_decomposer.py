@@ -33,7 +33,7 @@ from uuid import uuid4
 logger = logging.getLogger(__name__)
 
 # Enhanced prompt for generating PyAutoGUI actions
-DECOMPOSE_WITH_ACTIONS_PROMPT = '''You are a Windows desktop automation expert. Decompose this task into PyAutoGUI actions.
+DECOMPOSE_WITH_ACTIONS_PROMPT = """You are a Windows desktop automation expert. Decompose this task into PyAutoGUI actions.
 
 Task: {goal}
 OS: Windows 11
@@ -68,11 +68,12 @@ Example for "Open Notepad and type Hello":
   {{"description": "Press Enter to launch", "approach": "keyboard", "pyautogui_action": {{"type": "press", "key": "enter"}}, "wait_after": 2.0, "dependencies": [1]}},
   {{"description": "Type Hello", "approach": "keyboard", "pyautogui_action": {{"type": "write", "text": "Hello", "interval": 0.03}}, "wait_after": 0.2, "dependencies": [2]}}
 ]
-'''
+"""
 
 
 class SubtaskApproach(Enum):
     """Recommended approach for executing a subtask."""
+
     KEYBOARD = "keyboard"  # Keyboard shortcuts and typing
     MOUSE = "mouse"  # Mouse clicks and movements
     HYBRID = "hybrid"  # Combination of keyboard and mouse
@@ -84,6 +85,7 @@ class SubtaskApproach(Enum):
 @dataclass
 class Subtask:
     """A single subtask decomposed from a complex goal."""
+
     id: str
     description: str
     approach: str
@@ -102,7 +104,7 @@ class Subtask:
         can_parallel: bool = False,
         timeout: float = None,
         context: Dict = None,
-        order: int = 0
+        order: int = 0,
     ) -> "Subtask":
         """Create a new subtask with auto-generated ID."""
         return cls(
@@ -113,7 +115,7 @@ class Subtask:
             can_parallel=can_parallel,
             timeout=timeout,
             context=context or {},
-            order=order
+            order=order,
         )
 
 
@@ -146,37 +148,55 @@ class TaskDecomposer:
         return {
             # App launching patterns
             "open_app": [
-                {"description": "Open Run dialog", "approach": "keyboard", "action": "win+r"},
+                {
+                    "description": "Open Run dialog",
+                    "approach": "keyboard",
+                    "action": "win+r",
+                },
                 {"description": "Type application name", "approach": "keyboard"},
                 {"description": "Press Enter to launch", "approach": "keyboard"},
-                {"description": "Wait for application window", "approach": "vision"}
+                {"description": "Wait for application window", "approach": "vision"},
             ],
             # Search patterns
             "web_search": [
-                {"description": "Focus browser address bar", "approach": "keyboard", "action": "ctrl+l"},
+                {
+                    "description": "Focus browser address bar",
+                    "approach": "keyboard",
+                    "action": "ctrl+l",
+                },
                 {"description": "Type search query", "approach": "keyboard"},
                 {"description": "Press Enter to search", "approach": "keyboard"},
-                {"description": "Wait for results", "approach": "vision"}
+                {"description": "Wait for results", "approach": "vision"},
             ],
             # Document editing patterns
             "create_document": [
                 {"description": "Open application", "approach": "hybrid"},
-                {"description": "Create new document", "approach": "keyboard", "action": "ctrl+n"},
+                {
+                    "description": "Create new document",
+                    "approach": "keyboard",
+                    "action": "ctrl+n",
+                },
                 {"description": "Enter content", "approach": "keyboard"},
-                {"description": "Save document", "approach": "keyboard", "action": "ctrl+s"}
+                {
+                    "description": "Save document",
+                    "approach": "keyboard",
+                    "action": "ctrl+s",
+                },
             ],
             # File operations
             "save_file": [
-                {"description": "Open save dialog", "approach": "keyboard", "action": "ctrl+s"},
+                {
+                    "description": "Open save dialog",
+                    "approach": "keyboard",
+                    "action": "ctrl+s",
+                },
                 {"description": "Enter filename", "approach": "keyboard"},
-                {"description": "Confirm save", "approach": "keyboard"}
-            ]
+                {"description": "Confirm save", "approach": "keyboard"},
+            ],
         }
 
     async def decompose(
-        self,
-        goal: str,
-        context: Optional[Dict[str, Any]] = None
+        self, goal: str, context: Optional[Dict[str, Any]] = None
     ) -> List[Subtask]:
         """
         Decompose a complex goal into subtasks.
@@ -204,26 +224,21 @@ class TaskDecomposer:
         return self._heuristic_decompose(goal, context)
 
     def _try_pattern_match(
-        self,
-        goal: str,
-        context: Dict[str, Any]
+        self, goal: str, context: Dict[str, Any]
     ) -> Optional[List[Subtask]]:
         """Try to match goal against known patterns."""
         goal_lower = goal.lower()
 
         # Check for app launching
-        app_match = re.search(
-            r'(?:open|start|launch|run)\s+(\w+)',
-            goal_lower
-        )
+        app_match = re.search(r"(?:open|start|launch|run)\s+(\w+)", goal_lower)
         if app_match:
             app_name = app_match.group(1)
             return self._create_app_launch_subtasks(app_name, context)
 
         # Check for web search
         search_match = re.search(
-            r'(?:search|google|look up|find)\s+(?:for\s+)?(.+?)(?:\s+(?:and|then)|$)',
-            goal_lower
+            r"(?:search|google|look up|find)\s+(?:for\s+)?(.+?)(?:\s+(?:and|then)|$)",
+            goal_lower,
         )
         if search_match:
             query = search_match.group(1).strip()
@@ -231,8 +246,8 @@ class TaskDecomposer:
 
         # Check for document creation
         doc_match = re.search(
-            r'(?:create|make|write)\s+(?:a\s+)?(?:new\s+)?(\w+)\s+(?:document|file)',
-            goal_lower
+            r"(?:create|make|write)\s+(?:a\s+)?(?:new\s+)?(\w+)\s+(?:document|file)",
+            goal_lower,
         )
         if doc_match:
             doc_type = doc_match.group(1)
@@ -241,117 +256,125 @@ class TaskDecomposer:
         return None
 
     def _create_app_launch_subtasks(
-        self,
-        app_name: str,
-        context: Dict
+        self, app_name: str, context: Dict
     ) -> List[Subtask]:
         """Create subtasks for launching an application."""
         subtasks = []
 
         # Subtask 1: Open Run dialog
-        subtasks.append(Subtask.create(
-            description=f"Open Run dialog (Win+R)",
-            approach="keyboard",
-            context={"keys": ["win", "r"]},
-            order=1
-        ))
+        subtasks.append(
+            Subtask.create(
+                description=f"Open Run dialog (Win+R)",
+                approach="keyboard",
+                context={"keys": ["win", "r"]},
+                order=1,
+            )
+        )
 
         # Subtask 2: Type app name
-        subtasks.append(Subtask.create(
-            description=f"Type '{app_name}'",
-            approach="keyboard",
-            dependencies=[subtasks[0].id],
-            context={"text": app_name},
-            order=2
-        ))
+        subtasks.append(
+            Subtask.create(
+                description=f"Type '{app_name}'",
+                approach="keyboard",
+                dependencies=[subtasks[0].id],
+                context={"text": app_name},
+                order=2,
+            )
+        )
 
         # Subtask 3: Press Enter
-        subtasks.append(Subtask.create(
-            description="Press Enter to launch",
-            approach="keyboard",
-            dependencies=[subtasks[1].id],
-            context={"keys": ["enter"]},
-            order=3
-        ))
+        subtasks.append(
+            Subtask.create(
+                description="Press Enter to launch",
+                approach="keyboard",
+                dependencies=[subtasks[1].id],
+                context={"keys": ["enter"]},
+                order=3,
+            )
+        )
 
         # Subtask 4: Verify launch
-        subtasks.append(Subtask.create(
-            description=f"Verify {app_name} window opened",
-            approach="vision",
-            dependencies=[subtasks[2].id],
-            context={"target": app_name},
-            order=4
-        ))
+        subtasks.append(
+            Subtask.create(
+                description=f"Verify {app_name} window opened",
+                approach="vision",
+                dependencies=[subtasks[2].id],
+                context={"target": app_name},
+                order=4,
+            )
+        )
 
         return subtasks
 
-    def _create_search_subtasks(
-        self,
-        query: str,
-        context: Dict
-    ) -> List[Subtask]:
+    def _create_search_subtasks(self, query: str, context: Dict) -> List[Subtask]:
         """Create subtasks for web search."""
         subtasks = []
 
         # Check if browser is already open
         browser_open = context.get("active_app", "").lower() in [
-            "chrome", "firefox", "edge", "browser"
+            "chrome",
+            "firefox",
+            "edge",
+            "browser",
         ]
 
         if not browser_open:
             # Need to open browser first
-            subtasks.append(Subtask.create(
-                description="Open browser",
-                approach="hybrid",
-                order=1
-            ))
+            subtasks.append(
+                Subtask.create(description="Open browser", approach="hybrid", order=1)
+            )
             deps = [subtasks[0].id]
         else:
             deps = []
 
         # Focus address bar
-        subtasks.append(Subtask.create(
-            description="Focus address bar (Ctrl+L)",
-            approach="keyboard",
-            dependencies=deps,
-            context={"keys": ["ctrl", "l"]},
-            order=len(subtasks) + 1
-        ))
+        subtasks.append(
+            Subtask.create(
+                description="Focus address bar (Ctrl+L)",
+                approach="keyboard",
+                dependencies=deps,
+                context={"keys": ["ctrl", "l"]},
+                order=len(subtasks) + 1,
+            )
+        )
 
         # Type search query
-        subtasks.append(Subtask.create(
-            description=f"Type search query: {query}",
-            approach="keyboard",
-            dependencies=[subtasks[-1].id],
-            context={"text": f"https://www.google.com/search?q={query}"},
-            order=len(subtasks) + 1
-        ))
+        subtasks.append(
+            Subtask.create(
+                description=f"Type search query: {query}",
+                approach="keyboard",
+                dependencies=[subtasks[-1].id],
+                context={"text": f"https://www.google.com/search?q={query}"},
+                order=len(subtasks) + 1,
+            )
+        )
 
         # Execute search
-        subtasks.append(Subtask.create(
-            description="Press Enter to search",
-            approach="keyboard",
-            dependencies=[subtasks[-1].id],
-            context={"keys": ["enter"]},
-            order=len(subtasks) + 1
-        ))
+        subtasks.append(
+            Subtask.create(
+                description="Press Enter to search",
+                approach="keyboard",
+                dependencies=[subtasks[-1].id],
+                context={"keys": ["enter"]},
+                order=len(subtasks) + 1,
+            )
+        )
 
         # Analyze results
-        subtasks.append(Subtask.create(
-            description="Analyze search results",
-            approach="vision",
-            dependencies=[subtasks[-1].id],
-            context={"analysis_type": "search_results"},
-            order=len(subtasks) + 1
-        ))
+        subtasks.append(
+            Subtask.create(
+                description="Analyze search results",
+                approach="vision",
+                dependencies=[subtasks[-1].id],
+                context={"analysis_type": "search_results"},
+                order=len(subtasks) + 1,
+            )
+        )
 
         return subtasks
 
     def _create_document_subtasks(
-        self,
-        doc_type: str,
-        full_goal: str,
-        context: Dict
+        self, doc_type: str, full_goal: str, context: Dict
     ) -> List[Subtask]:
         """Create subtasks for document creation."""
         subtasks = []
@@ -362,51 +385,51 @@ class TaskDecomposer:
             "excel": "excel",
             "powerpoint": "powerpnt",
             "text": "notepad",
-            "note": "notepad"
+            "note": "notepad",
         }
         app = app_map.get(doc_type.lower(), "notepad")
 
         # Open application
-        subtasks.append(Subtask.create(
-            description=f"Open {doc_type} application",
-            approach="hybrid",
-            context={"app": app},
-            order=1
-        ))
+        subtasks.append(
+            Subtask.create(
+                description=f"Open {doc_type} application",
+                approach="hybrid",
+                context={"app": app},
+                order=1,
+            )
+        )
 
         # Create new document
-        subtasks.append(Subtask.create(
-            description="Create new document (Ctrl+N)",
-            approach="keyboard",
-            dependencies=[subtasks[0].id],
-            context={"keys": ["ctrl", "n"]},
-            order=2
-        ))
+        subtasks.append(
+            Subtask.create(
+                description="Create new document (Ctrl+N)",
+                approach="keyboard",
+                dependencies=[subtasks[0].id],
+                context={"keys": ["ctrl", "n"]},
+                order=2,
+            )
+        )
 
         # Extract content from goal if specified
         content_match = re.search(
-            r'(?:write|type|add|with)\s+["\']?(.+?)["\']?\s*$',
-            full_goal,
-            re.IGNORECASE
+            r'(?:write|type|add|with)\s+["\']?(.+?)["\']?\s*$', full_goal, re.IGNORECASE
         )
 
         if content_match:
             content = content_match.group(1)
-            subtasks.append(Subtask.create(
-                description=f"Type content: {content[:50]}...",
-                approach="keyboard",
-                dependencies=[subtasks[-1].id],
-                context={"text": content},
-                order=3
-            ))
+            subtasks.append(
+                Subtask.create(
+                    description=f"Type content: {content[:50]}...",
+                    approach="keyboard",
+                    dependencies=[subtasks[-1].id],
+                    context={"text": content},
+                    order=3,
+                )
+            )
 
         return subtasks
 
-    async def _llm_decompose(
-        self,
-        goal: str,
-        context: Dict[str, Any]
-    ) -> List[Subtask]:
+    async def _llm_decompose(self, goal: str, context: Dict[str, Any]) -> List[Subtask]:
         """Use LLM to decompose the goal."""
         prompt = f"""Decompose this automation task into sequential subtasks:
 
@@ -444,14 +467,16 @@ Return JSON array:
                 messages=[{"role": "user", "content": prompt}],
                 model="anthropic/claude-sonnet-4-20250514",
                 temperature=0.3,
-                max_tokens=2000
+                max_tokens=2000,
             )
 
             # Parse JSON from response
-            content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            content = (
+                response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            )
 
             # Extract JSON array from response
-            json_match = re.search(r'\[[\s\S]*\]', content)
+            json_match = re.search(r"\[[\s\S]*\]", content)
             if json_match:
                 subtask_data = json.loads(json_match.group())
                 return self._parse_llm_subtasks(subtask_data)
@@ -477,29 +502,27 @@ Return JSON array:
                 if dep_idx in id_map:
                     deps.append(id_map[dep_idx])
 
-            subtasks.append(Subtask(
-                id=subtask_id,
-                description=data.get("description", f"Subtask {i+1}"),
-                approach=data.get("approach", "orchestrator"),
-                dependencies=deps,
-                can_parallel=data.get("can_parallel", False),
-                timeout=data.get("timeout"),
-                context=data.get("context", {}),
-                order=i + 1
-            ))
+            subtasks.append(
+                Subtask(
+                    id=subtask_id,
+                    description=data.get("description", f"Subtask {i+1}"),
+                    approach=data.get("approach", "orchestrator"),
+                    dependencies=deps,
+                    can_parallel=data.get("can_parallel", False),
+                    timeout=data.get("timeout"),
+                    context=data.get("context", {}),
+                    order=i + 1,
+                )
+            )
 
         return subtasks
 
-    def _heuristic_decompose(
-        self,
-        goal: str,
-        context: Dict[str, Any]
-    ) -> List[Subtask]:
+    def _heuristic_decompose(self, goal: str, context: Dict[str, Any]) -> List[Subtask]:
         """Simple heuristic decomposition for fallback."""
         subtasks = []
 
         # Split by common conjunctions
-        parts = re.split(r'\s+(?:and|then|,)\s+', goal.lower())
+        parts = re.split(r"\s+(?:and|then|,)\s+", goal.lower())
 
         for i, part in enumerate(parts):
             part = part.strip()
@@ -519,27 +542,25 @@ Return JSON array:
 
             deps = [subtasks[-1].id] if subtasks else []
 
-            subtasks.append(Subtask.create(
-                description=part.capitalize(),
-                approach=approach,
-                dependencies=deps,
-                order=i + 1
-            ))
+            subtasks.append(
+                Subtask.create(
+                    description=part.capitalize(),
+                    approach=approach,
+                    dependencies=deps,
+                    order=i + 1,
+                )
+            )
 
         # If no subtasks found, create single orchestrator task
         if not subtasks:
-            subtasks.append(Subtask.create(
-                description=goal,
-                approach="orchestrator",
-                order=1
-            ))
+            subtasks.append(
+                Subtask.create(description=goal, approach="orchestrator", order=1)
+            )
 
         return subtasks
 
     async def decompose_with_actions(
-        self,
-        goal: str,
-        context: Optional[Dict[str, Any]] = None
+        self, goal: str, context: Optional[Dict[str, Any]] = None
     ) -> List[Subtask]:
         """
         Decompose a goal into subtasks WITH executable PyAutoGUI actions.
@@ -565,9 +586,7 @@ Return JSON array:
             return await self.decompose(goal, context)
 
     async def _llm_decompose_with_actions(
-        self,
-        goal: str,
-        context: Dict[str, Any]
+        self, goal: str, context: Dict[str, Any]
     ) -> List[Subtask]:
         """Use Claude API to decompose goal with PyAutoGUI actions."""
         prompt = DECOMPOSE_WITH_ACTIONS_PROMPT.format(goal=goal)
@@ -591,7 +610,9 @@ Return JSON array:
         try:
             import anthropic
         except ImportError:
-            raise ImportError("anthropic package not installed. Run: pip install anthropic")
+            raise ImportError(
+                "anthropic package not installed. Run: pip install anthropic"
+            )
 
         # Get API key from environment
         api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -615,9 +636,7 @@ Return JSON array:
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4096,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
+            messages=[{"role": "user", "content": prompt}],
         )
 
         response_text = message.content[0].text
@@ -639,7 +658,7 @@ Return JSON array:
                 json_text = json_text.split("```")[1].split("```")[0]
 
             # Find JSON array
-            json_match = re.search(r'\[[\s\S]*\]', json_text)
+            json_match = re.search(r"\[[\s\S]*\]", json_text)
             if json_match:
                 json_text = json_match.group()
 
@@ -664,19 +683,21 @@ Return JSON array:
                 # Build context with pyautogui_action and wait_after
                 subtask_context = {
                     "pyautogui_action": data.get("pyautogui_action"),
-                    "wait_after": data.get("wait_after", 0.2)
+                    "wait_after": data.get("wait_after", 0.2),
                 }
 
-                subtasks.append(Subtask(
-                    id=subtask_id,
-                    description=data.get("description", f"Step {i+1}"),
-                    approach=data.get("approach", "keyboard"),
-                    dependencies=deps,
-                    can_parallel=data.get("can_parallel", False),
-                    timeout=data.get("timeout"),
-                    context=subtask_context,
-                    order=i + 1
-                ))
+                subtasks.append(
+                    Subtask(
+                        id=subtask_id,
+                        description=data.get("description", f"Step {i+1}"),
+                        approach=data.get("approach", "keyboard"),
+                        dependencies=deps,
+                        can_parallel=data.get("can_parallel", False),
+                        timeout=data.get("timeout"),
+                        context=subtask_context,
+                        order=i + 1,
+                    )
+                )
 
             return subtasks
 

@@ -9,12 +9,11 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import delete, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.dialects.postgresql import insert
-
-from app.database import get_db, db
+from app.database import db, get_db
 from app.models.db_models import ActiveDesktopClient
+from sqlalchemy import delete, select, update
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +27,7 @@ class ClientRegistry:
     """
 
     async def register_client(
-        self,
-        session: AsyncSession,
-        client_id: str,
-        client_info: Dict[str, Any]
+        self, session: AsyncSession, client_id: str, client_info: Dict[str, Any]
     ) -> ActiveDesktopClient:
         """
         Register or update a desktop client.
@@ -57,7 +53,7 @@ class ClientRegistry:
             "is_streaming": False,
             "last_ping": now,
             "connected_at": now,
-            "updated_at": now
+            "updated_at": now,
         }
 
         # Upsert - insert or update on conflict
@@ -71,8 +67,8 @@ class ClientRegistry:
                 "user_id": stmt.excluded.user_id,
                 "hostname": stmt.excluded.hostname,
                 "last_ping": stmt.excluded.last_ping,
-                "updated_at": stmt.excluded.updated_at
-            }
+                "updated_at": stmt.excluded.updated_at,
+            },
         )
 
         await session.execute(stmt)
@@ -80,11 +76,15 @@ class ClientRegistry:
 
         # Fetch and return the client
         result = await session.execute(
-            select(ActiveDesktopClient).where(ActiveDesktopClient.client_id == client_id)
+            select(ActiveDesktopClient).where(
+                ActiveDesktopClient.client_id == client_id
+            )
         )
         client = result.scalar_one()
 
-        logger.info(f"Registered client: {client_id} ({client_info.get('hostname', 'unknown')})")
+        logger.info(
+            f"Registered client: {client_id} ({client_info.get('hostname', 'unknown')})"
+        )
         return client
 
     async def unregister_client(self, session: AsyncSession, client_id: str) -> bool:
@@ -99,7 +99,9 @@ class ClientRegistry:
             True if client was removed, False if not found
         """
         result = await session.execute(
-            delete(ActiveDesktopClient).where(ActiveDesktopClient.client_id == client_id)
+            delete(ActiveDesktopClient).where(
+                ActiveDesktopClient.client_id == client_id
+            )
         )
         await session.commit()
 
@@ -129,10 +131,7 @@ class ClientRegistry:
         return result.rowcount > 0
 
     async def set_streaming_status(
-        self,
-        session: AsyncSession,
-        client_id: str,
-        is_streaming: bool
+        self, session: AsyncSession, client_id: str, is_streaming: bool
     ) -> bool:
         """
         Update the streaming status for a client.
@@ -158,9 +157,7 @@ class ClientRegistry:
         return False
 
     async def get_client(
-        self,
-        session: AsyncSession,
-        client_id: str
+        self, session: AsyncSession, client_id: str
     ) -> Optional[ActiveDesktopClient]:
         """
         Get a specific client by ID.
@@ -173,14 +170,14 @@ class ClientRegistry:
             Client record or None if not found
         """
         result = await session.execute(
-            select(ActiveDesktopClient).where(ActiveDesktopClient.client_id == client_id)
+            select(ActiveDesktopClient).where(
+                ActiveDesktopClient.client_id == client_id
+            )
         )
         return result.scalar_one_or_none()
 
     async def get_active_clients(
-        self,
-        session: AsyncSession,
-        max_age_minutes: int = 2
+        self, session: AsyncSession, max_age_minutes: int = 2
     ) -> List[ActiveDesktopClient]:
         """
         Get all active clients (pinged within max_age_minutes).
@@ -203,8 +200,7 @@ class ClientRegistry:
         return list(result.scalars().all())
 
     async def get_streaming_clients(
-        self,
-        session: AsyncSession
+        self, session: AsyncSession
     ) -> List[ActiveDesktopClient]:
         """
         Get all currently streaming clients.
@@ -224,9 +220,7 @@ class ClientRegistry:
         return list(result.scalars().all())
 
     async def cleanup_stale_clients(
-        self,
-        session: AsyncSession,
-        max_age_minutes: int = 2
+        self, session: AsyncSession, max_age_minutes: int = 2
     ) -> int:
         """
         Remove clients that haven't pinged within max_age_minutes.
@@ -266,7 +260,7 @@ class ClientRegistry:
         return {
             "total_active": len(active),
             "total_streaming": len(streaming),
-            "clients": [c.to_dict() for c in active]
+            "clients": [c.to_dict() for c in active],
         }
 
 

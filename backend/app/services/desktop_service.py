@@ -161,6 +161,7 @@ class LiveDesktopService:
         """Capture desktop screenshot using mss (real screen capture)."""
         try:
             import io
+
             import mss
             from PIL import Image
 

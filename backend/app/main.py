@@ -12,10 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .database import close_db, init_db
 from .logger_config import get_logger
-from .routers import (
-    api_v1_router, client_manager_router, desktop_router, health_router,
-    mcp_bridge_router, node_configs_router, ocr_router, shell_router,
-    websocket_router, workflows_router)
+from .routers import (api_v1_router, client_manager_router, desktop_router,
+                      health_router, mcp_bridge_router, node_configs_router,
+                      ocr_router, shell_router, websocket_router,
+                      workflows_router)
 from .routers.automation import router as automation_router
 from .routers.clawdbot import router as clawdbot_router
 from .routers.clawhub import router as clawhub_router
@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI):
             pool_size=settings.database_pool_size,
             max_overflow=settings.database_max_overflow,
             pool_timeout=settings.database_pool_timeout,
-            echo=settings.database_echo
+            echo=settings.database_echo,
         )
         logger.info("Database initialized successfully")
 
@@ -54,16 +54,21 @@ async def lifespan(app: FastAPI):
             logger.info("Redis PubSub initialized successfully")
         except Exception as redis_err:
             logger.warning(f"Redis PubSub unavailable (non-critical): {redis_err}")
-            logger.warning("Continuing without Redis - task queue and pub/sub features disabled")
+            logger.warning(
+                "Continuing without Redis - task queue and pub/sub features disabled"
+            )
 
         # Setup Task Queue Bridge (Redis → WebSocket for voice commands)
         try:
             from .routers.websocket import setup_task_queue_bridge
+
             bridge_ok = await setup_task_queue_bridge()
             if bridge_ok:
                 logger.info("Task Queue Bridge initialized successfully")
             else:
-                logger.warning("Task Queue Bridge setup skipped (Redis may not be available)")
+                logger.warning(
+                    "Task Queue Bridge setup skipped (Redis may not be available)"
+                )
         except Exception as e:
             logger.warning(f"Task Queue Bridge setup failed: {e}")
 
@@ -75,20 +80,26 @@ async def lifespan(app: FastAPI):
         app.state.service_manager = service_manager
 
         # Wire ActionRouter with WebSocket manager
-        from .services.action_router import action_router
         from .routers.websocket import manager as ws_manager
+        from .services.action_router import action_router
+
         action_router.set_ws_manager(ws_manager)
         action_router.configure(settings)
         if settings.execution_mode == "remote":
-            logger.info("ActionRouter: REMOTE mode - desktop actions delegated to client")
+            logger.info(
+                "ActionRouter: REMOTE mode - desktop actions delegated to client"
+            )
 
         # Start Discord Analyzer Listener (polls #fixes, posts fix suggestions to #dev-tasks)
         try:
             from .services.discord_listener import start_analyzer_listener
+
             await start_analyzer_listener()
             logger.info("Discord Analyzer Listener started")
         except Exception as e:
-            logger.warning(f"Discord Analyzer Listener failed to start (non-critical): {e}")
+            logger.warning(
+                f"Discord Analyzer Listener failed to start (non-critical): {e}"
+            )
 
         logger.info("All services initialized successfully")
 
@@ -202,6 +213,7 @@ def create_app() -> FastAPI:
     # E2E Test Runner - Autonomous testing via Playwright MCP
     try:
         from app.routers.e2e_tests import router as e2e_router
+
         app.include_router(e2e_router, tags=["E2E Tests"])
     except ImportError as e:
         logger.warning(f"E2E test router not available: {e}")

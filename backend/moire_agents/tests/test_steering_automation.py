@@ -17,22 +17,21 @@ Requirements:
     - ANTHROPIC_API_KEY in environment or .env file
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
-import sys
 import os
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from agents.steering_agent import ActionCategory, SteeringAgent
 from core.task_decomposer import TaskDecomposer
-from agents.steering_agent import SteeringAgent, ActionCategory
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -106,33 +105,25 @@ Examples:
     python test_steering_automation.py "Open Chrome and search for Python"
     python test_steering_automation.py --dry-run "Open Calculator"
     python test_steering_automation.py --no-validation "Open Notepad"
-        """
+        """,
     )
     parser.add_argument(
         "goal",
         nargs="?",
         default="Open Notepad and type Hello from Steering Agent",
-        help="Natural language description of the task"
+        help="Natural language description of the task",
     )
     parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview the plan without executing"
+        "--dry-run", action="store_true", help="Preview the plan without executing"
     )
     parser.add_argument(
-        "--no-validation",
-        action="store_true",
-        help="Execute without visual validation"
+        "--no-validation", action="store_true", help="Execute without visual validation"
     )
     parser.add_argument(
-        "--no-countdown",
-        action="store_true",
-        help="Skip the 3-second countdown"
+        "--no-countdown", action="store_true", help="Skip the 3-second countdown"
     )
     parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose logging"
+        "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )
 
     args = parser.parse_args()
@@ -181,12 +172,21 @@ Examples:
             print("\n[OK] Dry run complete - plan generated but not executed")
 
             # Show category summary
-            safe_count = sum(1 for st in subtasks
-                           if format_category(st.context.get("pyautogui_action", {})) == "SAFE")
-            find_count = sum(1 for st in subtasks
-                           if format_category(st.context.get("pyautogui_action", {})) == "FIND")
-            visual_count = sum(1 for st in subtasks
-                             if format_category(st.context.get("pyautogui_action", {})) == "VISUAL")
+            safe_count = sum(
+                1
+                for st in subtasks
+                if format_category(st.context.get("pyautogui_action", {})) == "SAFE"
+            )
+            find_count = sum(
+                1
+                for st in subtasks
+                if format_category(st.context.get("pyautogui_action", {})) == "FIND"
+            )
+            visual_count = sum(
+                1
+                for st in subtasks
+                if format_category(st.context.get("pyautogui_action", {})) == "VISUAL"
+            )
 
             print(f"\n[SUMMARY]")
             print(f"  Safe actions (no validation): {safe_count}")
@@ -196,7 +196,9 @@ Examples:
 
         # Countdown
         if not args.no_countdown:
-            print("\n[WARNING] Executing in 3 seconds... (move mouse to corner to abort)")
+            print(
+                "\n[WARNING] Executing in 3 seconds... (move mouse to corner to abort)"
+            )
             for i in range(3, 0, -1):
                 print(f"  {i}...")
                 await asyncio.sleep(1)
@@ -212,7 +214,9 @@ Examples:
                 if connected:
                     print("[OK] Connected - visual validation enabled")
                 else:
-                    print("[WARNING] Could not connect - running without visual validation")
+                    print(
+                        "[WARNING] Could not connect - running without visual validation"
+                    )
             else:
                 print("\n[SKIP] Visual validation disabled")
 
@@ -225,9 +229,7 @@ Examples:
                 pass
 
             result = await agent.execute_with_steering(
-                subtasks=subtasks,
-                goal=args.goal,
-                on_progress=on_progress
+                subtasks=subtasks, goal=args.goal, on_progress=on_progress
             )
 
             print("=" * 60)
@@ -243,12 +245,16 @@ Examples:
             print(f"  Duration: {result.total_time_seconds:.1f}s")
 
             if result.change_regions:
-                print(f"\n[CHANGE REGIONS] Detected {len(result.change_regions)} regions:")
+                print(
+                    f"\n[CHANGE REGIONS] Detected {len(result.change_regions)} regions:"
+                )
                 for region in result.change_regions[:5]:  # Show first 5
                     bounds = region.get("bounds", {})
                     intensity = region.get("intensity", "?")
-                    print(f"    Region {region.get('id')}: ({bounds.get('x')}, {bounds.get('y')}) "
-                          f"{bounds.get('width')}x{bounds.get('height')} - {intensity}")
+                    print(
+                        f"    Region {region.get('id')}: ({bounds.get('x')}, {bounds.get('y')}) "
+                        f"{bounds.get('width')}x{bounds.get('height')} - {intensity}"
+                    )
                 if len(result.change_regions) > 5:
                     print(f"    ... and {len(result.change_regions) - 5} more")
 
@@ -259,7 +265,9 @@ Examples:
                 print("\n[SUCCESS]")
                 return 0
             elif result.success:
-                print("\n[PARTIAL SUCCESS] Actions executed but goal may not be achieved")
+                print(
+                    "\n[PARTIAL SUCCESS] Actions executed but goal may not be achieved"
+                )
                 return 0
             else:
                 print("\n[FAILED]")

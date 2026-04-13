@@ -20,25 +20,27 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 from uuid import uuid4
 
 import aiohttp
+from app.services.ui_memory import (build_ascii_layout, cache_element,
+                                    confirm_element, deny_element,
+                                    get_cache_stats, get_screen_resolution,
+                                    invalidate_element, is_trusted,
+                                    lookup_element, ocr_text_to_elements)
+from app.services.video_agent import SKIP_TOOLS as VA_SKIP_TOOLS
+from app.services.video_agent import capture_current_frame, video_agent
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-
-from app.services.ui_memory import (
-    cache_element, lookup_element, invalidate_element,
-    confirm_element, deny_element, is_trusted,
-    get_cache_stats, build_ascii_layout, ocr_text_to_elements,
-    get_screen_resolution
-)
-from app.services.video_agent import video_agent, capture_current_frame, SKIP_TOOLS as VA_SKIP_TOOLS
 
 logger = logging.getLogger(__name__)
 
 # Action tools that execute fire-and-forget (no blocking await in SSE stream)
 # These tools dispatch via asyncio.create_task and return instant result.
 FIRE_AND_FORGET_TOOLS = {
-    "action_click", "action_press", "action_hotkey",
-    "action_scroll", "mouse_move",
+    "action_click",
+    "action_press",
+    "action_hotkey",
+    "action_scroll",
+    "mouse_move",
 }
 
 # Background task results for fire-and-forget (latest result per tool)
@@ -49,20 +51,25 @@ _ff_background_tasks: Dict[str, asyncio.Task] = {}
 # Utility: Quick Screen Hash (no OCR, just pixels)
 # ============================================
 
+
 def _quick_screen_hash() -> Optional[str]:
     """Fast hash of current screen state for change detection. No OCR."""
     try:
         import hashlib
+
         from app.config import get_settings
+
         if get_settings().execution_mode == "remote":
             # Remote mode: hash latest frame from StreamFrameCache
             from moire_agents.stream_frame_cache import StreamFrameCache
+
             frame = StreamFrameCache.get_fresh_frame(monitor_id=0, max_age_ms=3000)
             if frame and frame.data:
                 return hashlib.md5(frame.data[:5000].encode()).hexdigest()
             return None
         else:
             import pyautogui
+
             screenshot = pyautogui.screenshot()
             # Sample every 200th byte for speed (~50KB instead of 6MB)
             data = screenshot.tobytes()
@@ -95,6 +102,7 @@ def _extract_element_from_prompt(prompt: str) -> Optional[str]:
     """Try to extract a UI element name from a vision/find prompt.
     Used for recall-first optimization in vision_analyze."""
     import re
+
     prompt_lower = prompt.lower()
     # Patterns like "find the Save button", "where is the File menu", "click OK"
     patterns = [
@@ -110,6 +118,7 @@ def _extract_element_from_prompt(prompt: str) -> Optional[str]:
                 return element
     return None
 
+
 router = APIRouter()
 
 # Load .env
@@ -117,17 +126,21 @@ _env_file = Path(__file__).parent.parent.parent.parent / ".env"
 if _env_file.exists():
     try:
         from dotenv import load_dotenv
+
         load_dotenv(_env_file, override=False)
     except ImportError:
         pass
 
 # Explicitly load mcp_server_handoff from backend/moire_agents (NOT moire_tracker)
 import importlib.util
-MCP_PATH = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), "..", "..", "moire_agents"
-))
+
+MCP_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "moire_agents")
+)
 _handoff_path = os.path.join(MCP_PATH, "mcp_server_handoff.py")
-_spec = importlib.util.spec_from_file_location("mcp_server_handoff_local", _handoff_path)
+_spec = importlib.util.spec_from_file_location(
+    "mcp_server_handoff_local", _handoff_path
+)
 _handoff_mod = importlib.util.module_from_spec(_spec)
 # Add moire_agents to sys.path for its own imports
 if MCP_PATH not in sys.path:
@@ -136,6 +149,7 @@ try:
     _spec.loader.exec_module(_handoff_mod)
 except Exception as _e:
     import logging as _logging
+
     _logging.getLogger(__name__).warning(f"mcp_server_handoff not available: {_e}")
     _handoff_mod = None
 
@@ -147,19 +161,24 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 MAX_ITERATIONS = 50
 
+
 def _get_llm_model() -> str:
     try:
         from app.config import get_settings
+
         return get_settings().llm_model
     except Exception:
         return "anthropic/claude-opus-4"
 
+
 def _get_compaction_model() -> str:
     try:
         from app.config import get_settings
+
         return get_settings().compaction_model
     except Exception:
         return "anthropic/claude-sonnet-4"
+
 
 # ============================================
 # Conversation Memory Store (Persistent + Rolling Compaction)
@@ -175,10 +194,10 @@ def _get_compaction_model() -> str:
 MEMORY_DIR = Path(__file__).parent.parent.parent / "conversation_memory"
 MEMORY_DIR.mkdir(exist_ok=True)
 
-RECENT_KEEP = 6       # Keep last 6 exchanges verbatim (user+assistant pairs)
-COMPACT_THRESHOLD = 10 # Trigger compaction when recent exceeds this
+RECENT_KEEP = 6  # Keep last 6 exchanges verbatim (user+assistant pairs)
+COMPACT_THRESHOLD = 10  # Trigger compaction when recent exceeds this
 MAX_SUMMARY_CHARS = 4000  # Max chars for the rolling summary
-MAX_RECENT_CHARS = 6000   # Max chars for recent messages block
+MAX_RECENT_CHARS = 6000  # Max chars for recent messages block
 
 
 def _memory_path(conversation_id: str) -> Path:
@@ -207,7 +226,9 @@ def save_conversation(conversation_id: str, data: Dict[str, Any]) -> None:
     """Save conversation to disk."""
     path = _memory_path(conversation_id)
     try:
-        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
     except OSError as e:
         logger.error(f"Failed to save conversation {conversation_id}: {e}")
 
@@ -247,9 +268,11 @@ ZUSAMMENFASSUNG:"""
             messages=[{"role": "user", "content": prompt}],
             tools=[],
             model=_get_compaction_model(),  # Configurable via COMPACTION_MODEL
-            max_tokens=1024
+            max_tokens=1024,
         )
-        new_summary = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+        new_summary = (
+            response.get("choices", [{}])[0].get("message", {}).get("content", "")
+        )
         if new_summary:
             # Truncate if needed
             if len(new_summary) > MAX_SUMMARY_CHARS:
@@ -257,9 +280,11 @@ ZUSAMMENFASSUNG:"""
             data["summary"] = new_summary
             data["recent"] = to_keep
             save_conversation(conversation_id, data)
-            logger.info(f"[Memory] Compacted conversation {conversation_id}: "
-                        f"{len(to_compress)} entries -> summary ({len(new_summary)} chars), "
-                        f"{len(to_keep)} recent kept")
+            logger.info(
+                f"[Memory] Compacted conversation {conversation_id}: "
+                f"{len(to_compress)} entries -> summary ({len(new_summary)} chars), "
+                f"{len(to_keep)} recent kept"
+            )
     except Exception as e:
         logger.error(f"[Memory] Compaction failed for {conversation_id}: {e}")
         # Fallback: just truncate without LLM summarization
@@ -271,6 +296,7 @@ ZUSAMMENFASSUNG:"""
         data["summary"] = fallback_summary
         data["recent"] = to_keep
         save_conversation(conversation_id, data)
+
 
 SYSTEM_PROMPT = """Du bist ein Desktop-Automations-Agent auf einem Windows-PC.
 
@@ -362,15 +388,20 @@ Regeln:
 # Request/Response Models
 # ============================================
 
+
 class IntentRequest(BaseModel):
     """Request for LLM intent processing."""
+
     text: str = Field(..., description="Natural language command")
     conversation_id: Optional[str] = Field(None, description="Session ID for context")
-    video_agent: Optional[bool] = Field(None, description="Enable video agent (None=use config default)")
+    video_agent: Optional[bool] = Field(
+        None, description="Enable video agent (None=use config default)"
+    )
 
 
 class IntentStep(BaseModel):
     """A single step executed by the agent."""
+
     tool: str
     params: Dict[str, Any] = {}
     result: Dict[str, Any] = {}
@@ -379,6 +410,7 @@ class IntentStep(BaseModel):
 
 class IntentResponse(BaseModel):
     """Response from LLM intent processing."""
+
     success: bool
     summary: str
     steps: List[IntentStep] = []
@@ -390,9 +422,12 @@ class IntentResponse(BaseModel):
 
 class InterventionRequest(BaseModel):
     """Request for user intervention during agent execution."""
+
     conversation_id: str = Field(..., description="Active conversation/session ID")
     action: str = Field(..., description="pause, resume, cancel, skip_task, feedback")
-    data: Optional[Dict[str, Any]] = Field(None, description="Extra data, e.g. {message: 'klick lieber auf X'}")
+    data: Optional[Dict[str, Any]] = Field(
+        None, description="Extra data, e.g. {message: 'klick lieber auf X'}"
+    )
 
 
 # ============================================
@@ -410,11 +445,11 @@ TOOLS = [
                 "properties": {
                     "monitor_id": {
                         "type": "integer",
-                        "description": "Monitor index (0=primary, 1=secondary). Default: 0"
+                        "description": "Monitor index (0=primary, 1=secondary). Default: 0",
                     }
-                }
-            }
-        }
+                },
+            },
+        },
     },
     {
         "type": "function",
@@ -426,12 +461,12 @@ TOOLS = [
                 "properties": {
                     "target": {
                         "type": "string",
-                        "description": "Element to find (e.g., 'Submit button', 'Yes', 'File menu')"
+                        "description": "Element to find (e.g., 'Submit button', 'Yes', 'File menu')",
                     }
                 },
-                "required": ["target"]
-            }
-        }
+                "required": ["target"],
+            },
+        },
     },
     {
         "type": "function",
@@ -443,11 +478,15 @@ TOOLS = [
                 "properties": {
                     "x": {"type": "integer", "description": "X coordinate"},
                     "y": {"type": "integer", "description": "Y coordinate"},
-                    "button": {"type": "string", "enum": ["left", "right", "middle"], "description": "Mouse button. Default: left"}
+                    "button": {
+                        "type": "string",
+                        "enum": ["left", "right", "middle"],
+                        "description": "Mouse button. Default: left",
+                    },
                 },
-                "required": ["x", "y"]
-            }
-        }
+                "required": ["x", "y"],
+            },
+        },
     },
     {
         "type": "function",
@@ -459,9 +498,9 @@ TOOLS = [
                 "properties": {
                     "text": {"type": "string", "description": "Text to type"}
                 },
-                "required": ["text"]
-            }
-        }
+                "required": ["text"],
+            },
+        },
     },
     {
         "type": "function",
@@ -471,11 +510,14 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "key": {"type": "string", "description": "Key to press (e.g., 'enter', 'tab', 'escape', 'f5')"}
+                    "key": {
+                        "type": "string",
+                        "description": "Key to press (e.g., 'enter', 'tab', 'escape', 'f5')",
+                    }
                 },
-                "required": ["key"]
-            }
-        }
+                "required": ["key"],
+            },
+        },
     },
     {
         "type": "function",
@@ -485,11 +527,14 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "keys": {"type": "string", "description": "Key combination (e.g., 'ctrl+c', 'alt+f4', 'win+r')"}
+                    "keys": {
+                        "type": "string",
+                        "description": "Key combination (e.g., 'ctrl+c', 'alt+f4', 'win+r')",
+                    }
                 },
-                "required": ["keys"]
-            }
-        }
+                "required": ["keys"],
+            },
+        },
     },
     {
         "type": "function",
@@ -499,14 +544,21 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "direction": {"type": "string", "enum": ["up", "down"], "description": "Scroll direction"},
-                    "amount": {"type": "integer", "description": "Scroll clicks (default: 3)"},
+                    "direction": {
+                        "type": "string",
+                        "enum": ["up", "down"],
+                        "description": "Scroll direction",
+                    },
+                    "amount": {
+                        "type": "integer",
+                        "description": "Scroll clicks (default: 3)",
+                    },
                     "x": {"type": "integer", "description": "Optional X coordinate"},
-                    "y": {"type": "integer", "description": "Optional Y coordinate"}
+                    "y": {"type": "integer", "description": "Optional Y coordinate"},
                 },
-                "required": ["direction"]
-            }
-        }
+                "required": ["direction"],
+            },
+        },
     },
     {
         "type": "function",
@@ -518,22 +570,22 @@ TOOLS = [
                 "properties": {
                     "x": {"type": "integer", "description": "Target X coordinate"},
                     "y": {"type": "integer", "description": "Target Y coordinate"},
-                    "duration": {"type": "number", "description": "Movement duration in seconds (default: 0.5, max: 2.0)"}
+                    "duration": {
+                        "type": "number",
+                        "description": "Movement duration in seconds (default: 0.5, max: 2.0)",
+                    },
                 },
-                "required": ["x", "y"]
-            }
-        }
+                "required": ["x", "y"],
+            },
+        },
     },
     {
         "type": "function",
         "function": {
             "name": "get_focus",
             "description": "Get the currently active/focused window. Returns window title and process info.",
-            "parameters": {
-                "type": "object",
-                "properties": {}
-            }
-        }
+            "parameters": {"type": "object", "properties": {}},
+        },
     },
     {
         "type": "function",
@@ -543,22 +595,22 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "title": {"type": "string", "description": "Window title or partial match (e.g., 'Word', 'Chrome', 'Explorer')"}
+                    "title": {
+                        "type": "string",
+                        "description": "Window title or partial match (e.g., 'Word', 'Chrome', 'Explorer')",
+                    }
                 },
-                "required": ["title"]
-            }
-        }
+                "required": ["title"],
+            },
+        },
     },
     {
         "type": "function",
         "function": {
             "name": "list_windows",
             "description": "List all visible windows with their titles. Use to find the correct window title before set_focus.",
-            "parameters": {
-                "type": "object",
-                "properties": {}
-            }
-        }
+            "parameters": {"type": "object", "properties": {}},
+        },
     },
     {
         "type": "function",
@@ -569,11 +621,14 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "command": {"type": "string", "description": "Command to execute"},
-                    "timeout": {"type": "integer", "description": "Timeout in seconds (default: 30)"}
+                    "timeout": {
+                        "type": "integer",
+                        "description": "Timeout in seconds (default: 30)",
+                    },
                 },
-                "required": ["command"]
-            }
-        }
+                "required": ["command"],
+            },
+        },
     },
     {
         "type": "function",
@@ -583,11 +638,14 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "seconds": {"type": "number", "description": "Duration to wait in seconds"}
+                    "seconds": {
+                        "type": "number",
+                        "description": "Duration to wait in seconds",
+                    }
                 },
-                "required": ["seconds"]
-            }
-        }
+                "required": ["seconds"],
+            },
+        },
     },
     # Clawdbot Messaging Tools
     {
@@ -595,21 +653,34 @@ TOOLS = [
         "function": {
             "name": "send_message",
             "description": "Send a message to a contact via messaging platform (WhatsApp, Telegram, Discord, Signal, etc.). "
-                           "Resolves contact names with fuzzy matching. Use this instead of desktop automation for messaging.",
+            "Resolves contact names with fuzzy matching. Use this instead of desktop automation for messaging.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "recipient": {"type": "string", "description": "Contact name, alias, or key (e.g., 'Peter', 'boss', 'mama'). Supports fuzzy matching."},
-                    "message": {"type": "string", "description": "Message text to send"},
+                    "recipient": {
+                        "type": "string",
+                        "description": "Contact name, alias, or key (e.g., 'Peter', 'boss', 'mama'). Supports fuzzy matching.",
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Message text to send",
+                    },
                     "platform": {
                         "type": "string",
-                        "enum": ["whatsapp", "telegram", "discord", "signal", "imessage", "email"],
-                        "description": "Messaging platform. If omitted, uses the first available platform for the contact."
-                    }
+                        "enum": [
+                            "whatsapp",
+                            "telegram",
+                            "discord",
+                            "signal",
+                            "imessage",
+                            "email",
+                        ],
+                        "description": "Messaging platform. If omitted, uses the first available platform for the contact.",
+                    },
                 },
-                "required": ["recipient", "message"]
-            }
-        }
+                "required": ["recipient", "message"],
+            },
+        },
     },
     {
         "type": "function",
@@ -619,12 +690,18 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Search query (name, alias, or partial match)"},
-                    "limit": {"type": "integer", "description": "Max results (default: 5)"}
+                    "query": {
+                        "type": "string",
+                        "description": "Search query (name, alias, or partial match)",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results (default: 5)",
+                    },
                 },
-                "required": ["query"]
-            }
-        }
+                "required": ["query"],
+            },
+        },
     },
     {
         "type": "function",
@@ -634,12 +711,18 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string", "description": "Contact name, alias, or key"},
-                    "platform": {"type": "string", "description": "Optional: specific platform to resolve recipient ID for"}
+                    "name": {
+                        "type": "string",
+                        "description": "Contact name, alias, or key",
+                    },
+                    "platform": {
+                        "type": "string",
+                        "description": "Optional: specific platform to resolve recipient ID for",
+                    },
                 },
-                "required": ["name"]
-            }
-        }
+                "required": ["name"],
+            },
+        },
     },
     # Clawdbot Browser Tools
     {
@@ -650,11 +733,14 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "url": {"type": "string", "description": "URL to open (e.g., 'https://google.com', 'github.com')"}
+                    "url": {
+                        "type": "string",
+                        "description": "URL to open (e.g., 'https://google.com', 'github.com')",
+                    }
                 },
-                "required": ["url"]
-            }
-        }
+                "required": ["url"],
+            },
+        },
     },
     {
         "type": "function",
@@ -664,22 +750,22 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Search query (e.g., 'weather Berlin', 'Python documentation')"}
+                    "query": {
+                        "type": "string",
+                        "description": "Search query (e.g., 'weather Berlin', 'Python documentation')",
+                    }
                 },
-                "required": ["query"]
-            }
-        }
+                "required": ["query"],
+            },
+        },
     },
     {
         "type": "function",
         "function": {
             "name": "browser_read_page",
             "description": "Read the content/text of the currently open browser page using OCR. Returns visible text on screen.",
-            "parameters": {
-                "type": "object",
-                "properties": {}
-            }
-        }
+            "parameters": {"type": "object", "properties": {}},
+        },
     },
     # Clawdbot Reporting Tool
     {
@@ -687,32 +773,32 @@ TOOLS = [
         "function": {
             "name": "report_findings",
             "description": "Report/send findings, results, or gathered information to a contact via messaging or as callback. "
-                           "Use this after browser searches, page reads, or any operation where you want to communicate the results. "
-                           "If no recipient is specified, the findings are sent back via the Clawdbot callback channel.",
+            "Use this after browser searches, page reads, or any operation where you want to communicate the results. "
+            "If no recipient is specified, the findings are sent back via the Clawdbot callback channel.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "findings": {
                         "type": "string",
-                        "description": "The information/results to report (text summary of what was found)"
+                        "description": "The information/results to report (text summary of what was found)",
                     },
                     "recipient": {
                         "type": "string",
-                        "description": "Optional: contact name to send findings to (e.g., 'Peter', 'boss'). If omitted, sends via callback."
+                        "description": "Optional: contact name to send findings to (e.g., 'Peter', 'boss'). If omitted, sends via callback.",
                     },
                     "platform": {
                         "type": "string",
                         "enum": ["whatsapp", "telegram", "discord", "signal", "email"],
-                        "description": "Optional: messaging platform. If omitted, uses first available for contact."
+                        "description": "Optional: messaging platform. If omitted, uses first available for contact.",
                     },
                     "title": {
                         "type": "string",
-                        "description": "Optional: short title/subject for the report (e.g., 'Wetter Berlin', 'Suchergebnis')"
-                    }
+                        "description": "Optional: short title/subject for the report (e.g., 'Wetter Berlin', 'Suchergebnis')",
+                    },
                 },
-                "required": ["findings"]
-            }
-        }
+                "required": ["findings"],
+            },
+        },
     },
     # Moire Agents - High-Level Tools
     {
@@ -723,12 +809,18 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "goal": {"type": "string", "description": "What to accomplish (e.g., 'Open Notepad, type Hello World, save as test.txt')"},
-                    "context": {"type": "object", "description": "Optional context like current window, user preferences"}
+                    "goal": {
+                        "type": "string",
+                        "description": "What to accomplish (e.g., 'Open Notepad, type Hello World, save as test.txt')",
+                    },
+                    "context": {
+                        "type": "object",
+                        "description": "Optional context like current window, user preferences",
+                    },
                 },
-                "required": ["goal"]
-            }
-        }
+                "required": ["goal"],
+            },
+        },
     },
     {
         "type": "function",
@@ -743,7 +835,17 @@ TOOLS = [
                         "items": {
                             "type": "object",
                             "properties": {
-                                "type": {"type": "string", "enum": ["hotkey", "sleep", "write", "press", "click", "find_and_click"]},
+                                "type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "hotkey",
+                                        "sleep",
+                                        "write",
+                                        "press",
+                                        "click",
+                                        "find_and_click",
+                                    ],
+                                },
                                 "description": {"type": "string"},
                                 "keys": {"type": "string"},
                                 "text": {"type": "string"},
@@ -751,16 +853,16 @@ TOOLS = [
                                 "x": {"type": "integer"},
                                 "y": {"type": "integer"},
                                 "target": {"type": "string"},
-                                "duration": {"type": "number"}
+                                "duration": {"type": "number"},
                             },
-                            "required": ["type", "description"]
+                            "required": ["type", "description"],
                         },
-                        "description": "List of action steps to execute"
+                        "description": "List of action steps to execute",
                     }
                 },
-                "required": ["plan"]
-            }
-        }
+                "required": ["plan"],
+            },
+        },
     },
     {
         "type": "function",
@@ -770,28 +872,45 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "prompt": {"type": "string", "description": "What to analyze (e.g., 'What apps are open?', 'Is there an error dialog?', 'Find the save button')"},
+                    "prompt": {
+                        "type": "string",
+                        "description": "What to analyze (e.g., 'What apps are open?', 'Is there an error dialog?', 'Find the save button')",
+                    },
                     "mode": {
                         "type": "string",
-                        "enum": ["element_detection", "state_analysis", "task_planning", "custom"],
-                        "description": "Analysis mode. element_detection=find UI elements, state_analysis=understand current state, task_planning=suggest actions, custom=answer your prompt. Default: custom"
+                        "enum": [
+                            "element_detection",
+                            "state_analysis",
+                            "task_planning",
+                            "custom",
+                        ],
+                        "description": "Analysis mode. element_detection=find UI elements, state_analysis=understand current state, task_planning=suggest actions, custom=answer your prompt. Default: custom",
                     },
-                    "monitor_id": {"type": "integer", "description": "Monitor to analyze (0=primary, 1=secondary). Default: 0"},
+                    "monitor_id": {
+                        "type": "integer",
+                        "description": "Monitor to analyze (0=primary, 1=secondary). Default: 0",
+                    },
                     "viewport": {
                         "type": "object",
                         "description": "Restrict analysis to a screen region for precise element finding. Coordinates are absolute screen pixels. Returned element positions are already in absolute coordinates.",
                         "properties": {
                             "x": {"type": "integer", "description": "Left edge X"},
                             "y": {"type": "integer", "description": "Top edge Y"},
-                            "width": {"type": "integer", "description": "Viewport width"},
-                            "height": {"type": "integer", "description": "Viewport height"}
+                            "width": {
+                                "type": "integer",
+                                "description": "Viewport width",
+                            },
+                            "height": {
+                                "type": "integer",
+                                "description": "Viewport height",
+                            },
                         },
-                        "required": ["x", "y", "width", "height"]
-                    }
+                        "required": ["x", "y", "width", "height"],
+                    },
                 },
-                "required": ["prompt"]
-            }
-        }
+                "required": ["prompt"],
+            },
+        },
     },
     {
         "type": "function",
@@ -801,13 +920,22 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "goal": {"type": "string", "description": "Complete task description (e.g., 'Open Chrome, go to github.com, search for python repos')"},
-                    "max_rounds": {"type": "integer", "description": "Max reflection rounds (default: 3). Each round = plan + execute + verify."},
-                    "actions_per_round": {"type": "integer", "description": "Max actions per round (default: 3)"}
+                    "goal": {
+                        "type": "string",
+                        "description": "Complete task description (e.g., 'Open Chrome, go to github.com, search for python repos')",
+                    },
+                    "max_rounds": {
+                        "type": "integer",
+                        "description": "Max reflection rounds (default: 3). Each round = plan + execute + verify.",
+                    },
+                    "actions_per_round": {
+                        "type": "integer",
+                        "description": "Max actions per round (default: 3)",
+                    },
                 },
-                "required": ["goal"]
-            }
-        }
+                "required": ["goal"],
+            },
+        },
     },
     # UI Memory Tools - Cache + ASCII Layout (reduce vision/OCR calls)
     {
@@ -815,52 +943,49 @@ TOOLS = [
         "function": {
             "name": "recall_element",
             "description": "Look up a UI element position from memory cache. FAST - no OCR needed! "
-                           "Elements like 'Save button' in Word are always at the same pixel coordinates on the same PC. "
-                           "Returns cached {x, y} if known, or falls back to screen_find if not cached yet. "
-                           "ALWAYS try this BEFORE screen_find for known UI elements (buttons, menus, icons).",
+            "Elements like 'Save button' in Word are always at the same pixel coordinates on the same PC. "
+            "Returns cached {x, y} if known, or falls back to screen_find if not cached yet. "
+            "ALWAYS try this BEFORE screen_find for known UI elements (buttons, menus, icons).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "element": {
                         "type": "string",
-                        "description": "Element to find (e.g., 'Save button', 'File menu', 'Close button', 'OK button')"
+                        "description": "Element to find (e.g., 'Save button', 'File menu', 'Close button', 'OK button')",
                     }
                 },
-                "required": ["element"]
-            }
-        }
+                "required": ["element"],
+            },
+        },
     },
     {
         "type": "function",
         "function": {
             "name": "screen_layout",
             "description": "Get a compact ASCII map of the current screen layout. "
-                           "Much cheaper and faster than screen_read or vision_analyze! "
-                           "Returns an 100x30 character grid showing where UI elements and text are positioned. "
-                           "Each character represents ~19x36 pixels. Use this for quick orientation before clicking. "
-                           "Also caches all found element positions automatically.",
+            "Much cheaper and faster than screen_read or vision_analyze! "
+            "Returns an 100x30 character grid showing where UI elements and text are positioned. "
+            "Each character represents ~19x36 pixels. Use this for quick orientation before clicking. "
+            "Also caches all found element positions automatically.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "monitor_id": {
                         "type": "integer",
-                        "description": "Monitor index (0=primary). Default: 0"
+                        "description": "Monitor index (0=primary). Default: 0",
                     }
-                }
-            }
-        }
+                },
+            },
+        },
     },
     {
         "type": "function",
         "function": {
             "name": "memory_stats",
             "description": "Show UI element cache statistics - how many elements are cached, which apps, total cache hits. "
-                           "Useful to understand what the agent remembers about this PC's UI layout.",
-            "parameters": {
-                "type": "object",
-                "properties": {}
-            }
-        }
+            "Useful to understand what the agent remembers about this PC's UI layout.",
+            "parameters": {"type": "object", "properties": {}},
+        },
     },
     # Session Task List Tool
     {
@@ -868,9 +993,9 @@ TOOLS = [
         "function": {
             "name": "update_tasks",
             "description": "Create or update the task list for the current session. "
-                           "Use this to show the user what you're doing step by step. "
-                           "Call at the START of a multi-step task to create the list, "
-                           "then call again as each task completes. The user sees live progress.",
+            "Use this to show the user what you're doing step by step. "
+            "Call at the START of a multi-step task to create the list, "
+            "then call again as each task completes. The user sees live progress.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -879,23 +1004,34 @@ TOOLS = [
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "integer", "description": "Task number (1, 2, 3...)"},
-                                "title": {"type": "string", "description": "Short task description"},
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Task number (1, 2, 3...)",
+                                },
+                                "title": {
+                                    "type": "string",
+                                    "description": "Short task description",
+                                },
                                 "status": {
                                     "type": "string",
-                                    "enum": ["pending", "in_progress", "done", "failed"],
-                                    "description": "Current status"
-                                }
+                                    "enum": [
+                                        "pending",
+                                        "in_progress",
+                                        "done",
+                                        "failed",
+                                    ],
+                                    "description": "Current status",
+                                },
                             },
-                            "required": ["id", "title", "status"]
+                            "required": ["id", "title", "status"],
                         },
-                        "description": "Full task list with current statuses"
+                        "description": "Full task list with current statuses",
                     }
                 },
-                "required": ["tasks"]
-            }
-        }
-    }
+                "required": ["tasks"],
+            },
+        },
+    },
 ]
 
 
@@ -919,16 +1055,16 @@ async def _execute_browser_open(url: str) -> Dict[str, Any]:
                 json={
                     "command": f"open {url}",
                     "user_id": "llm_agent",
-                    "platform": "browser"
+                    "platform": "browser",
                 },
-                timeout=aiohttp.ClientTimeout(total=15)
+                timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
                 result = await resp.json()
 
         return {
             "success": result.get("success", False),
             "message": result.get("message", ""),
-            "url": url
+            "url": url,
         }
     except Exception as e:
         logger.error(f"Browser open error: {e}")
@@ -946,9 +1082,9 @@ async def _execute_browser_search(query: str) -> Dict[str, Any]:
                 json={
                     "command": f"open {search_url}",
                     "user_id": "llm_agent",
-                    "platform": "browser"
+                    "platform": "browser",
                 },
-                timeout=aiohttp.ClientTimeout(total=15)
+                timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
                 result = await resp.json()
 
@@ -956,7 +1092,7 @@ async def _execute_browser_search(query: str) -> Dict[str, Any]:
             "success": result.get("success", False),
             "message": result.get("message", ""),
             "query": query,
-            "url": search_url
+            "url": search_url,
         }
     except Exception as e:
         logger.error(f"Browser search error: {e}")
@@ -972,7 +1108,7 @@ async def _execute_browser_read_page() -> Dict[str, Any]:
             "success": result.get("success", False),
             "text": result.get("text", ""),
             "text_length": result.get("text_length", 0),
-            "source": "screen_ocr"
+            "source": "screen_ocr",
         }
     except Exception as e:
         logger.error(f"Browser read page error: {e}")
@@ -980,9 +1116,7 @@ async def _execute_browser_read_page() -> Dict[str, Any]:
 
 
 async def _execute_clawdbot_send(
-    recipient: str,
-    message: str,
-    platform: Optional[str] = None
+    recipient: str, message: str, platform: Optional[str] = None
 ) -> Dict[str, Any]:
     """Send a message via Clawdbot. Calls the existing REST API."""
     try:
@@ -995,12 +1129,12 @@ async def _execute_clawdbot_send(
             async with session.post(
                 f"{CLAWDBOT_API_BASE}/contacts/{recipient}/resolve",
                 params=params,
-                timeout=aiohttp.ClientTimeout(total=10)
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status == 404:
                     return {
                         "success": False,
-                        "error": f"Contact '{recipient}' not found. Use search_contacts to find contacts."
+                        "error": f"Contact '{recipient}' not found. Use search_contacts to find contacts.",
                     }
                 resolve_data = await resp.json()
 
@@ -1009,7 +1143,7 @@ async def _execute_clawdbot_send(
                 return {
                     "success": False,
                     "error": f"Contact '{recipient}' not found.",
-                    "suggestions": suggestions
+                    "suggestions": suggestions,
                 }
 
             contact = resolve_data["contact"]
@@ -1023,19 +1157,29 @@ async def _execute_clawdbot_send(
                 recipient_id = contact.get(platform.lower())
 
             if not recipient_id:
-                for p in ["whatsapp", "telegram", "discord", "signal", "imessage", "email"]:
+                for p in [
+                    "whatsapp",
+                    "telegram",
+                    "discord",
+                    "signal",
+                    "imessage",
+                    "email",
+                ]:
                     if contact.get(p):
                         target_platform = p
                         recipient_id = contact[p]
                         break
 
             if not recipient_id:
-                available = [p for p in ["whatsapp", "telegram", "discord", "email", "signal"]
-                           if contact.get(p)]
+                available = [
+                    p
+                    for p in ["whatsapp", "telegram", "discord", "email", "signal"]
+                    if contact.get(p)
+                ]
                 return {
                     "success": False,
                     "error": f"Contact '{contact_name}' has no messaging platform configured.",
-                    "available_platforms": available
+                    "available_platforms": available,
                 }
 
             # Send via the command endpoint
@@ -1044,9 +1188,9 @@ async def _execute_clawdbot_send(
                 json={
                     "command": f"send to {recipient} {message}",
                     "user_id": "llm_agent",
-                    "platform": target_platform
+                    "platform": target_platform,
                 },
-                timeout=aiohttp.ClientTimeout(total=15)
+                timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
                 result = await resp.json()
 
@@ -1055,7 +1199,7 @@ async def _execute_clawdbot_send(
                 "message": result.get("message", ""),
                 "recipient": contact_name,
                 "platform": target_platform,
-                "recipient_id": recipient_id
+                "recipient_id": recipient_id,
             }
 
     except Exception as e:
@@ -1063,27 +1207,20 @@ async def _execute_clawdbot_send(
         return {"success": False, "error": str(e)}
 
 
-async def _execute_clawdbot_search(
-    query: str,
-    limit: int = 5
-) -> Dict[str, Any]:
+async def _execute_clawdbot_search(query: str, limit: int = 5) -> Dict[str, Any]:
     """Search contacts via Clawdbot API."""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"{CLAWDBOT_API_BASE}/contacts/search",
                 params={"q": query, "limit": limit},
-                timeout=aiohttp.ClientTimeout(total=10)
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status != 200:
                     return {"success": False, "error": f"API error: {resp.status}"}
                 data = await resp.json()
 
-        return {
-            "success": True,
-            "query": query,
-            "results": data.get("results", data)
-        }
+        return {"success": True, "query": query, "results": data.get("results", data)}
 
     except Exception as e:
         logger.error(f"Clawdbot search error: {e}")
@@ -1094,7 +1231,7 @@ async def _execute_report_findings(
     findings: str,
     recipient: Optional[str] = None,
     platform: Optional[str] = None,
-    title: Optional[str] = None
+    title: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Report findings via Clawdbot - either to a contact or via callback."""
     try:
@@ -1111,9 +1248,7 @@ async def _execute_report_findings(
         if recipient:
             # Send to a specific contact via send_message
             result = await _execute_clawdbot_send(
-                recipient=recipient,
-                message=report_msg,
-                platform=platform
+                recipient=recipient, message=report_msg, platform=platform
             )
             result["report_type"] = "contact_message"
             return result
@@ -1128,8 +1263,8 @@ async def _execute_report_findings(
                     "data": {
                         "type": "findings_report",
                         "title": title,
-                        "findings_length": len(findings)
-                    }
+                        "findings_length": len(findings),
+                    },
                 }
 
                 # Try Clawdbot Gateway callback
@@ -1137,14 +1272,14 @@ async def _execute_report_findings(
                     async with session.post(
                         "http://localhost:18789/plugins/automation-ui/results",
                         json=callback_payload,
-                        timeout=aiohttp.ClientTimeout(total=10)
+                        timeout=aiohttp.ClientTimeout(total=10),
                     ) as resp:
                         if resp.status == 200:
                             return {
                                 "success": True,
                                 "message": "Ergebnisse über Clawdbot-Callback gesendet",
                                 "report_type": "callback",
-                                "findings_length": len(findings)
+                                "findings_length": len(findings),
                             }
                 except Exception:
                     pass  # Callback endpoint not available
@@ -1157,16 +1292,16 @@ async def _execute_report_findings(
                             "user_id": "llm_agent",
                             "platform": platform or "api",
                             "message": report_msg,
-                            "notification_type": "info"
+                            "notification_type": "info",
                         },
-                        timeout=aiohttp.ClientTimeout(total=10)
+                        timeout=aiohttp.ClientTimeout(total=10),
                     ) as resp:
                         if resp.status == 200:
                             return {
                                 "success": True,
                                 "message": "Ergebnisse als Notification gesendet",
                                 "report_type": "notification",
-                                "findings_length": len(findings)
+                                "findings_length": len(findings),
                             }
                 except Exception:
                     pass
@@ -1177,7 +1312,7 @@ async def _execute_report_findings(
                     "message": "Ergebnisse erfasst (kein Callback-Endpoint verfügbar)",
                     "report_type": "local",
                     "findings_preview": findings[:500],
-                    "findings_length": len(findings)
+                    "findings_length": len(findings),
                 }
 
     except Exception as e:
@@ -1186,8 +1321,7 @@ async def _execute_report_findings(
 
 
 async def _execute_clawdbot_contact_info(
-    name: str,
-    platform: Optional[str] = None
+    name: str, platform: Optional[str] = None
 ) -> Dict[str, Any]:
     """Get contact info via Clawdbot API."""
     try:
@@ -1199,7 +1333,7 @@ async def _execute_clawdbot_contact_info(
             async with session.post(
                 f"{CLAWDBOT_API_BASE}/contacts/{name}/resolve",
                 params=params,
-                timeout=aiohttp.ClientTimeout(total=10)
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status == 404:
                     return {"success": False, "error": f"Contact '{name}' not found"}
@@ -1211,13 +1345,13 @@ async def _execute_clawdbot_contact_info(
                 "contact": data["contact"],
                 "query": name,
                 "platform": data.get("platform"),
-                "recipient_id": data.get("recipient_id")
+                "recipient_id": data.get("recipient_id"),
             }
         else:
             return {
                 "success": False,
                 "error": f"Contact '{name}' not found",
-                "suggestions": data.get("suggestions", [])
+                "suggestions": data.get("suggestions", []),
             }
 
     except Exception as e:
@@ -1229,7 +1363,10 @@ async def _execute_clawdbot_contact_info(
 # Moire Agent Tool Execution (High-Level)
 # ============================================
 
-async def _execute_plan_task(goal: str, context: Optional[Dict] = None) -> Dict[str, Any]:
+
+async def _execute_plan_task(
+    goal: str, context: Optional[Dict] = None
+) -> Dict[str, Any]:
     """Create a plan via Moire PlanningTeam (Planner+Critic debate)."""
     try:
         result = await _handoff_mod.handle_plan(goal=goal, context=context)
@@ -1250,14 +1387,16 @@ async def _execute_execute_plan(plan: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 async def _execute_vision_analyze(
-    prompt: str, mode: str = "custom", monitor_id: int = 0,
-    viewport: dict = None
+    prompt: str, mode: str = "custom", monitor_id: int = 0, viewport: dict = None
 ) -> Dict[str, Any]:
     """Analyze screen with Gemini Vision AI."""
     try:
         result = await _handoff_mod.handle_vision_analyze(
-            prompt=prompt, mode=mode, json_output=True,
-            monitor_id=monitor_id, viewport=viewport
+            prompt=prompt,
+            mode=mode,
+            json_output=True,
+            monitor_id=monitor_id,
+            viewport=viewport,
         )
         return result
     except Exception as e:
@@ -1273,13 +1412,13 @@ async def _execute_full_task(
         orch_mod = importlib.import_module("agents.orchestrator_v2")
         orchestrator = orch_mod.get_orchestrator_v2()
 
-        if not getattr(orchestrator, '_started', False):
+        if not getattr(orchestrator, "_started", False):
             await orchestrator.start()
 
         result = await orchestrator.execute_task_with_reflection(
             goal=goal,
             max_reflection_rounds=max_rounds,
-            actions_per_round=actions_per_round
+            actions_per_round=actions_per_round,
         )
         return result
     except Exception as e:
@@ -1291,7 +1430,10 @@ async def _execute_full_task(
 # Streaming Action Type - Real-time typing visibility
 # ============================================
 
-async def _stream_action_type(text: str, chunk_size: int = 5) -> AsyncGenerator[Dict[str, Any], None]:
+
+async def _stream_action_type(
+    text: str, chunk_size: int = 5
+) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Type text in chunks, yielding SSE-ready events for each chunk.
     The user sees text appearing in real-time in the UI.
@@ -1318,7 +1460,7 @@ async def _stream_action_type(text: str, chunk_size: int = 5) -> AsyncGenerator[
         words = line.split(" ")
         # Group words into chunks
         for i in range(0, len(words), chunk_size):
-            chunk_words = words[i:i + chunk_size]
+            chunk_words = words[i : i + chunk_size]
             chunk_text = " ".join(chunk_words)
             # Add newline after each line except the last
             if i + chunk_size >= len(words) and line_idx < len(lines) - 1:
@@ -1329,24 +1471,29 @@ async def _stream_action_type(text: str, chunk_size: int = 5) -> AsyncGenerator[
     if len(chunks) <= 1:
         try:
             pyperclip.copy(text)
-            pyautogui.hotkey('ctrl', 'v')
+            pyautogui.hotkey("ctrl", "v")
             yield {
                 "type": "typing_stream",
                 "chunk": text,
                 "typed_so_far": text,
                 "progress": 1.0,
                 "chunk_index": 0,
-                "total_chunks": 1
+                "total_chunks": 1,
             }
             yield {
                 "type": "typing_done",
                 "text": text,
                 "total_chars": len(text),
                 "chunks_typed": 1,
-                "success": True
+                "success": True,
             }
         except Exception as e:
-            yield {"type": "typing_done", "text": text, "success": False, "error": str(e)}
+            yield {
+                "type": "typing_done",
+                "text": text,
+                "success": False,
+                "error": str(e),
+            }
         return
 
     # Type chunk by chunk
@@ -1354,7 +1501,7 @@ async def _stream_action_type(text: str, chunk_size: int = 5) -> AsyncGenerator[
     for idx, chunk in enumerate(chunks):
         try:
             pyperclip.copy(chunk)
-            pyautogui.hotkey('ctrl', 'v')
+            pyautogui.hotkey("ctrl", "v")
             typed_so_far += chunk
             progress = (idx + 1) / len(chunks)
 
@@ -1364,7 +1511,7 @@ async def _stream_action_type(text: str, chunk_size: int = 5) -> AsyncGenerator[
                 "typed_so_far": typed_so_far,
                 "progress": round(progress, 2),
                 "chunk_index": idx,
-                "total_chunks": len(chunks)
+                "total_chunks": len(chunks),
             }
 
             # Small delay between chunks so UI can update and desktop can process
@@ -1378,7 +1525,7 @@ async def _stream_action_type(text: str, chunk_size: int = 5) -> AsyncGenerator[
                 "typed_so_far": typed_so_far,
                 "success": False,
                 "error": str(e),
-                "chunks_typed": idx
+                "chunks_typed": idx,
             }
             return
 
@@ -1387,7 +1534,7 @@ async def _stream_action_type(text: str, chunk_size: int = 5) -> AsyncGenerator[
         "text": text,
         "total_chars": len(text),
         "chunks_typed": len(chunks),
-        "success": True
+        "success": True,
     }
 
 
@@ -1395,15 +1542,19 @@ async def _stream_action_type(text: str, chunk_size: int = 5) -> AsyncGenerator[
 # Tool Execution
 # ============================================
 
+
 def _shell_exec_local(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Execute shell command locally using Popen. GUI apps launch without blocking."""
     import subprocess
+
     cmd = arguments.get("command", "")
     timeout = arguments.get("timeout", 30)
     try:
         proc = subprocess.Popen(
             ["powershell", "-Command", cmd],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
             creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
         )
         try:
@@ -1425,11 +1576,14 @@ def _shell_exec_local(arguments: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
-async def _execute_approved_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+async def _execute_approved_tool(
+    name: str, arguments: Dict[str, Any]
+) -> Dict[str, Any]:
     """Execute an APPROVAL tool after user approved it. Bypasses ActionRouter pre-check."""
     if name == "shell_exec":
         # In remote mode: delegate to desktop client after approval
         from app.services.action_router import action_router
+
         if action_router.is_remote:
             return await action_router._execute_remote(name, arguments)
         # Local mode: use Popen so GUI apps can launch
@@ -1438,14 +1592,14 @@ async def _execute_approved_tool(name: str, arguments: Dict[str, Any]) -> Dict[s
         return await _execute_clawdbot_send(
             recipient=arguments.get("recipient", ""),
             message=arguments.get("message", ""),
-            platform=arguments.get("platform")
+            platform=arguments.get("platform"),
         )
     elif name == "report_findings":
         return await _execute_report_findings(
             findings=arguments.get("findings", ""),
             recipient=arguments.get("recipient"),
             platform=arguments.get("platform"),
-            title=arguments.get("title")
+            title=arguments.get("title"),
         )
     return {"success": False, "error": f"Unknown approval tool: {name}"}
 
@@ -1455,8 +1609,10 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     try:
         # Remote mode: delegate DELEGATED/APPROVAL tools to desktop client
         from app.services.action_router import action_router
+
         if action_router.is_remote:
             from app.services.tool_safety import ToolRisk
+
             risk = action_router.get_risk(name)
             if risk == ToolRisk.DELEGATED:
                 result = await action_router.execute(name, arguments)
@@ -1488,8 +1644,13 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                     focus = await _handoff_mod.handle_get_focus()
                     app_ctx = focus.get("title", "") or focus.get("process", "unknown")
                     loc = result["element_location"]
-                    cache_element(app_ctx, target, loc.get("x", 0), loc.get("y", 0),
-                                  result.get("overall_confidence", 0.8))
+                    cache_element(
+                        app_ctx,
+                        target,
+                        loc.get("x", 0),
+                        loc.get("y", 0),
+                        result.get("overall_confidence", 0.8),
+                    )
                 except Exception:
                     pass
 
@@ -1511,34 +1672,37 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
 
         elif name == "action_click":
             # Fire-and-forget: execute click, no blocking change detection
-            result = await _handoff_mod.handle_action("click", {
-                "x": arguments.get("x", 0),
-                "y": arguments.get("y", 0),
-                "button": arguments.get("button", "left")
-            })
+            result = await _handoff_mod.handle_action(
+                "click",
+                {
+                    "x": arguments.get("x", 0),
+                    "y": arguments.get("y", 0),
+                    "button": arguments.get("button", "left"),
+                },
+            )
             return result
 
         elif name == "action_type":
-            return await _handoff_mod.handle_action("type", {
-                "text": arguments.get("text", "")
-            })
+            return await _handoff_mod.handle_action(
+                "type", {"text": arguments.get("text", "")}
+            )
 
         elif name == "action_press":
-            return await _handoff_mod.handle_action("press", {
-                "key": arguments.get("key", "enter")
-            })
+            return await _handoff_mod.handle_action(
+                "press", {"key": arguments.get("key", "enter")}
+            )
 
         elif name == "action_hotkey":
-            return await _handoff_mod.handle_action("hotkey", {
-                "keys": arguments.get("keys", "")
-            })
+            return await _handoff_mod.handle_action(
+                "hotkey", {"keys": arguments.get("keys", "")}
+            )
 
         elif name == "action_scroll":
             return await _handoff_mod.handle_scroll(
                 direction=arguments.get("direction", "down"),
                 amount=arguments.get("amount", 3),
                 x=arguments.get("x"),
-                y=arguments.get("y")
+                y=arguments.get("y"),
             )
 
         elif name == "get_focus":
@@ -1556,7 +1720,7 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             return await _handoff_mod.handle_mouse_move(
                 x=arguments.get("x", 0),
                 y=arguments.get("y", 0),
-                duration=arguments.get("duration", 0.5)
+                duration=arguments.get("duration", 0.5),
             )
 
         elif name == "shell_exec":
@@ -1573,31 +1737,25 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             return await _execute_clawdbot_send(
                 recipient=arguments.get("recipient", ""),
                 message=arguments.get("message", ""),
-                platform=arguments.get("platform")
+                platform=arguments.get("platform"),
             )
 
         elif name == "search_contacts":
             return await _execute_clawdbot_search(
-                query=arguments.get("query", ""),
-                limit=arguments.get("limit", 5)
+                query=arguments.get("query", ""), limit=arguments.get("limit", 5)
             )
 
         elif name == "get_contact_info":
             return await _execute_clawdbot_contact_info(
-                name=arguments.get("name", ""),
-                platform=arguments.get("platform")
+                name=arguments.get("name", ""), platform=arguments.get("platform")
             )
 
         # Clawdbot Browser Tools
         elif name == "browser_open":
-            return await _execute_browser_open(
-                url=arguments.get("url", "")
-            )
+            return await _execute_browser_open(url=arguments.get("url", ""))
 
         elif name == "browser_search":
-            return await _execute_browser_search(
-                query=arguments.get("query", "")
-            )
+            return await _execute_browser_search(query=arguments.get("query", ""))
 
         elif name == "browser_read_page":
             return await _execute_browser_read_page()
@@ -1607,20 +1765,17 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 findings=arguments.get("findings", ""),
                 recipient=arguments.get("recipient"),
                 platform=arguments.get("platform"),
-                title=arguments.get("title")
+                title=arguments.get("title"),
             )
 
         # Moire Agent Tools (Stufe 2)
         elif name == "plan_task":
             return await _execute_plan_task(
-                goal=arguments.get("goal", ""),
-                context=arguments.get("context")
+                goal=arguments.get("goal", ""), context=arguments.get("context")
             )
 
         elif name == "execute_plan":
-            return await _execute_execute_plan(
-                plan=arguments.get("plan", [])
-            )
+            return await _execute_execute_plan(plan=arguments.get("plan", []))
 
         elif name == "vision_analyze":
             prompt = arguments.get("prompt", "")
@@ -1632,10 +1787,14 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 if element_name:
                     try:
                         focus_result = await _handoff_mod.handle_get_focus()
-                        app_context = focus_result.get("title", "") or focus_result.get("process", "unknown")
+                        app_context = focus_result.get("title", "") or focus_result.get(
+                            "process", "unknown"
+                        )
                         cached = lookup_element(app_context, element_name)
                         if cached:
-                            logger.info(f"[Vision→Recall] Cache HIT for '{element_name}' - skipping Gemini Vision!")
+                            logger.info(
+                                f"[Vision→Recall] Cache HIT for '{element_name}' - skipping Gemini Vision!"
+                            )
                             return {
                                 "success": True,
                                 "source": "memory_cache_shortcut",
@@ -1646,8 +1805,8 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                                 "confidence": cached["confidence"],
                                 "hits": cached["hits"],
                                 "message": f"Element '{element_name}' aus Gedaechtnis gefunden: ({cached['x']},{cached['y']}) - "
-                                           f"Vision-Analyse uebersprungen (Cache-Hit #{cached['hits']})",
-                                "saved_cost": "Gemini Vision API call avoided"
+                                f"Vision-Analyse uebersprungen (Cache-Hit #{cached['hits']})",
+                                "saved_cost": "Gemini Vision API call avoided",
                             }
                     except Exception:
                         pass  # Fall through to normal vision
@@ -1657,20 +1816,28 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 prompt=prompt,
                 mode=mode,
                 monitor_id=arguments.get("monitor_id", 0),
-                viewport=arguments.get("viewport")
+                viewport=arguments.get("viewport"),
             )
 
             # Evolutionary learning: cache any elements detected by vision
             if result.get("success") and result.get("elements"):
                 try:
                     focus_result = await _handoff_mod.handle_get_focus()
-                    app_context = focus_result.get("title", "") or focus_result.get("process", "unknown")
+                    app_context = focus_result.get("title", "") or focus_result.get(
+                        "process", "unknown"
+                    )
                     for elem in result.get("elements", []):
-                        elem_text = elem.get("text") or elem.get("label") or elem.get("name", "")
+                        elem_text = (
+                            elem.get("text")
+                            or elem.get("label")
+                            or elem.get("name", "")
+                        )
                         elem_x = elem.get("x") or elem.get("center_x", 0)
                         elem_y = elem.get("y") or elem.get("center_y", 0)
                         if elem_text and elem_x and elem_y:
-                            cache_element(app_context, elem_text, int(elem_x), int(elem_y), 0.85)
+                            cache_element(
+                                app_context, elem_text, int(elem_x), int(elem_y), 0.85
+                            )
                 except Exception:
                     pass
 
@@ -1680,7 +1847,7 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             return await _execute_full_task(
                 goal=arguments.get("goal", ""),
                 max_rounds=arguments.get("max_rounds", 3),
-                actions_per_round=arguments.get("actions_per_round", 3)
+                actions_per_round=arguments.get("actions_per_round", 3),
             )
 
         # UI Memory Tools
@@ -1690,14 +1857,18 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             # Get current app context from focused window
             try:
                 focus_result = await _handoff_mod.handle_get_focus()
-                app_context = focus_result.get("title", "") or focus_result.get("process", "unknown")
+                app_context = focus_result.get("title", "") or focus_result.get(
+                    "process", "unknown"
+                )
             except Exception:
                 app_context = "unknown"
 
             # Try cache lookup first (instant, no OCR)
             cached = lookup_element(app_context, element_desc)
             if cached:
-                logger.info(f"[UIMemory] Cache HIT: '{element_desc}' in '{app_context}' -> ({cached['x']},{cached['y']}) hits={cached['hits']} trusted={cached.get('trusted')}")
+                logger.info(
+                    f"[UIMemory] Cache HIT: '{element_desc}' in '{app_context}' -> ({cached['x']},{cached['y']}) hits={cached['hits']} trusted={cached.get('trusted')}"
+                )
                 # Track for click-confirmation (if click follows)
                 if conv_id:
                     _last_recall[conv_id] = {
@@ -1717,11 +1888,13 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                     "source": "memory_cache",
                     "hits": cached["hits"],
                     "trusted": cached.get("trusted", False),
-                    "message": f"Element '{element_desc}' aus Gedaechtnis: ({cached['x']},{cached['y']}) - {cached['hits']}x bestaetigt"
+                    "message": f"Element '{element_desc}' aus Gedaechtnis: ({cached['x']},{cached['y']}) - {cached['hits']}x bestaetigt",
                 }
 
             # Cache miss - fall back to screen_find (OCR)
-            logger.info(f"[UIMemory] Cache MISS: '{element_desc}' in '{app_context}' - falling back to screen_find")
+            logger.info(
+                f"[UIMemory] Cache MISS: '{element_desc}' in '{app_context}' - falling back to screen_find"
+            )
             result = await _handoff_mod.handle_validate(target=element_desc)
 
             # Cache successful result for next time
@@ -1735,7 +1908,8 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                     _last_recall[conv_id] = {
                         "element": element_desc,
                         "app": app_context,
-                        "x": x, "y": y,
+                        "x": x,
+                        "y": y,
                         "trusted": False,
                         "user_confirmed": 0,
                     }
@@ -1746,14 +1920,14 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                     "y": y,
                     "confidence": conf,
                     "source": "ocr_then_cached",
-                    "message": f"Element '{element_desc}' gefunden und im Gedaechtnis gespeichert: ({x},{y})"
+                    "message": f"Element '{element_desc}' gefunden und im Gedaechtnis gespeichert: ({x},{y})",
                 }
             else:
                 return {
                     "success": False,
                     "found": False,
                     "source": "ocr_miss",
-                    "message": f"Element '{element_desc}' nicht gefunden - weder im Cache noch per OCR"
+                    "message": f"Element '{element_desc}' nicht gefunden - weder im Cache noch per OCR",
                 }
 
         elif name == "screen_layout":
@@ -1776,31 +1950,69 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 # Try to get structured elements from MoireServer
                 elements = []
                 try:
-                    from moire_agents.bridge.websocket_client import MoireWebSocketClient
+                    from moire_agents.bridge.websocket_client import \
+                        MoireWebSocketClient
+
                     client = MoireWebSocketClient()
                     await client.connect()
                     capture = await client.capture_and_wait_for_complete(timeout=15)
                     if capture.success and capture.ui_context:
                         for elem in capture.ui_context.elements:
-                            elements.append({
-                                "text": elem.text or "",
-                                "x": elem.bounds.get("x", 0) if isinstance(elem.bounds, dict) else getattr(elem.bounds, "x", 0),
-                                "y": elem.bounds.get("y", 0) if isinstance(elem.bounds, dict) else getattr(elem.bounds, "y", 0),
-                                "width": elem.bounds.get("width", 0) if isinstance(elem.bounds, dict) else getattr(elem.bounds, "width", 0),
-                                "height": elem.bounds.get("height", 0) if isinstance(elem.bounds, dict) else getattr(elem.bounds, "height", 0),
-                            })
+                            elements.append(
+                                {
+                                    "text": elem.text or "",
+                                    "x": (
+                                        elem.bounds.get("x", 0)
+                                        if isinstance(elem.bounds, dict)
+                                        else getattr(elem.bounds, "x", 0)
+                                    ),
+                                    "y": (
+                                        elem.bounds.get("y", 0)
+                                        if isinstance(elem.bounds, dict)
+                                        else getattr(elem.bounds, "y", 0)
+                                    ),
+                                    "width": (
+                                        elem.bounds.get("width", 0)
+                                        if isinstance(elem.bounds, dict)
+                                        else getattr(elem.bounds, "width", 0)
+                                    ),
+                                    "height": (
+                                        elem.bounds.get("height", 0)
+                                        if isinstance(elem.bounds, dict)
+                                        else getattr(elem.bounds, "height", 0)
+                                    ),
+                                }
+                            )
                         # Auto-cache all elements with text
                         for elem in capture.ui_context.elements:
                             if elem.text and elem.text.strip():
-                                center = elem.center if hasattr(elem, 'center') else None
+                                center = (
+                                    elem.center if hasattr(elem, "center") else None
+                                )
                                 if center:
-                                    cx = center.get("x", 0) if isinstance(center, dict) else getattr(center, "x", 0)
-                                    cy = center.get("y", 0) if isinstance(center, dict) else getattr(center, "y", 0)
-                                    conf = elem.confidence if hasattr(elem, 'confidence') else 0.8
-                                    cache_element(window_title, elem.text.strip(), cx, cy, conf)
+                                    cx = (
+                                        center.get("x", 0)
+                                        if isinstance(center, dict)
+                                        else getattr(center, "x", 0)
+                                    )
+                                    cy = (
+                                        center.get("y", 0)
+                                        if isinstance(center, dict)
+                                        else getattr(center, "y", 0)
+                                    )
+                                    conf = (
+                                        elem.confidence
+                                        if hasattr(elem, "confidence")
+                                        else 0.8
+                                    )
+                                    cache_element(
+                                        window_title, elem.text.strip(), cx, cy, conf
+                                    )
                     await client.disconnect()
                 except Exception as e:
-                    logger.debug(f"[screen_layout] MoireServer unavailable, using OCR text: {e}")
+                    logger.debug(
+                        f"[screen_layout] MoireServer unavailable, using OCR text: {e}"
+                    )
 
                 # Fall back to OCR text if no structured elements
                 if not elements and ocr_text:
@@ -1815,7 +2027,7 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                     "layout": ascii_map,
                     "elements_count": len(elements),
                     "screen_size": f"{sw}x{sh}",
-                    "window": window_title
+                    "window": window_title,
                 }
             except Exception as e:
                 logger.error(f"screen_layout error: {e}")
@@ -1827,9 +2039,9 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 "success": True,
                 **stats,
                 "message": f"UI-Gedaechtnis: {stats['total_elements']} Elemente gecached, "
-                           f"{stats['total_hits']} Cache-Hits, "
-                           f"Resolution: {stats['resolution']}, "
-                           f"Apps: {', '.join(stats['apps'][:10]) if stats['apps'] else 'keine'}"
+                f"{stats['total_hits']} Cache-Hits, "
+                f"Resolution: {stats['resolution']}, "
+                f"Apps: {', '.join(stats['apps'][:10]) if stats['apps'] else 'keine'}",
             }
 
         elif name == "update_tasks":
@@ -1849,8 +2061,8 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 "tasks": tasks,
                 "counts": counts,
                 "message": f"Task-Liste aktualisiert: {len(tasks)} Tasks "
-                           f"({counts.get('done', 0)} erledigt, {counts.get('in_progress', 0)} aktiv, "
-                           f"{counts.get('pending', 0)} offen)"
+                f"({counts.get('done', 0)} erledigt, {counts.get('in_progress', 0)} aktiv, "
+                f"{counts.get('pending', 0)} offen)",
             }
 
         else:
@@ -1865,11 +2077,12 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
 # OpenRouter API Client
 # ============================================
 
+
 async def call_openrouter(
     messages: List[Dict[str, Any]],
     tools: List[Dict[str, Any]],
     model: str = None,
-    max_tokens: int = 4096
+    max_tokens: int = 4096,
 ) -> Dict[str, Any]:
     """Call OpenRouter API with tool support."""
     model = model or _get_llm_model()
@@ -1880,7 +2093,7 @@ async def call_openrouter(
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
         "HTTP-Referer": "https://automation-ui.local",
-        "X-Title": "Automation UI Intent Processor"
+        "X-Title": "Automation UI Intent Processor",
     }
 
     payload = {
@@ -1888,7 +2101,7 @@ async def call_openrouter(
         "messages": messages,
         "tools": tools,
         "max_tokens": max_tokens,
-        "temperature": 0.2
+        "temperature": 0.2,
     }
 
     async with aiohttp.ClientSession() as session:
@@ -1896,12 +2109,14 @@ async def call_openrouter(
             f"{OPENROUTER_BASE_URL}/chat/completions",
             headers=headers,
             json=payload,
-            timeout=aiohttp.ClientTimeout(total=500)
+            timeout=aiohttp.ClientTimeout(total=500),
         ) as response:
             if response.status != 200:
                 error_text = await response.text()
                 logger.error(f"OpenRouter error {response.status}: {error_text}")
-                raise Exception(f"OpenRouter API error {response.status}: {error_text[:200]}")
+                raise Exception(
+                    f"OpenRouter API error {response.status}: {error_text[:200]}"
+                )
 
             return await response.json()
 
@@ -1909,6 +2124,7 @@ async def call_openrouter(
 # ============================================
 # Intervention Check (called inside agentic loop)
 # ============================================
+
 
 async def _check_interventions(
     conversation_id: str,
@@ -1929,7 +2145,9 @@ async def _check_interventions(
 
     # Handle pause: wait until resumed
     if not _execution_state[conversation_id].is_set():
-        yield _sse({"type": "paused", "message": "Ausfuehrung pausiert - warte auf Resume..."})
+        yield _sse(
+            {"type": "paused", "message": "Ausfuehrung pausiert - warte auf Resume..."}
+        )
         await _execution_state[conversation_id].wait()
         yield _sse({"type": "resumed", "message": "Fortgesetzt"})
 
@@ -1946,7 +2164,9 @@ async def _check_interventions(
         elif action == "feedback":
             feedback_text = data.get("message", "")
             if feedback_text:
-                messages.append({"role": "user", "content": f"[USER INTERVENTION]: {feedback_text}"})
+                messages.append(
+                    {"role": "user", "content": f"[USER INTERVENTION]: {feedback_text}"}
+                )
                 yield _sse({"type": "user_feedback", "message": feedback_text})
 
         elif action == "skip_task":
@@ -1963,9 +2183,9 @@ async def _check_interventions(
 # Agentic Loop
 # ============================================
 
+
 async def run_agentic_loop(
-    text: str,
-    conversation_id: Optional[str] = None
+    text: str, conversation_id: Optional[str] = None
 ) -> IntentResponse:
     """Run the agentic loop: LLM → tool_call → execute → LLM → ... → final answer."""
     start_time = time.time()
@@ -1978,19 +2198,27 @@ async def run_agentic_loop(
         conv = load_conversation(conversation_id)
         context_parts = []
         if conv["summary"]:
-            context_parts.append(f"[ZUSAMMENFASSUNG BISHERIGES GESPRAECH:]\n{conv['summary']}")
+            context_parts.append(
+                f"[ZUSAMMENFASSUNG BISHERIGES GESPRAECH:]\n{conv['summary']}"
+            )
         if conv["recent"]:
-            recent_lines = [f"[{e['role'].upper()}]: {e['content']}" for e in conv["recent"]]
+            recent_lines = [
+                f"[{e['role'].upper()}]: {e['content']}" for e in conv["recent"]
+            ]
             context_parts.append(f"[LETZTE NACHRICHTEN:]\n" + "\n".join(recent_lines))
         if context_parts:
-            messages.append({
-                "role": "user",
-                "content": "\n\n".join(context_parts) + "\n[ENDE KONTEXT]"
-            })
-            messages.append({
-                "role": "assistant",
-                "content": "Verstanden, ich habe den Kontext aus unserem bisherigen Gespraech. Was moechtest du als naechstes?"
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "\n\n".join(context_parts) + "\n[ENDE KONTEXT]",
+                }
+            )
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": "Verstanden, ich habe den Kontext aus unserem bisherigen Gespraech. Was moechtest du als naechstes?",
+                }
+            )
 
     messages.append({"role": "user", "content": text})
 
@@ -2004,7 +2232,7 @@ async def run_agentic_loop(
                 steps=steps,
                 duration_ms=(time.time() - start_time) * 1000,
                 iterations=iteration + 1,
-                error=str(e)
+                error=str(e),
             )
 
         choice = response.get("choices", [{}])[0]
@@ -2029,7 +2257,9 @@ async def run_agentic_loop(
 
                 tc_id = tc.get("id", f"call_{uuid4().hex[:8]}")
 
-                logger.info(f"[LLM Intent] Tool: {tool_name}({json.dumps(tool_args, ensure_ascii=False)[:100]})")
+                logger.info(
+                    f"[LLM Intent] Tool: {tool_name}({json.dumps(tool_args, ensure_ascii=False)[:100]})"
+                )
 
                 # Execute the tool
                 result = await execute_tool(tool_name, tool_args)
@@ -2039,14 +2269,14 @@ async def run_agentic_loop(
                     result = {
                         "success": False,
                         "pending_approval": True,
-                        "message": f"Tool '{tool_name}' requires user approval in remote mode."
+                        "message": f"Tool '{tool_name}' requires user approval in remote mode.",
                     }
 
                 step = IntentStep(
                     tool=tool_name,
                     params=tool_args,
                     result=result,
-                    success=result.get("success", False)
+                    success=result.get("success", False),
                 )
                 steps.append(step)
 
@@ -2056,11 +2286,9 @@ async def run_agentic_loop(
                 if len(result_str) > 3000:
                     result_str = result_str[:3000] + "... [truncated]"
 
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc_id,
-                    "content": result_str
-                })
+                messages.append(
+                    {"role": "tool", "tool_call_id": tc_id, "content": result_str}
+                )
 
         else:
             # No tool calls = final answer
@@ -2072,7 +2300,9 @@ async def run_agentic_loop(
                 conv = load_conversation(conversation_id)
                 conv["recent"].append({"role": "user", "content": text})
                 summary_condensed = summary[:500] if len(summary) > 500 else summary
-                conv["recent"].append({"role": "assistant", "content": summary_condensed})
+                conv["recent"].append(
+                    {"role": "assistant", "content": summary_condensed}
+                )
                 conv["turn_count"] = conv.get("turn_count", 0) + 1
                 save_conversation(conversation_id, conv)
                 # Compact in background if needed
@@ -2084,14 +2314,16 @@ async def run_agentic_loop(
                 summary=summary,
                 steps=steps,
                 duration_ms=(time.time() - start_time) * 1000,
-                iterations=iteration + 1
+                iterations=iteration + 1,
             )
 
     # Max iterations reached
     if conversation_id:
         conv = load_conversation(conversation_id)
         conv["recent"].append({"role": "user", "content": text})
-        conv["recent"].append({"role": "assistant", "content": "Aufgabe unvollstaendig (max iterations)"})
+        conv["recent"].append(
+            {"role": "assistant", "content": "Aufgabe unvollstaendig (max iterations)"}
+        )
         conv["turn_count"] = conv.get("turn_count", 0) + 1
         save_conversation(conversation_id, conv)
 
@@ -2101,7 +2333,7 @@ async def run_agentic_loop(
         steps=steps,
         duration_ms=(time.time() - start_time) * 1000,
         iterations=MAX_ITERATIONS,
-        error="max_iterations_reached"
+        error="max_iterations_reached",
     )
 
 
@@ -2109,15 +2341,14 @@ async def run_agentic_loop(
 # SSE Streaming Agentic Loop
 # ============================================
 
+
 def _sse(data: dict) -> str:
     """Format a dict as an SSE data line."""
     return f"data: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
 
 async def run_agentic_loop_stream(
-    text: str,
-    conversation_id: Optional[str] = None,
-    video_agent_enabled: bool = False
+    text: str, conversation_id: Optional[str] = None, video_agent_enabled: bool = False
 ) -> AsyncGenerator[str, None]:
     """Run the agentic loop, yielding SSE events for each step."""
     start_time = time.time()
@@ -2131,20 +2362,29 @@ async def run_agentic_loop_stream(
         conv = load_conversation(conversation_id)
         context_parts = []
         if conv["summary"]:
-            context_parts.append(f"[ZUSAMMENFASSUNG BISHERIGES GESPRAECH:]\n{conv['summary']}")
+            context_parts.append(
+                f"[ZUSAMMENFASSUNG BISHERIGES GESPRAECH:]\n{conv['summary']}"
+            )
         if conv["recent"]:
-            recent_lines = [f"[{e['role'].upper()}]: {e['content']}" for e in conv["recent"]]
+            recent_lines = [
+                f"[{e['role'].upper()}]: {e['content']}" for e in conv["recent"]
+            ]
             context_parts.append(f"[LETZTE NACHRICHTEN:]\n" + "\n".join(recent_lines))
         if context_parts:
             turn_count = conv.get("turn_count", 0)
-            messages.append({
-                "role": "user",
-                "content": "\n\n".join(context_parts) + f"\n[ENDE KONTEXT - Turn {turn_count + 1}]"
-            })
-            messages.append({
-                "role": "assistant",
-                "content": "Verstanden, ich habe den Kontext aus unserem bisherigen Gespraech. Was moechtest du als naechstes?"
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "\n\n".join(context_parts)
+                    + f"\n[ENDE KONTEXT - Turn {turn_count + 1}]",
+                }
+            )
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": "Verstanden, ich habe den Kontext aus unserem bisherigen Gespraech. Was moechtest du als naechstes?",
+                }
+            )
 
     messages.append({"role": "user", "content": text})
 
@@ -2159,9 +2399,15 @@ async def run_agentic_loop_stream(
             response = await call_openrouter(messages, TOOLS)
         except Exception as e:
             yield _sse({"type": "error", "message": str(e), "iteration": iteration + 1})
-            yield _sse({"type": "done", "success": False, "total_steps": len(steps),
-                        "iterations": iteration + 1,
-                        "duration_ms": (time.time() - start_time) * 1000})
+            yield _sse(
+                {
+                    "type": "done",
+                    "success": False,
+                    "total_steps": len(steps),
+                    "iterations": iteration + 1,
+                    "duration_ms": (time.time() - start_time) * 1000,
+                }
+            )
             # Cleanup intervention state
             _pending_interventions.pop(conversation_id, None)
             _execution_state.pop(conversation_id, None)
@@ -2172,12 +2418,14 @@ async def run_agentic_loop_stream(
         tool_calls = message.get("tool_calls", [])
 
         # Emit thinking event
-        yield _sse({
-            "type": "thinking",
-            "iteration": iteration + 1,
-            "content": message.get("content", "") or "",
-            "has_tool_calls": bool(tool_calls)
-        })
+        yield _sse(
+            {
+                "type": "thinking",
+                "iteration": iteration + 1,
+                "content": message.get("content", "") or "",
+                "has_tool_calls": bool(tool_calls),
+            }
+        )
 
         if tool_calls:
             messages.append(message)
@@ -2204,61 +2452,87 @@ async def run_agentic_loop_stream(
                         cancelled = True
                         break
                 if cancelled:
-                    yield _sse({"type": "done", "success": False, "total_steps": len(steps),
-                                "iterations": iteration + 1,
-                                "duration_ms": (time.time() - start_time) * 1000,
-                                "conversation_id": conversation_id, "reason": "user_cancelled"})
+                    yield _sse(
+                        {
+                            "type": "done",
+                            "success": False,
+                            "total_steps": len(steps),
+                            "iterations": iteration + 1,
+                            "duration_ms": (time.time() - start_time) * 1000,
+                            "conversation_id": conversation_id,
+                            "reason": "user_cancelled",
+                        }
+                    )
                     # Cleanup intervention state
                     _pending_interventions.pop(conversation_id, None)
                     _execution_state.pop(conversation_id, None)
                     return
 
                 # Emit tool_start
-                yield _sse({
-                    "type": "tool_start",
-                    "iteration": iteration + 1,
-                    "tool": tool_name,
-                    "params": {k: v for k, v in tool_args.items() if not k.startswith("_")},
-                    "step_index": step_index
-                })
+                yield _sse(
+                    {
+                        "type": "tool_start",
+                        "iteration": iteration + 1,
+                        "tool": tool_name,
+                        "params": {
+                            k: v for k, v in tool_args.items() if not k.startswith("_")
+                        },
+                        "step_index": step_index,
+                    }
+                )
 
                 # Emit action_visual for coordinate-based tools (overlay on live stream)
-                if tool_name in ("action_click", "mouse_move", "action_scroll") and tool_args.get("x") is not None:
-                    yield _sse({
-                        "type": "action_visual",
-                        "action": tool_name,
-                        "x": tool_args.get("x"),
-                        "y": tool_args.get("y"),
-                        "tool": tool_name,
-                        "iteration": iteration + 1
-                    })
+                if (
+                    tool_name in ("action_click", "mouse_move", "action_scroll")
+                    and tool_args.get("x") is not None
+                ):
+                    yield _sse(
+                        {
+                            "type": "action_visual",
+                            "action": tool_name,
+                            "x": tool_args.get("x"),
+                            "y": tool_args.get("y"),
+                            "tool": tool_name,
+                            "iteration": iteration + 1,
+                        }
+                    )
 
                 # Execute tool (with streaming for action_type)
                 if tool_name == "action_type":
                     # ★ STREAMING: Type text chunk by chunk with live SSE events
                     typing_text = tool_args.get("text", "")
-                    typing_result = {"success": False, "action": "type", "text_length": len(typing_text)}
+                    typing_result = {
+                        "success": False,
+                        "action": "type",
+                        "text_length": len(typing_text),
+                    }
                     async for typing_event in _stream_action_type(typing_text):
                         if typing_event["type"] == "typing_stream":
-                            yield _sse({
-                                "type": "typing_stream",
-                                "chunk": typing_event["chunk"],
-                                "typed_so_far": typing_event["typed_so_far"],
-                                "progress": typing_event["progress"],
-                                "chunk_index": typing_event["chunk_index"],
-                                "total_chunks": typing_event["total_chunks"],
-                                "iteration": iteration + 1
-                            })
+                            yield _sse(
+                                {
+                                    "type": "typing_stream",
+                                    "chunk": typing_event["chunk"],
+                                    "typed_so_far": typing_event["typed_so_far"],
+                                    "progress": typing_event["progress"],
+                                    "chunk_index": typing_event["chunk_index"],
+                                    "total_chunks": typing_event["total_chunks"],
+                                    "iteration": iteration + 1,
+                                }
+                            )
                         elif typing_event["type"] == "typing_done":
                             typing_result = {
                                 "success": typing_event.get("success", True),
                                 "action": "type",
-                                "text_length": typing_event.get("total_chars", len(typing_text)),
+                                "text_length": typing_event.get(
+                                    "total_chars", len(typing_text)
+                                ),
                                 "chunks_typed": typing_event.get("chunks_typed", 1),
-                                "streamed": True
+                                "streamed": True,
                             }
                             if not typing_event.get("success", True):
-                                typing_result["error"] = typing_event.get("error", "Unknown error")
+                                typing_result["error"] = typing_event.get(
+                                    "error", "Unknown error"
+                                )
                     result = typing_result
                 elif tool_name in FIRE_AND_FORGET_TOOLS:
                     # ★ FIRE-AND-FORGET: dispatch action in background, return instant result
@@ -2289,19 +2563,29 @@ async def run_agentic_loop_stream(
 
                 # Handle approval-required tools in remote mode
                 if result.get("_approval_required"):
-                    yield _sse({
-                        "type": "approval_required",
-                        "tool": tool_name,
-                        "params": {k: v for k, v in tool_args.items() if not k.startswith("_")},
-                        "message": result.get("message", f"Tool '{tool_name}' requires approval"),
-                        "conversation_id": conversation_id,
-                        "iteration": iteration + 1
-                    })
+                    yield _sse(
+                        {
+                            "type": "approval_required",
+                            "tool": tool_name,
+                            "params": {
+                                k: v
+                                for k, v in tool_args.items()
+                                if not k.startswith("_")
+                            },
+                            "message": result.get(
+                                "message", f"Tool '{tool_name}' requires approval"
+                            ),
+                            "conversation_id": conversation_id,
+                            "iteration": iteration + 1,
+                        }
+                    )
                     # Pause and wait for user approval via intervention system
                     if conversation_id and conversation_id in _execution_state:
                         _execution_state[conversation_id].clear()  # Pause
                         yield _sse({"type": "waiting_approval", "tool": tool_name})
-                        await _execution_state[conversation_id].wait()  # Block until approve/deny
+                        await _execution_state[
+                            conversation_id
+                        ].wait()  # Block until approve/deny
 
                         # Check what the user decided
                         pending = _pending_interventions.pop(conversation_id, [])
@@ -2310,73 +2594,104 @@ async def run_agentic_loop_stream(
                             if intervention["action"] == "approve_tool":
                                 approved = True
                             elif intervention["action"] == "cancel":
-                                yield _sse({"type": "cancelled", "message": "Vom User abgebrochen"})
+                                yield _sse(
+                                    {
+                                        "type": "cancelled",
+                                        "message": "Vom User abgebrochen",
+                                    }
+                                )
                                 return
 
                         if approved:
                             yield _sse({"type": "tool_approved", "tool": tool_name})
                             # Execute the tool now (locally - APPROVAL tools run in container)
-                            result = await execute_tool.__wrapped__(tool_name, tool_args) if hasattr(execute_tool, '__wrapped__') else await _execute_approved_tool(tool_name, tool_args)
+                            result = (
+                                await execute_tool.__wrapped__(tool_name, tool_args)
+                                if hasattr(execute_tool, "__wrapped__")
+                                else await _execute_approved_tool(tool_name, tool_args)
+                            )
                         else:
                             result = {
                                 "success": False,
                                 "denied": True,
-                                "message": f"Tool '{tool_name}' was denied by user."
+                                "message": f"Tool '{tool_name}' was denied by user.",
                             }
                             yield _sse({"type": "tool_denied", "tool": tool_name})
                     else:
                         result = {
                             "success": False,
                             "pending_approval": True,
-                            "message": f"Tool '{tool_name}' requires user approval. No conversation context."
+                            "message": f"Tool '{tool_name}' requires user approval. No conversation context.",
                         }
 
                 step = IntentStep(
-                    tool=tool_name, params=tool_args,
-                    result=result, success=result.get("success", False)
+                    tool=tool_name,
+                    params=tool_args,
+                    result=result,
+                    success=result.get("success", False),
                 )
                 steps.append(step)
 
                 # Emit task_update SSE event for update_tasks
                 if tool_name == "update_tasks" and result.get("success"):
-                    yield _sse({
-                        "type": "task_update",
-                        "tasks": result.get("tasks", []),
-                        "counts": result.get("counts", {}),
-                        "iteration": iteration + 1
-                    })
+                    yield _sse(
+                        {
+                            "type": "task_update",
+                            "tasks": result.get("tasks", []),
+                            "counts": result.get("counts", {}),
+                            "iteration": iteration + 1,
+                        }
+                    )
 
                 # Emit click_warning SSE event if click had no effect
-                if tool_name == "action_click" and result.get("screen_changed") is False:
-                    yield _sse({
-                        "type": "click_warning",
-                        "message": result.get("warning", "Click hatte keine Wirkung"),
-                        "x": tool_args.get("x"),
-                        "y": tool_args.get("y"),
-                        "iteration": iteration + 1
-                    })
+                if (
+                    tool_name == "action_click"
+                    and result.get("screen_changed") is False
+                ):
+                    yield _sse(
+                        {
+                            "type": "click_warning",
+                            "message": result.get(
+                                "warning", "Click hatte keine Wirkung"
+                            ),
+                            "x": tool_args.get("x"),
+                            "y": tool_args.get("y"),
+                            "iteration": iteration + 1,
+                        }
+                    )
 
                 # ★ CLICK CONFIRMATION: Ask user if click was correct (if from recall_element and not yet trusted)
-                if tool_name == "action_click" and conversation_id and conversation_id in _last_recall:
+                if (
+                    tool_name == "action_click"
+                    and conversation_id
+                    and conversation_id in _last_recall
+                ):
                     lr = _last_recall.pop(conversation_id)
                     click_x, click_y = tool_args.get("x"), tool_args.get("y")
                     # Only ask if coords match the recalled element AND not yet trusted
                     if lr["x"] == click_x and lr["y"] == click_y and not lr["trusted"]:
-                        yield _sse({
-                            "type": "click_confirm",
-                            "element": lr["element"],
-                            "app": lr["app"],
-                            "x": click_x,
-                            "y": click_y,
-                            "user_confirmed": lr["user_confirmed"],
-                            "threshold": 3,
-                            "conversation_id": conversation_id,
-                            "iteration": iteration + 1
-                        })
+                        yield _sse(
+                            {
+                                "type": "click_confirm",
+                                "element": lr["element"],
+                                "app": lr["app"],
+                                "x": click_x,
+                                "y": click_y,
+                                "user_confirmed": lr["user_confirmed"],
+                                "threshold": 3,
+                                "conversation_id": conversation_id,
+                                "iteration": iteration + 1,
+                            }
+                        )
                         # Pause execution and wait for user response
                         if conversation_id in _execution_state:
                             _execution_state[conversation_id].clear()
-                            yield _sse({"type": "waiting_click_confirm", "element": lr["element"]})
+                            yield _sse(
+                                {
+                                    "type": "waiting_click_confirm",
+                                    "element": lr["element"],
+                                }
+                            )
                             await _execution_state[conversation_id].wait()
 
                             # Check user response
@@ -2384,48 +2699,67 @@ async def run_agentic_loop_stream(
                             for intervention in pending:
                                 if intervention["action"] == "confirm_click":
                                     trusted = confirm_element(lr["app"], lr["element"])
-                                    yield _sse({
-                                        "type": "click_confirmed",
-                                        "element": lr["element"],
-                                        "trusted": trusted,
-                                        "message": f"Bestaetigt! {'Auto-Trust aktiviert.' if trusted else ''}"
-                                    })
+                                    yield _sse(
+                                        {
+                                            "type": "click_confirmed",
+                                            "element": lr["element"],
+                                            "trusted": trusted,
+                                            "message": f"Bestaetigt! {'Auto-Trust aktiviert.' if trusted else ''}",
+                                        }
+                                    )
                                 elif intervention["action"] == "deny_click":
                                     deny_element(lr["app"], lr["element"])
-                                    yield _sse({
-                                        "type": "click_denied",
-                                        "element": lr["element"],
-                                        "message": "Position verworfen, wird beim naechsten Mal neu gesucht."
-                                    })
+                                    yield _sse(
+                                        {
+                                            "type": "click_denied",
+                                            "element": lr["element"],
+                                            "message": "Position verworfen, wird beim naechsten Mal neu gesucht.",
+                                        }
+                                    )
                                 elif intervention["action"] == "cancel":
-                                    yield _sse({"type": "cancelled", "message": "Vom User abgebrochen"})
+                                    yield _sse(
+                                        {
+                                            "type": "cancelled",
+                                            "message": "Vom User abgebrochen",
+                                        }
+                                    )
                                     _pending_interventions.pop(conversation_id, None)
                                     _execution_state.pop(conversation_id, None)
                                     return
 
                             # Focus-restore: bring target app back to foreground
                             try:
-                                focus_result = await _handoff_mod.handle_set_focus(lr["app"])
+                                focus_result = await _handoff_mod.handle_set_focus(
+                                    lr["app"]
+                                )
                                 if not focus_result.get("success"):
                                     # Fallback to Alt+Tab if window not found by title
-                                    await _handoff_mod.handle_action("hotkey", {"keys": ["alt", "tab"]})
+                                    await _handoff_mod.handle_action(
+                                        "hotkey", {"keys": ["alt", "tab"]}
+                                    )
                                 await asyncio.sleep(0.3)
                             except Exception as e:
-                                logger.warning(f"[ClickConfirm] Focus restore failed: {e}")
+                                logger.warning(
+                                    f"[ClickConfirm] Focus restore failed: {e}"
+                                )
 
                 # Full result for SSE event (no truncation - user wants complete data)
                 result_for_event = dict(result)
 
                 # Emit tool_result
-                yield _sse({
-                    "type": "tool_result",
-                    "iteration": iteration + 1,
-                    "tool": tool_name,
-                    "params": {k: v for k, v in tool_args.items() if not k.startswith("_")},
-                    "result": result_for_event,
-                    "success": result.get("success", False),
-                    "step_index": step_index
-                })
+                yield _sse(
+                    {
+                        "type": "tool_result",
+                        "iteration": iteration + 1,
+                        "tool": tool_name,
+                        "params": {
+                            k: v for k, v in tool_args.items() if not k.startswith("_")
+                        },
+                        "result": result_for_event,
+                        "success": result.get("success", False),
+                        "step_index": step_index,
+                    }
+                )
 
                 # ★ VIDEO AGENT: Analyze frame after tool execution (Guardian Mode)
                 if video_agent_enabled and tool_name not in VA_SKIP_TOOLS:
@@ -2439,44 +2773,66 @@ async def run_agentic_loop_stream(
                         if tool_name == "mouse_move":
                             tx = tool_args.get("x", 0)
                             ty = tool_args.get("y", 0)
-                            va_viewport = {"x": max(0, tx - 150), "y": max(0, ty - 150), "width": 300, "height": 300}
+                            va_viewport = {
+                                "x": max(0, tx - 150),
+                                "y": max(0, ty - 150),
+                                "width": 300,
+                                "height": 300,
+                            }
 
                         # Fire screen_find in parallel for OCR-based position hints
                         async def _find_hint():
                             try:
                                 task_text = text[:80].strip()
                                 if task_text and _handoff_mod:
-                                    hint = await _handoff_mod.handle_validate(target=task_text)
-                                    if hint.get("success") and hint.get("element_location"):
+                                    hint = await _handoff_mod.handle_validate(
+                                        target=task_text
+                                    )
+                                    if hint.get("success") and hint.get(
+                                        "element_location"
+                                    ):
                                         return hint["element_location"]
                             except Exception:
                                 pass
                             return None
 
-                        frame_task = capture_current_frame(quality=50, viewport=va_viewport)
+                        frame_task = capture_current_frame(
+                            quality=50, viewport=va_viewport
+                        )
                         find_task = _find_hint()
-                        frame_b64, ocr_hint = await asyncio.gather(frame_task, find_task)
+                        frame_b64, ocr_hint = await asyncio.gather(
+                            frame_task, find_task
+                        )
 
                         if frame_b64:
                             va_context = {
                                 "tool": tool_name,
-                                "params": {k: v for k, v in tool_args.items() if not k.startswith("_")},
+                                "params": {
+                                    k: v
+                                    for k, v in tool_args.items()
+                                    if not k.startswith("_")
+                                },
                                 "result": {"success": result.get("success", False)},
                                 "step_index": step_index,
                                 "task": text[:100],
                                 "viewport": va_viewport,
-                                "ocr_hint": ocr_hint
+                                "ocr_hint": ocr_hint,
                             }
 
                             # ★ GUARDIAN MODE: Use analyze_and_guard() for auto-correction
                             if video_agent.guardian_mode:
                                 # Wire ActionRouter as tool executor
-                                from app.services.action_router import action_router
+                                from app.services.action_router import \
+                                    action_router
+
                                 video_agent.set_tool_executor(action_router)
 
                                 # Analyze + Auto-correct if needed
                                 guard_result = await video_agent.analyze_and_guard(
-                                    frame_b64, va_context, conversation_id, max_retries=2
+                                    frame_b64,
+                                    va_context,
+                                    conversation_id,
+                                    max_retries=2,
                                 )
 
                                 va_result = guard_result["analysis"]
@@ -2484,21 +2840,27 @@ async def run_agentic_loop_stream(
                                 # Stream corrections
                                 if guard_result.get("corrections"):
                                     for correction in guard_result["corrections"]:
-                                        yield _sse({
-                                            "type": "guardian_correction",
-                                            "tool": correction.get("tool"),
-                                            "args": correction.get("args"),
-                                            "result": correction.get("result"),
-                                            "step_index": step_index
-                                        })
+                                        yield _sse(
+                                            {
+                                                "type": "guardian_correction",
+                                                "tool": correction.get("tool"),
+                                                "args": correction.get("args"),
+                                                "result": correction.get("result"),
+                                                "step_index": step_index,
+                                            }
+                                        )
 
                                 # Stream guardian status
-                                yield _sse({
-                                    "type": "guardian_status",
-                                    "status": guard_result["final_status"],
-                                    "corrections_count": len(guard_result.get("corrections", [])),
-                                    "step_index": step_index
-                                })
+                                yield _sse(
+                                    {
+                                        "type": "guardian_status",
+                                        "status": guard_result["final_status"],
+                                        "corrections_count": len(
+                                            guard_result.get("corrections", [])
+                                        ),
+                                        "step_index": step_index,
+                                    }
+                                )
                             else:
                                 # Legacy mode: passive analysis only
                                 va_result = await video_agent.analyze_frame(
@@ -2506,17 +2868,19 @@ async def run_agentic_loop_stream(
                                 )
 
                             # Stream video analysis
-                            yield _sse({
-                                "type": "video_analysis",
-                                "tool": tool_name,
-                                "verified": va_result.get("action_verified"),
-                                "screen_state": va_result.get("screen_state", ""),
-                                "confidence": va_result.get("confidence", 0),
-                                "step_index": step_index,
-                                "iteration": iteration + 1,
-                                "viewport": va_viewport,
-                                "ocr_hint": ocr_hint
-                            })
+                            yield _sse(
+                                {
+                                    "type": "video_analysis",
+                                    "tool": tool_name,
+                                    "verified": va_result.get("action_verified"),
+                                    "screen_state": va_result.get("screen_state", ""),
+                                    "confidence": va_result.get("confidence", 0),
+                                    "step_index": step_index,
+                                    "iteration": iteration + 1,
+                                    "viewport": va_viewport,
+                                    "ocr_hint": ocr_hint,
+                                }
+                            )
                     except Exception as va_err:
                         logger.warning(f"[VideoAgent] Analysis error: {va_err}")
 
@@ -2526,18 +2890,28 @@ async def run_agentic_loop_stream(
                 result_str = json.dumps(result, ensure_ascii=False, default=str)
                 if len(result_str) > 3000:
                     result_str = result_str[:3000] + "... [truncated]"
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc_id,
-                    "content": result_str
-                })
+                messages.append(
+                    {"role": "tool", "tool_call_id": tc_id, "content": result_str}
+                )
 
             # ★ CHECK PAUSE/RESUME AFTER ALL TOOL CALLS IN THIS ITERATION
             if conversation_id and conversation_id in _execution_state:
                 if not _execution_state[conversation_id].is_set():
-                    yield _sse({"type": "paused", "message": "Pausiert nach Iteration", "iteration": iteration + 1})
+                    yield _sse(
+                        {
+                            "type": "paused",
+                            "message": "Pausiert nach Iteration",
+                            "iteration": iteration + 1,
+                        }
+                    )
                     await _execution_state[conversation_id].wait()
-                    yield _sse({"type": "resumed", "message": "Fortgesetzt", "iteration": iteration + 1})
+                    yield _sse(
+                        {
+                            "type": "resumed",
+                            "message": "Fortgesetzt",
+                            "iteration": iteration + 1,
+                        }
+                    )
 
         else:
             # Final answer
@@ -2549,33 +2923,41 @@ async def run_agentic_loop_stream(
                 conv = load_conversation(conversation_id)
                 conv["recent"].append({"role": "user", "content": text})
                 summary_condensed = summary[:500] if len(summary) > 500 else summary
-                conv["recent"].append({"role": "assistant", "content": summary_condensed})
+                conv["recent"].append(
+                    {"role": "assistant", "content": summary_condensed}
+                )
                 conv["turn_count"] = conv.get("turn_count", 0) + 1
                 save_conversation(conversation_id, conv)
                 # Compact in background if needed
                 if len(conv["recent"]) > COMPACT_THRESHOLD:
                     asyncio.create_task(compact_conversation(conversation_id))
 
-            yield _sse({"type": "summary", "content": summary, "iteration": iteration + 1})
+            yield _sse(
+                {"type": "summary", "content": summary, "iteration": iteration + 1}
+            )
 
             # ★ VIDEO AGENT: Save training data before done
             if video_agent_enabled and conversation_id:
                 try:
-                    training_file = video_agent.save_training_data(conversation_id, text[:200])
+                    training_file = video_agent.save_training_data(
+                        conversation_id, text[:200]
+                    )
                     if training_file:
                         yield _sse({"type": "training_saved", "file": training_file})
                 except Exception as va_err:
                     logger.warning(f"[VideoAgent] Training save error: {va_err}")
 
-            yield _sse({
-                "type": "done",
-                "success": all_success,
-                "total_steps": len(steps),
-                "iterations": iteration + 1,
-                "duration_ms": (time.time() - start_time) * 1000,
-                "conversation_id": conversation_id,
-                "turn_count": conv["turn_count"] if conversation_id else 0
-            })
+            yield _sse(
+                {
+                    "type": "done",
+                    "success": all_success,
+                    "total_steps": len(steps),
+                    "iterations": iteration + 1,
+                    "duration_ms": (time.time() - start_time) * 1000,
+                    "conversation_id": conversation_id,
+                    "turn_count": conv["turn_count"] if conversation_id else 0,
+                }
+            )
             # Cleanup intervention state
             _pending_interventions.pop(conversation_id, None)
             _execution_state.pop(conversation_id, None)
@@ -2585,19 +2967,29 @@ async def run_agentic_loop_stream(
     if conversation_id:
         conv = load_conversation(conversation_id)
         conv["recent"].append({"role": "user", "content": text})
-        conv["recent"].append({"role": "assistant", "content": "Aufgabe unvollstaendig (max iterations)"})
+        conv["recent"].append(
+            {"role": "assistant", "content": "Aufgabe unvollstaendig (max iterations)"}
+        )
         conv["turn_count"] = conv.get("turn_count", 0) + 1
         save_conversation(conversation_id, conv)
 
-    yield _sse({"type": "error", "message": "Max iterations reached", "iteration": MAX_ITERATIONS})
-    yield _sse({
-        "type": "done",
-        "success": False,
-        "total_steps": len(steps),
-        "iterations": MAX_ITERATIONS,
-        "duration_ms": (time.time() - start_time) * 1000,
-        "conversation_id": conversation_id
-    })
+    yield _sse(
+        {
+            "type": "error",
+            "message": "Max iterations reached",
+            "iteration": MAX_ITERATIONS,
+        }
+    )
+    yield _sse(
+        {
+            "type": "done",
+            "success": False,
+            "total_steps": len(steps),
+            "iterations": MAX_ITERATIONS,
+            "duration_ms": (time.time() - start_time) * 1000,
+            "conversation_id": conversation_id,
+        }
+    )
     # Cleanup intervention state
     _pending_interventions.pop(conversation_id, None)
     _execution_state.pop(conversation_id, None)
@@ -2607,12 +2999,14 @@ async def run_agentic_loop_stream(
 # API Endpoints
 # ============================================
 
+
 def _resolve_video_agent(request_val: Optional[bool]) -> bool:
     """Resolve video agent enabled state: explicit request > config default."""
     if request_val is not None:
         return request_val and video_agent.enabled
     try:
         from app.config import get_settings
+
         return get_settings().video_agent_default and video_agent.enabled
     except Exception:
         return video_agent.enabled
@@ -2634,14 +3028,14 @@ async def process_intent_stream(request: IntentRequest):
         run_agentic_loop_stream(
             text=request.text,
             conversation_id=request.conversation_id,
-            video_agent_enabled=_resolve_video_agent(request.video_agent)
+            video_agent_enabled=_resolve_video_agent(request.video_agent),
         ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-        }
+        },
     )
 
 
@@ -2659,16 +3053,14 @@ async def process_intent(request: IntentRequest) -> IntentResponse:
     """
     if not OPENROUTER_API_KEY:
         raise HTTPException(
-            status_code=500,
-            detail="OPENROUTER_API_KEY not configured. Set it in .env"
+            status_code=500, detail="OPENROUTER_API_KEY not configured. Set it in .env"
         )
 
     logger.info(f"[LLM Intent] Processing: {request.text}")
 
     try:
         result = await run_agentic_loop(
-            text=request.text,
-            conversation_id=request.conversation_id
+            text=request.text, conversation_id=request.conversation_id
         )
         logger.info(
             f"[LLM Intent] Done: success={result.success}, "
@@ -2693,7 +3085,7 @@ async def intent_health():
         "tool_names": [t["function"]["name"] for t in TOOLS],
         "max_iterations": MAX_ITERATIONS,
         "video_agent": video_agent.enabled,
-        "video_agent_model": "configured via VISION_MODEL"
+        "video_agent_model": "configured via VISION_MODEL",
     }
 
 
@@ -2725,7 +3117,9 @@ async def intervene(request: InterventionRequest):
     elif request.action == "approve_tool":
         if conv_id not in _pending_interventions:
             _pending_interventions[conv_id] = []
-        _pending_interventions[conv_id].append({"action": "approve_tool", "data": request.data or {}})
+        _pending_interventions[conv_id].append(
+            {"action": "approve_tool", "data": request.data or {}}
+        )
         if conv_id in _execution_state:
             _execution_state[conv_id].set()  # Resume to process approval
         logger.info(f"[Intervention] Tool APPROVED for {conv_id}")
@@ -2734,7 +3128,9 @@ async def intervene(request: InterventionRequest):
     elif request.action == "deny_tool":
         if conv_id not in _pending_interventions:
             _pending_interventions[conv_id] = []
-        _pending_interventions[conv_id].append({"action": "deny_tool", "data": request.data or {}})
+        _pending_interventions[conv_id].append(
+            {"action": "deny_tool", "data": request.data or {}}
+        )
         if conv_id in _execution_state:
             _execution_state[conv_id].set()  # Resume to process denial
         logger.info(f"[Intervention] Tool DENIED for {conv_id}")
@@ -2743,7 +3139,9 @@ async def intervene(request: InterventionRequest):
     elif request.action == "confirm_click":
         if conv_id not in _pending_interventions:
             _pending_interventions[conv_id] = []
-        _pending_interventions[conv_id].append({"action": "confirm_click", "data": request.data or {}})
+        _pending_interventions[conv_id].append(
+            {"action": "confirm_click", "data": request.data or {}}
+        )
         if conv_id in _execution_state:
             _execution_state[conv_id].set()
         logger.info(f"[Intervention] Click CONFIRMED for {conv_id}")
@@ -2752,7 +3150,9 @@ async def intervene(request: InterventionRequest):
     elif request.action == "deny_click":
         if conv_id not in _pending_interventions:
             _pending_interventions[conv_id] = []
-        _pending_interventions[conv_id].append({"action": "deny_click", "data": request.data or {}})
+        _pending_interventions[conv_id].append(
+            {"action": "deny_click", "data": request.data or {}}
+        )
         if conv_id in _execution_state:
             _execution_state[conv_id].set()
         logger.info(f"[Intervention] Click DENIED for {conv_id}")
@@ -2761,10 +3161,9 @@ async def intervene(request: InterventionRequest):
     elif request.action in ("cancel", "skip_task", "feedback"):
         if conv_id not in _pending_interventions:
             _pending_interventions[conv_id] = []
-        _pending_interventions[conv_id].append({
-            "action": request.action,
-            "data": request.data or {}
-        })
+        _pending_interventions[conv_id].append(
+            {"action": request.action, "data": request.data or {}}
+        )
         # If paused, wake up so cancel/feedback gets processed
         if conv_id in _execution_state:
             _execution_state[conv_id].set()

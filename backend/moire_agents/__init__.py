@@ -8,4 +8,4 @@ Desktop UI Automation mit Multi-Agent Architecture:
 - InteractionAgent: Maus/Tastatur-Steuerung
 """
 
-__version__ = '2.0.0'
+__version__ = "2.0.0"

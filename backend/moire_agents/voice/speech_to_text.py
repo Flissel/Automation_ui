@@ -10,27 +10,29 @@ Sources:
 - https://github.com/VapiAI/server-sdk-python
 """
 
+import asyncio
+import io
+import logging
 import os
 import sys
-import asyncio
-import logging
 import wave
-import io
-from typing import Optional, Callable, Dict, Any
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Callable, Dict, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(__file__), '../../../.env'))
+
+load_dotenv(os.path.join(os.path.dirname(__file__), "../../../.env"))
 
 logger = logging.getLogger(__name__)
 
 
 class STTBackend(Enum):
     """Speech-to-text backend options."""
+
     VAPI = "vapi"
     OPENAI_WHISPER = "openai_whisper"
     GROQ_WHISPER = "groq_whisper"  # Free, fast Whisper via Groq
@@ -40,6 +42,7 @@ class STTBackend(Enum):
 @dataclass
 class TranscriptionResult:
     """Result from speech transcription."""
+
     text: str
     language: Optional[str] = None
     confidence: Optional[float] = None
@@ -54,7 +57,7 @@ class SpeechToText:
         self,
         backend: STTBackend = None,  # Auto-detect based on available API keys
         language: str = "de",  # German default for user
-        model: str = None  # Auto-selected based on backend
+        model: str = None,  # Auto-selected based on backend
     ):
         """Initialize Speech-to-Text service.
 
@@ -112,10 +115,13 @@ class SpeechToText:
             else:
                 try:
                     from vapi import Vapi
+
                     self.vapi_client = Vapi(token=self.vapi_token)
                     logger.info("Vapi client initialized")
                 except ImportError:
-                    logger.warning("vapi package not installed, falling back to Groq Whisper")
+                    logger.warning(
+                        "vapi package not installed, falling back to Groq Whisper"
+                    )
                     self.backend = STTBackend.GROQ_WHISPER
 
         if self.backend == STTBackend.GROQ_WHISPER:
@@ -134,26 +140,29 @@ class SpeechToText:
             else:
                 try:
                     import openai
+
                     self.openai_client = openai.OpenAI(api_key=self.openai_key)
                     logger.info("OpenAI Whisper client initialized")
                 except ImportError:
-                    logger.warning("openai package not installed, falling back to local Whisper")
+                    logger.warning(
+                        "openai package not installed, falling back to local Whisper"
+                    )
                     self.backend = STTBackend.LOCAL_WHISPER
 
         if self.backend == STTBackend.LOCAL_WHISPER:
             try:
                 import whisper
+
                 self.whisper_model = whisper.load_model("base")
                 logger.info("Local Whisper model loaded")
             except ImportError:
-                logger.error("whisper package not installed. Run: pip install openai-whisper")
+                logger.error(
+                    "whisper package not installed. Run: pip install openai-whisper"
+                )
                 self.whisper_model = None
 
     async def transcribe_audio(
-        self,
-        audio_data: bytes,
-        sample_rate: int = 16000,
-        channels: int = 1
+        self, audio_data: bytes, sample_rate: int = 16000, channels: int = 1
     ) -> TranscriptionResult:
         """Transcribe audio data to text.
 
@@ -178,10 +187,7 @@ class SpeechToText:
             raise ValueError(f"Unknown backend: {self.backend}")
 
     async def _transcribe_openai(
-        self,
-        audio_data: bytes,
-        sample_rate: int,
-        channels: int
+        self, audio_data: bytes, sample_rate: int, channels: int
     ) -> TranscriptionResult:
         """Transcribe using OpenAI Whisper API."""
         # Convert raw audio to WAV format
@@ -196,25 +202,22 @@ class SpeechToText:
                     model=self.model,
                     file=("audio.wav", wav_buffer, "audio/wav"),
                     language=self.language,
-                    response_format="verbose_json"
-                )
+                    response_format="verbose_json",
+                ),
             )
 
             return TranscriptionResult(
                 text=response.text,
                 language=response.language,
                 duration_seconds=response.duration,
-                backend="openai_whisper"
+                backend="openai_whisper",
             )
         except Exception as e:
             logger.error(f"OpenAI transcription failed: {e}")
             return TranscriptionResult(text="", backend="openai_whisper")
 
     async def _transcribe_groq(
-        self,
-        audio_data: bytes,
-        sample_rate: int,
-        channels: int
+        self, audio_data: bytes, sample_rate: int, channels: int
     ) -> TranscriptionResult:
         """Transcribe using Groq Whisper API (fast & free)."""
         wav_buffer = self._create_wav(audio_data, sample_rate, channels)
@@ -224,32 +227,37 @@ class SpeechToText:
 
             # Groq uses multipart form data
             data = aiohttp.FormData()
-            data.add_field('file', wav_buffer.read(), filename='audio.wav', content_type='audio/wav')
-            data.add_field('model', self.model)
-            data.add_field('language', self.language)
-            data.add_field('response_format', 'json')
+            data.add_field(
+                "file",
+                wav_buffer.read(),
+                filename="audio.wav",
+                content_type="audio/wav",
+            )
+            data.add_field("model", self.model)
+            data.add_field("language", self.language)
+            data.add_field("response_format", "json")
 
-            headers = {
-                "Authorization": f"Bearer {self.groq_key}"
-            }
+            headers = {"Authorization": f"Bearer {self.groq_key}"}
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     self.groq_url,
                     headers=headers,
                     data=data,
-                    timeout=aiohttp.ClientTimeout(total=30)
+                    timeout=aiohttp.ClientTimeout(total=30),
                 ) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        logger.error(f"Groq transcription failed: {response.status} - {error_text}")
+                        logger.error(
+                            f"Groq transcription failed: {response.status} - {error_text}"
+                        )
                         return TranscriptionResult(text="", backend="groq_whisper")
 
                     result = await response.json()
                     return TranscriptionResult(
                         text=result.get("text", ""),
                         language=self.language,
-                        backend="groq_whisper"
+                        backend="groq_whisper",
                     )
 
         except ImportError:
@@ -260,20 +268,20 @@ class SpeechToText:
             return TranscriptionResult(text="", backend="groq_whisper")
 
     async def _transcribe_local(
-        self,
-        audio_data: bytes,
-        sample_rate: int,
-        channels: int
+        self, audio_data: bytes, sample_rate: int, channels: int
     ) -> TranscriptionResult:
         """Transcribe using local Whisper model."""
         if not self.whisper_model:
             return TranscriptionResult(text="", backend="local_whisper")
 
-        import numpy as np
         import tempfile
 
+        import numpy as np
+
         # Convert bytes to numpy array
-        audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+        audio_np = (
+            np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+        )
 
         # Save to temp file (Whisper requires file input)
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
@@ -286,26 +294,26 @@ class SpeechToText:
             result = await loop.run_in_executor(
                 None,
                 lambda: self.whisper_model.transcribe(
-                    temp_path,
-                    language=self.language,
-                    fp16=False
-                )
+                    temp_path, language=self.language, fp16=False
+                ),
             )
 
             return TranscriptionResult(
                 text=result["text"].strip(),
                 language=result.get("language"),
-                backend="local_whisper"
+                backend="local_whisper",
             )
         finally:
             # Clean up temp file
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
 
-    def _create_wav(self, audio_data: bytes, sample_rate: int, channels: int) -> io.BytesIO:
+    def _create_wav(
+        self, audio_data: bytes, sample_rate: int, channels: int
+    ) -> io.BytesIO:
         """Create WAV file from raw audio data."""
         buffer = io.BytesIO()
-        with wave.open(buffer, 'wb') as wav:
+        with wave.open(buffer, "wb") as wav:
             wav.setnchannels(channels)
             wav.setsampwidth(2)  # 16-bit
             wav.setframerate(sample_rate)
@@ -324,7 +332,7 @@ class SpeechToText:
         """
         if self.backend == STTBackend.OPENAI_WHISPER:
             try:
-                with open(file_path, 'rb') as f:
+                with open(file_path, "rb") as f:
                     loop = asyncio.get_event_loop()
                     response = await loop.run_in_executor(
                         None,
@@ -332,15 +340,15 @@ class SpeechToText:
                             model=self.model,
                             file=f,
                             language=self.language,
-                            response_format="verbose_json"
-                        )
+                            response_format="verbose_json",
+                        ),
                     )
 
                     return TranscriptionResult(
                         text=response.text,
                         language=response.language,
                         duration_seconds=response.duration,
-                        backend="openai_whisper"
+                        backend="openai_whisper",
                     )
             except Exception as e:
                 logger.error(f"File transcription failed: {e}")
@@ -354,16 +362,14 @@ class SpeechToText:
             result = await loop.run_in_executor(
                 None,
                 lambda: self.whisper_model.transcribe(
-                    file_path,
-                    language=self.language,
-                    fp16=False
-                )
+                    file_path, language=self.language, fp16=False
+                ),
             )
 
             return TranscriptionResult(
                 text=result["text"].strip(),
                 language=result.get("language"),
-                backend="local_whisper"
+                backend="local_whisper",
             )
 
         return TranscriptionResult(text="", backend="unknown")
@@ -378,7 +384,7 @@ class RealtimeSpeechToText:
         on_transcription: Optional[Callable[[str], None]] = None,
         on_partial: Optional[Callable[[str], None]] = None,
         silence_threshold: float = 0.5,  # seconds
-        min_speech_duration: float = 0.3  # seconds
+        min_speech_duration: float = 0.3,  # seconds
     ):
         """Initialize real-time STT.
 
@@ -433,7 +439,7 @@ class RealtimeSpeechToText:
             samplerate=self.sample_rate,
             channels=self.channels,
             blocksize=self.chunk_size,
-            callback=self._audio_callback
+            callback=self._audio_callback,
         )
         self._stream.start()
 
@@ -454,21 +460,23 @@ class RealtimeSpeechToText:
             audio_data = np.concatenate(self._audio_buffer)
 
             # Simple voice activity detection (energy-based)
-            energy = np.sqrt(np.mean(audio_data ** 2))
+            energy = np.sqrt(np.mean(audio_data**2))
 
             if energy > 0.01:  # Speech detected
                 # Accumulate more audio
                 continue
             else:
                 # Silence detected - process if we have speech
-                if len(self._audio_buffer) > int(self.min_speech_duration * self.sample_rate / self.chunk_size):
+                if len(self._audio_buffer) > int(
+                    self.min_speech_duration * self.sample_rate / self.chunk_size
+                ):
                     # Convert to bytes and transcribe
                     audio_bytes = (audio_data * 32767).astype(np.int16).tobytes()
 
                     result = await self.stt.transcribe_audio(
                         audio_bytes,
                         sample_rate=self.sample_rate,
-                        channels=self.channels
+                        channels=self.channels,
                     )
 
                     if result.text:
@@ -476,7 +484,11 @@ class RealtimeSpeechToText:
                         if wake_word:
                             if wake_word.lower() in result.text.lower():
                                 # Remove wake word and process command
-                                command = result.text.lower().replace(wake_word.lower(), "").strip()
+                                command = (
+                                    result.text.lower()
+                                    .replace(wake_word.lower(), "")
+                                    .strip()
+                                )
                                 if self.on_transcription and command:
                                     self.on_transcription(command)
                         else:
@@ -500,16 +512,19 @@ class RealtimeSpeechToText:
         """List available microphone devices."""
         try:
             import sounddevice as sd
+
             devices = sd.query_devices()
             microphones = []
             for i, dev in enumerate(devices):
-                if dev['max_input_channels'] > 0:
-                    microphones.append({
-                        'index': i,
-                        'name': dev['name'],
-                        'channels': dev['max_input_channels'],
-                        'sample_rate': dev['default_samplerate']
-                    })
+                if dev["max_input_channels"] > 0:
+                    microphones.append(
+                        {
+                            "index": i,
+                            "name": dev["name"],
+                            "channels": dev["max_input_channels"],
+                            "sample_rate": dev["default_samplerate"],
+                        }
+                    )
             return microphones
         except ImportError:
             return []
@@ -517,6 +532,7 @@ class RealtimeSpeechToText:
 
 # Test/demo code
 if __name__ == "__main__":
+
     async def main():
         print("=== Speech-to-Text Test ===\n")
 
@@ -537,7 +553,9 @@ if __name__ == "__main__":
             result = await stt.transcribe_file(test_file)
             print(f"Result: {result.text}")
         else:
-            print(f"\nNo test file found. Create {test_file} to test file transcription.")
+            print(
+                f"\nNo test file found. Create {test_file} to test file transcription."
+            )
 
         print("\nSpeech-to-Text service ready!")
 

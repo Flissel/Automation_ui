@@ -9,44 +9,27 @@ Enthält:
 - InteractionAgent: Desktop-Automation mit pyautogui
 """
 
-from agents.orchestrator_v2 import (
-    OrchestratorV2,
-    get_orchestrator_v2,
-    shutdown_orchestrator,
-    ReflectionRequest,
-    ReflectionResult,
-    ReflectionStatus
-)
-
-from agents.reasoning import (
-    ReasoningAgent,
-    get_reasoning_agent
-)
-
-from agents.interaction import (
-    InteractionAgent,
-    get_interaction_agent
-)
+from agents.interaction import InteractionAgent, get_interaction_agent
+from agents.orchestrator_v2 import (OrchestratorV2, ReflectionRequest,
+                                    ReflectionResult, ReflectionStatus,
+                                    get_orchestrator_v2, shutdown_orchestrator)
+from agents.reasoning import ReasoningAgent, get_reasoning_agent
 
 # Optional: VisionAgent (benötigt OpenRouter Key)
 try:
-    from agents.vision_agent import (
-        VisionAnalystAgent,
-        get_vision_agent,
-        ElementLocation,
-        VisionAnalysis
-    )
+    from agents.vision_agent import (ElementLocation, VisionAnalysis,
+                                     VisionAnalystAgent, get_vision_agent)
+
     HAS_VISION = True
 except ImportError:
     HAS_VISION = False
 
 # Optional: SocietyOfMindOrchestrator (benötigt autogen-agentchat)
 try:
-    from agents.society_orchestrator import (
-        SocietyOfMindOrchestrator,
-        get_society_orchestrator,
-        DesktopTools
-    )
+    from agents.society_orchestrator import (DesktopTools,
+                                             SocietyOfMindOrchestrator,
+                                             get_society_orchestrator)
+
     HAS_SOCIETY = True
 except ImportError:
     HAS_SOCIETY = False
@@ -54,36 +37,28 @@ except ImportError:
 # Optional: SocietyOfMindOrchestrator (benötigt autogen-agentchat)
 try:
     from agents.society_orchestrator_v2 import (
-        SocietyOfMindOrchestratorV2,
-        DesktopToolsV2,
-        ExecutionRecord,
-        TaskContext,
-        get_society_orchestrator_v2,
-        create_society_orchestrator_v2,
-        shutdown_society_orchestrator_v2
-    )
+        DesktopToolsV2, ExecutionRecord, SocietyOfMindOrchestratorV2,
+        TaskContext, create_society_orchestrator_v2,
+        get_society_orchestrator_v2, shutdown_society_orchestrator_v2)
+
     HAS_SOCIETY_V2 = True
 except ImportError:
     HAS_SOCIETY_V2 = False
 
 # Optional: RL-Agent (benötigt StableDiffusion oder OpenRouter-Key)
 try:
-    from agents.rl_agent import (
-        RLAgent,
-        RLEnhancedOrchestrator,
-        ActionSuggestion,
-        get_rl_agent
-    )
+    from agents.rl_agent import (ActionSuggestion, RLAgent,
+                                 RLEnhancedOrchestrator, get_rl_agent)
+
     HAS_RL = True
 except ImportError:
     HAS_RL = False
 
 # Optional: KI-basierte Validierung von CNN-Klassifizierungen
 try:
-    from agents.classification_agent import (
-        ClassificationValidationAgent,
-        get_classification_agent
-    )
+    from agents.classification_agent import (ClassificationValidationAgent,
+                                             get_classification_agent)
+
     HAS_CLASSIFICATION = True
 except ImportError:
     HAS_CLASSIFICATION = False
@@ -93,18 +68,15 @@ __all__ = [
     "OrchestratorV2",
     "get_orchestrator_v2",
     "shutdown_orchestrator",
-    
     # Reflection Types
     "ReflectionRequest",
-    "ReflectionResult", 
+    "ReflectionResult",
     "ReflectionStatus",
-    
     # Agents
     "ReasoningAgent",
     "get_reasoning_agent",
     "InteractionAgent",
     "get_interaction_agent",
-    
     # Feature Flags
     "HAS_VISION",
     "HAS_SOCIETY",
@@ -115,41 +87,32 @@ __all__ = [
 
 # Conditional exports
 if HAS_VISION:
-    __all__.extend([
-        "VisionAnalystAgent",
-        "get_vision_agent",
-        "ElementLocation",
-        "VisionAnalysis"
-    ])
+    __all__.extend(
+        ["VisionAnalystAgent", "get_vision_agent", "ElementLocation", "VisionAnalysis"]
+    )
 
 if HAS_SOCIETY:
-    __all__.extend([
-        "SocietyOfMindOrchestrator",
-        "get_society_orchestrator",
-        "DesktopTools"
-    ])
+    __all__.extend(
+        ["SocietyOfMindOrchestrator", "get_society_orchestrator", "DesktopTools"]
+    )
 
 if HAS_SOCIETY_V2:
-    __all__.extend([
-        "SocietyOfMindOrchestratorV2",
-        "get_society_orchestrator_v2",
-        "DesktopToolsV2",
-        "ExecutionRecord",
-        "TaskContext",
-        "create_society_orchestrator_v2",
-        "shutdown_society_orchestrator_v2"
-    ])
+    __all__.extend(
+        [
+            "SocietyOfMindOrchestratorV2",
+            "get_society_orchestrator_v2",
+            "DesktopToolsV2",
+            "ExecutionRecord",
+            "TaskContext",
+            "create_society_orchestrator_v2",
+            "shutdown_society_orchestrator_v2",
+        ]
+    )
 
 if HAS_RL:
-    __all__.extend([
-        "RLAgent",
-        "RLEnhancedOrchestrator",
-        "ActionSuggestion",
-        "get_rl_agent"
-    ])
+    __all__.extend(
+        ["RLAgent", "RLEnhancedOrchestrator", "ActionSuggestion", "get_rl_agent"]
+    )
 
 if HAS_CLASSIFICATION:
-    __all__.extend([
-        "ClassificationValidationAgent",
-        "get_classification_agent"
-    ])
+    __all__.extend(["ClassificationValidationAgent", "get_classification_agent"])

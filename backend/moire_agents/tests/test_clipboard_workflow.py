@@ -4,6 +4,7 @@ Clipboard Test - Test Claude Desktop with clipboard paste
 """
 
 import asyncio
+
 import pyautogui
 import pyperclip
 
@@ -18,10 +19,7 @@ async def test_clipboard():
     print("CLIPBOARD Claude Desktop Test")
     print("=" * 60)
 
-    task = (
-        "Generate a simple Hello World message. "
-        "Just respond with a greeting."
-    )
+    task = "Generate a simple Hello World message. " "Just respond with a greeting."
 
     print(f"\nTask: {task}")
     print("\nStarting in 3 seconds...")

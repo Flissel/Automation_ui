@@ -1,0 +1,40 @@
+# ============================================================
+# LLM Configuration — Moire Tracker / Automation UI
+# ============================================================
+# Zentrale Config fuer alle LLM-Aufrufe im Moire Agent System.
+# Provider wechseln = nur hier aendern, kein Code anfassen.
+#
+# Reihenfolge: overrides[dir][role] > roles[role] > default
+# ============================================================
+
+keys:
+  openrouter: ${OPENROUTER_API_KEY}
+
+providers:
+  openrouter:
+    type: openai
+    base_url: https://openrouter.ai/api/v1
+    key_ref: openrouter
+
+default:
+  provider: openrouter
+  model: openrouter/free
+  temperature: 0.3
+
+roles:
+  reasoning:
+    provider: openrouter
+    model: openrouter/free
+    temperature: 0.2
+  vision:
+    provider: openrouter
+    model: openrouter/free
+    temperature: 0.3
+  vision_fast:
+    provider: openrouter
+    model: openrouter/free
+    temperature: 0.3
+  quick:
+    provider: openrouter
+    model: openrouter/free
+    temperature: 0.3

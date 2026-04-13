@@ -31,10 +31,14 @@ class ActionRouter:
     def configure(self, settings) -> None:
         """Configure from Settings object."""
         self._mode = getattr(settings, "execution_mode", "local")
-        self._target_client_id = getattr(settings, "remote_desktop_client_id", "") or None
+        self._target_client_id = (
+            getattr(settings, "remote_desktop_client_id", "") or None
+        )
         self._timeout = getattr(settings, "remote_action_timeout", 30)
         self._frame_max_age_ms = getattr(settings, "remote_frame_max_age_ms", 2000)
-        logger.info(f"[ActionRouter] Configured: mode={self._mode}, timeout={self._timeout}s")
+        logger.info(
+            f"[ActionRouter] Configured: mode={self._mode}, timeout={self._timeout}s"
+        )
 
     def set_ws_manager(self, manager) -> None:
         """Set the WebSocket ConnectionManager reference."""
@@ -51,7 +55,9 @@ class ActionRouter:
     def get_risk(self, tool_name: str) -> ToolRisk:
         return get_tool_risk(tool_name)
 
-    async def execute(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(
+        self, tool_name: str, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Route tool to local or remote based on mode and risk level."""
         risk = self.get_risk(tool_name)
 
@@ -72,14 +78,19 @@ class ActionRouter:
         # DELEGATED: send to desktop client
         return await self._execute_remote(tool_name, arguments)
 
-    async def _execute_remote(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_remote(
+        self, tool_name: str, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Send command to desktop client and wait for ACK."""
         if not self._ws_manager:
             return {"success": False, "error": "WebSocket manager not configured"}
 
         target = self._resolve_target_client()
         if not target:
-            return {"success": False, "error": "No desktop client connected for remote execution"}
+            return {
+                "success": False,
+                "error": "No desktop client connected for remote execution",
+            }
 
         command_id = f"cmd_{uuid4().hex[:12]}"
         command_msg = {
@@ -97,17 +108,27 @@ class ActionRouter:
         try:
             ws = self._ws_manager.active_connections.get(target)
             if not ws:
-                return {"success": False, "error": f"Desktop client '{target}' not connected"}
+                return {
+                    "success": False,
+                    "error": f"Desktop client '{target}' not connected",
+                }
 
             await ws.send_text(json.dumps(command_msg))
-            logger.info(f"[ActionRouter] Sent {tool_name} to {target} (cmd={command_id})")
+            logger.info(
+                f"[ActionRouter] Sent {tool_name} to {target} (cmd={command_id})"
+            )
 
             result = await asyncio.wait_for(ack_future, timeout=self._timeout)
             return result
 
         except asyncio.TimeoutError:
-            logger.error(f"[ActionRouter] Timeout for ACK from {target} (cmd={command_id})")
-            return {"success": False, "error": f"Desktop client did not respond within {self._timeout}s"}
+            logger.error(
+                f"[ActionRouter] Timeout for ACK from {target} (cmd={command_id})"
+            )
+            return {
+                "success": False,
+                "error": f"Desktop client did not respond within {self._timeout}s",
+            }
         except Exception as e:
             logger.error(f"[ActionRouter] Remote execution failed: {e}")
             return {"success": False, "error": str(e)}
@@ -130,13 +151,18 @@ class ActionRouter:
             return None
 
         # Try configured client first
-        if self._target_client_id and self._target_client_id in self._ws_manager.active_connections:
+        if (
+            self._target_client_id
+            and self._target_client_id in self._ws_manager.active_connections
+        ):
             return self._target_client_id
 
         # Auto-detect: find first connected desktop client
         desktop_types = {
-            "dual_screen_desktop", "desktop_capture",
-            "multi_monitor_desktop_capture", "desktop",
+            "dual_screen_desktop",
+            "desktop_capture",
+            "multi_monitor_desktop_capture",
+            "desktop",
         }
         for client_id, info in self._ws_manager.client_info.items():
             client_type = info.get("clientType", "")

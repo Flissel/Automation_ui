@@ -9,26 +9,19 @@ Usage:
     python interactive_cli.py --llm     # LLM-powered mode (intelligent)
 """
 
-import asyncio
 import argparse
-import sys
+import asyncio
 import os
-from typing import Optional, List, Dict, Any
+import sys
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 # Add parent to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from agents.handoff import (
-    AgentRuntime,
-    UserTask,
-    OrchestratorAgent,
-    ExecutionAgent,
-    VisionHandoffAgent,
-    RecoveryAgent,
-    PlanningTeam,
-    ValidationTeam,
-)
+from agents.handoff import (AgentRuntime, ExecutionAgent, OrchestratorAgent,
+                            PlanningTeam, RecoveryAgent, UserTask,
+                            ValidationTeam, VisionHandoffAgent)
 
 
 class InteractiveCLI:
@@ -67,10 +60,7 @@ class InteractiveCLI:
         await self.runtime.register_agent("recovery", recovery)
 
         # Create Society of Mind teams
-        self.planning_team = PlanningTeam(
-            max_debate_rounds=2,
-            use_llm=self.use_llm
-        )
+        self.planning_team = PlanningTeam(max_debate_rounds=2, use_llm=self.use_llm)
         self.validation_team = ValidationTeam(confidence_threshold=0.6)
 
         await self.planning_team.start()
@@ -83,7 +73,8 @@ class InteractiveCLI:
 
     def print_help(self):
         """Print help message."""
-        print("""
+        print(
+            """
 Commands:
   send <message>     Send message to Claude Desktop
   plan <goal>        Create a plan using PlanningTeam
@@ -105,7 +96,8 @@ Examples:
   hotkey ctrl+alt+space
   type Hello World
   press enter
-""")
+"""
+        )
 
     def print_status(self):
         """Print system status."""
@@ -153,14 +145,12 @@ Examples:
 
         task = UserTask(
             goal=f"Send message to Claude Desktop: {message}",
-            context={"message": message}
+            context={"message": message},
         )
 
         await self.runtime.start()
         result = await self.runtime.publish_task(
-            task,
-            target_agent="orchestrator",
-            progress_callback=progress_callback
+            task, target_agent="orchestrator", progress_callback=progress_callback
         )
         await self.runtime.stop()
 
@@ -183,14 +173,14 @@ Examples:
         print(f"  Confidence: {result.get('planner_confidence', 0):.0%}")
         print(f"  Risk Score: {result.get('risk_score', 0):.0%}")
 
-        if result.get('issues'):
+        if result.get("issues"):
             print(f"\n  Issues:")
-            for issue in result['issues']:
+            for issue in result["issues"]:
                 print(f"    - {issue}")
 
-        if result.get('plan'):
+        if result.get("plan"):
             print(f"\n  Plan ({len(result['plan'])} steps):")
-            for i, step in enumerate(result['plan'], 1):
+            for i, step in enumerate(result["plan"], 1):
                 print(f"    {i}. [{step.get('type')}] {step.get('description')}")
 
         print("-" * 40)
@@ -200,8 +190,8 @@ Examples:
 
     async def _handle_plan_result(self, goal: str, result: Dict[str, Any]) -> bool:
         """Handle plan result with user escalation if needed."""
-        plan = result.get('plan', [])
-        approved = result.get('approved', False)
+        plan = result.get("plan", [])
+        approved = result.get("approved", False)
 
         # If approved, execute automatically
         if approved and plan:
@@ -221,12 +211,12 @@ Examples:
             try:
                 choice = input("\nChoice [p/r/a]: ").strip().lower()
             except EOFError:
-                choice = 'a'
+                choice = "a"
 
-            if choice == 'p':
+            if choice == "p":
                 print("\nProceeding with unapproved plan...")
                 return await self._execute_plan_steps(plan)
-            elif choice == 'r':
+            elif choice == "r":
                 try:
                     feedback = input("Your feedback: ").strip()
                 except EOFError:
@@ -241,7 +231,7 @@ Examples:
                 return False
 
         # No plan generated
-        return result.get('success', False)
+        return result.get("success", False)
 
     async def _execute_plan_steps(self, plan: List[Dict[str, Any]]) -> bool:
         """Execute plan steps autonomously."""
@@ -251,38 +241,38 @@ Examples:
         print(f"\n>>> EXECUTING PLAN ({len(plan)} steps) <<<\n")
 
         for i, step in enumerate(plan, 1):
-            step_type = step.get('type', '')
-            desc = step.get('description', '')
+            step_type = step.get("type", "")
+            desc = step.get("description", "")
             print(f"  Step {i}: [{step_type}] {desc}")
 
             try:
-                if step_type == 'hotkey':
-                    keys = step.get('keys', '').replace('+', ' ').split()
+                if step_type == "hotkey":
+                    keys = step.get("keys", "").replace("+", " ").split()
                     if keys:
                         pyautogui.hotkey(*keys)
-                elif step_type == 'sleep':
-                    duration = step.get('duration', step.get('seconds', 1))
+                elif step_type == "sleep":
+                    duration = step.get("duration", step.get("seconds", 1))
                     await asyncio.sleep(float(duration))
-                elif step_type == 'write':
-                    text = step.get('text', step.get('content', ''))
+                elif step_type == "write":
+                    text = step.get("text", step.get("content", ""))
                     if text:
                         pyperclip.copy(text)
-                        pyautogui.hotkey('ctrl', 'v')
-                elif step_type == 'press':
-                    key = step.get('key', 'enter')
+                        pyautogui.hotkey("ctrl", "v")
+                elif step_type == "press":
+                    key = step.get("key", "enter")
                     pyautogui.press(key)
-                elif step_type == 'click':
-                    x = step.get('x', 0)
-                    y = step.get('y', 0)
+                elif step_type == "click":
+                    x = step.get("x", 0)
+                    y = step.get("y", 0)
                     pyautogui.click(int(x), int(y))
-                elif step_type == 'find_and_click':
+                elif step_type == "find_and_click":
                     # Use validation team to find element
-                    target = step.get('target', step.get('text', ''))
+                    target = step.get("target", step.get("text", ""))
                     if target and self.validation_team:
                         loc_result = await self.validation_team.validate_element(target)
-                        if loc_result.get('element_location'):
-                            loc = loc_result['element_location']
-                            pyautogui.click(loc['x'], loc['y'])
+                        if loc_result.get("element_location"):
+                            loc = loc_result["element_location"]
+                            pyautogui.click(loc["x"], loc["y"])
                         else:
                             print(f"    Warning: Could not find '{target}'")
                 else:
@@ -305,10 +295,7 @@ Examples:
         print("-" * 40)
 
         # Pass feedback in context
-        return await self.execute_plan(
-            goal,
-            context={"user_feedback": feedback}
-        )
+        return await self.execute_plan(goal, context={"user_feedback": feedback})
 
     async def execute_validate(self, target: str):
         """Validate an element using ValidationTeam."""
@@ -319,25 +306,27 @@ Examples:
 
         print(f"\n  Valid: {result.get('valid')}")
         print(f"  Confidence: {result.get('overall_confidence', 0):.0%}")
-        print(f"  Validators: {result.get('validators_succeeded')}/{result.get('validators_total')}")
+        print(
+            f"  Validators: {result.get('validators_succeeded')}/{result.get('validators_total')}"
+        )
 
-        if result.get('element_location'):
-            loc = result['element_location']
+        if result.get("element_location"):
+            loc = result["element_location"]
             print(f"  Location: ({loc['x']}, {loc['y']})")
 
-        if result.get('issues'):
+        if result.get("issues"):
             print(f"\n  Issues:")
-            for issue in result['issues']:
+            for issue in result["issues"]:
                 print(f"    - {issue}")
 
         print("-" * 40)
-        return result.get('valid', False)
+        return result.get("valid", False)
 
     async def execute_hotkey(self, keys: str):
         """Execute a hotkey."""
         import pyautogui
 
-        key_list = keys.replace('+', ' ').split()
+        key_list = keys.replace("+", " ").split()
         print(f"\nHotkey: {'+'.join(key_list)}")
 
         pyautogui.hotkey(*key_list)
@@ -353,7 +342,7 @@ Examples:
 
         # Use clipboard for reliability
         pyperclip.copy(text)
-        pyautogui.hotkey('ctrl', 'v')
+        pyautogui.hotkey("ctrl", "v")
         print("  Done")
         return True
 
@@ -396,58 +385,58 @@ Examples:
         result = False
 
         try:
-            if command in ('quit', 'exit', 'q'):
+            if command in ("quit", "exit", "q"):
                 return False
 
-            elif command == 'help':
+            elif command == "help":
                 self.print_help()
                 result = True
 
-            elif command == 'status':
+            elif command == "status":
                 self.print_status()
                 result = True
 
-            elif command == 'history':
+            elif command == "history":
                 self.print_history()
                 result = True
 
-            elif command == 'send':
+            elif command == "send":
                 if not args:
                     print("Usage: send <message>")
                 else:
                     result = await self.execute_send(args)
 
-            elif command == 'plan':
+            elif command == "plan":
                 if not args:
                     print("Usage: plan <goal>")
                 else:
                     result = await self.execute_plan(args)
 
-            elif command == 'validate':
+            elif command == "validate":
                 if not args:
                     print("Usage: validate <target>")
                 else:
                     result = await self.execute_validate(args)
 
-            elif command == 'hotkey':
+            elif command == "hotkey":
                 if not args:
                     print("Usage: hotkey <keys> (e.g., hotkey ctrl+alt+space)")
                 else:
                     result = await self.execute_hotkey(args)
 
-            elif command == 'type':
+            elif command == "type":
                 if not args:
                     print("Usage: type <text>")
                 else:
                     result = await self.execute_type(args)
 
-            elif command == 'press':
+            elif command == "press":
                 if not args:
                     print("Usage: press <key>")
                 else:
                     result = await self.execute_press(args)
 
-            elif command == 'click':
+            elif command == "click":
                 try:
                     coords = args.split()
                     x, y = int(coords[0]), int(coords[1])
@@ -455,7 +444,7 @@ Examples:
                 except (ValueError, IndexError):
                     print("Usage: click <x> <y>")
 
-            elif command == 'sleep':
+            elif command == "sleep":
                 try:
                     seconds = float(args)
                     result = await self.execute_sleep(seconds)
@@ -471,7 +460,7 @@ Examples:
             result = False
 
         # Record in history (except help/status/history)
-        if command not in ('help', 'status', 'history'):
+        if command not in ("help", "status", "history"):
             self.history.append((timestamp, cmd, result))
 
         return True
@@ -506,7 +495,10 @@ Examples:
 
         if self.planning_team:
             # Close LLM client if it exists
-            if hasattr(self.planning_team, 'llm_client') and self.planning_team.llm_client:
+            if (
+                hasattr(self.planning_team, "llm_client")
+                and self.planning_team.llm_client
+            ):
                 await self.planning_team.llm_client.close()
             await self.planning_team.stop()
         if self.validation_team:
@@ -518,9 +510,14 @@ Examples:
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Interactive CLI for Handoff Multi-Agent System")
-    parser.add_argument("--llm", action="store_true",
-                       help="Enable LLM-powered mode for intelligent planning")
+    parser = argparse.ArgumentParser(
+        description="Interactive CLI for Handoff Multi-Agent System"
+    )
+    parser.add_argument(
+        "--llm",
+        action="store_true",
+        help="Enable LLM-powered mode for intelligent planning",
+    )
     args = parser.parse_args()
 
     cli = InteractiveCLI(use_llm=args.llm)

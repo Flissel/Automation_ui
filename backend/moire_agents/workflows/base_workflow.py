@@ -10,14 +10,14 @@ Provides common functionality for:
 
 import asyncio
 import logging
+import os
+import sys
 import time
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, List, Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
-import sys
-import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.event_queue import ActionEvent, ActionStatus
@@ -25,6 +25,7 @@ from core.event_queue import ActionEvent, ActionStatus
 # Optional imports
 try:
     from agents.progress_agent import ProgressAgent, TaskProgress
+
     HAS_PROGRESS_AGENT = True
 except ImportError:
     HAS_PROGRESS_AGENT = False
@@ -33,6 +34,7 @@ except ImportError:
 
 try:
     from core.localization import L
+
     HAS_LOCALIZATION = True
 except ImportError:
     HAS_LOCALIZATION = False
@@ -44,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 class StepStatus(Enum):
     """Status of a workflow step."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -54,6 +57,7 @@ class StepStatus(Enum):
 @dataclass
 class WorkflowStep:
     """Definition of a single workflow step."""
+
     id: str
     action_type: str
     params: Dict[str, Any]
@@ -75,13 +79,14 @@ class WorkflowStep:
             action_type=self.action_type,
             params=self.params,
             description=self.description,
-            status=ActionStatus.PENDING
+            status=ActionStatus.PENDING,
         )
 
 
 @dataclass
 class WorkflowResult:
     """Result of workflow execution."""
+
     success: bool
     workflow_name: str
     steps_completed: int
@@ -106,7 +111,7 @@ class BaseWorkflow(ABC):
         self,
         steering_agent=None,
         progress_agent: Optional[ProgressAgent] = None,
-        name: str = "BaseWorkflow"
+        name: str = "BaseWorkflow",
     ):
         self.steering_agent = steering_agent
         self.progress_agent = progress_agent
@@ -163,9 +168,7 @@ class BaseWorkflow(ABC):
         if self.progress_agent and HAS_PROGRESS_AGENT:
             actions = [step.to_action_event(task_id) for step in self.steps]
             await self.progress_agent.start_monitoring(
-                task_id=task_id,
-                goal=f"Execute workflow: {self.name}",
-                actions=actions
+                task_id=task_id, goal=f"Execute workflow: {self.name}", actions=actions
             )
 
         step_results = []
@@ -186,7 +189,9 @@ class BaseWorkflow(ABC):
                 if not step_result.get("success", False):
                     error = step_result.get("error", "Step failed")
                     if step.retry_count >= step.max_retries:
-                        logger.error(f"Step {step.id} failed after {step.retry_count} retries")
+                        logger.error(
+                            f"Step {step.id} failed after {step.retry_count} retries"
+                        )
                         break
                     else:
                         # Retry
@@ -235,11 +240,13 @@ class BaseWorkflow(ABC):
             duration=duration,
             progress=progress,
             error=error,
-            step_results=step_results
+            step_results=step_results,
         )
 
-        logger.info(f"Workflow '{self.name}' completed: success={success}, "
-                   f"steps={completed_steps}/{len(self.steps)}, duration={duration:.1f}s")
+        logger.info(
+            f"Workflow '{self.name}' completed: success={success}, "
+            f"steps={completed_steps}/{len(self.steps)}, duration={duration:.1f}s"
+        )
 
         return result
 
@@ -270,8 +277,7 @@ class BaseWorkflow(ABC):
             # Notify progress agent
             if self.progress_agent:
                 await self.progress_agent.action_completed(
-                    self.current_step_index,
-                    result
+                    self.current_step_index, result
                 )
 
             return {"success": True, "result": result}
@@ -303,24 +309,29 @@ class BaseWorkflow(ABC):
         # Create subtask compatible with SteeringAgent
         subtask = Subtask.create(
             description=step.description,
-            approach="keyboard" if step.action_type in ["hotkey", "press_key", "type"] else "mouse",
+            approach=(
+                "keyboard"
+                if step.action_type in ["hotkey", "press_key", "type"]
+                else "mouse"
+            ),
             context={
                 "pyautogui_action": {"type": step.action_type, **step.params},
-                "wait_after": 0.2
-            }
+                "wait_after": 0.2,
+            },
         )
 
         # Execute with timeout - SteeringAgent expects a list of subtasks
         async with asyncio.timeout(step.timeout):
             result = await self.steering_agent.execute_with_steering(
-                subtasks=[subtask],
-                goal=step.description
+                subtasks=[subtask], goal=step.description
             )
 
         return {
-            "success": result.success if hasattr(result, 'success') else True,
-            "goal_achieved": result.goal_achieved if hasattr(result, 'goal_achieved') else False,
-            "steering_result": result
+            "success": result.success if hasattr(result, "success") else True,
+            "goal_achieved": (
+                result.goal_achieved if hasattr(result, "goal_achieved") else False
+            ),
+            "steering_result": result,
         }
 
     async def _execute_directly(self, step: WorkflowStep) -> Dict[str, Any]:
@@ -402,8 +413,8 @@ class BaseWorkflow(ABC):
                     "id": s.id,
                     "description": s.description,
                     "status": s.status.value,
-                    "error": s.error
+                    "error": s.error,
                 }
                 for s in self.steps
-            ]
+            ],
         }

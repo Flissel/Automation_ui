@@ -21,18 +21,19 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Awaitable
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import uuid4
 
-from .task_decomposer import TaskDecomposer, Subtask
-from .task_scheduler import TaskScheduler, ExecutionPlan, ExecutionPhase
 from .progress_tracker import ProgressTracker, SubtaskStatus
+from .task_decomposer import Subtask, TaskDecomposer
+from .task_scheduler import ExecutionPhase, ExecutionPlan, TaskScheduler
 
 logger = logging.getLogger(__name__)
 
 
 class TaskState(Enum):
     """State of a running automation task."""
+
     PENDING = "pending"
     DECOMPOSING = "decomposing"
     SCHEDULING = "scheduling"
@@ -45,6 +46,7 @@ class TaskState(Enum):
 @dataclass
 class AutomationResult:
     """Result of a complex automation task."""
+
     task_id: str
     success: bool
     goal: str
@@ -60,6 +62,7 @@ class AutomationResult:
 @dataclass
 class RunningTask:
     """A task currently being executed."""
+
     task_id: str
     goal: str
     state: TaskState
@@ -86,7 +89,7 @@ class AutomationEngine:
         orchestrator=None,  # OrchestratorV2 instance
         subagent_manager=None,  # SubagentManager instance
         redis_client=None,  # RedisStreamClient instance
-        openrouter_client=None  # For LLM-based decomposition
+        openrouter_client=None,  # For LLM-based decomposition
     ):
         """
         Initialize the AutomationEngine.
@@ -121,7 +124,7 @@ class AutomationEngine:
         self,
         goal: str,
         context: Optional[Dict[str, Any]] = None,
-        on_progress: Optional[Callable[[Dict], Awaitable[None]]] = None
+        on_progress: Optional[Callable[[Dict], Awaitable[None]]] = None,
     ) -> AutomationResult:
         """
         Execute a complex multi-step task.
@@ -143,21 +146,21 @@ class AutomationEngine:
 
         # Create running task
         task = RunningTask(
-            task_id=task_id,
-            goal=goal,
-            state=TaskState.PENDING,
-            started_at=start_time
+            task_id=task_id, goal=goal, state=TaskState.PENDING, started_at=start_time
         )
         self._running_tasks[task_id] = task
 
         try:
             # Phase 1: Decompose goal into subtasks
             task.state = TaskState.DECOMPOSING
-            await self._notify_progress(on_progress, {
-                "task_id": task_id,
-                "state": "decomposing",
-                "message": f"Analyzing task: {goal}"
-            })
+            await self._notify_progress(
+                on_progress,
+                {
+                    "task_id": task_id,
+                    "state": "decomposing",
+                    "message": f"Analyzing task: {goal}",
+                },
+            )
 
             subtasks = await self.decomposer.decompose(goal, context)
             task.subtasks = subtasks
@@ -166,12 +169,15 @@ class AutomationEngine:
 
             # Phase 2: Create execution plan
             task.state = TaskState.SCHEDULING
-            await self._notify_progress(on_progress, {
-                "task_id": task_id,
-                "state": "scheduling",
-                "message": f"Planning execution of {len(subtasks)} subtasks",
-                "subtasks_total": len(subtasks)
-            })
+            await self._notify_progress(
+                on_progress,
+                {
+                    "task_id": task_id,
+                    "state": "scheduling",
+                    "message": f"Planning execution of {len(subtasks)} subtasks",
+                    "subtasks_total": len(subtasks),
+                },
+            )
 
             execution_plan = self.scheduler.create_plan(subtasks)
 
@@ -191,19 +197,20 @@ class AutomationEngine:
 
                 task.current_phase = phase_idx
 
-                await self._notify_progress(on_progress, {
-                    "task_id": task_id,
-                    "state": "executing",
-                    "phase": phase_idx + 1,
-                    "total_phases": len(execution_plan.phases),
-                    "progress": self.progress.get_progress(task_id),
-                    "current_subtasks": [s.description for s in phase.subtasks]
-                })
+                await self._notify_progress(
+                    on_progress,
+                    {
+                        "task_id": task_id,
+                        "state": "executing",
+                        "phase": phase_idx + 1,
+                        "total_phases": len(execution_plan.phases),
+                        "progress": self.progress.get_progress(task_id),
+                        "current_subtasks": [s.description for s in phase.subtasks],
+                    },
+                )
 
                 # Execute phase (may be parallel)
-                phase_results = await self._execute_phase(
-                    task, phase, on_progress
-                )
+                phase_results = await self._execute_phase(task, phase, on_progress)
                 task.results.extend(phase_results)
 
                 # Check if we should continue
@@ -226,21 +233,21 @@ class AutomationEngine:
                 duration_seconds=duration,
                 results=task.results,
                 summary=self._generate_summary(task.results),
-                metadata={
-                    "phases": len(execution_plan.phases),
-                    "context": context
-                }
+                metadata={"phases": len(execution_plan.phases), "context": context},
             )
 
             self._task_results[task_id] = result
 
-            await self._notify_progress(on_progress, {
-                "task_id": task_id,
-                "state": "completed",
-                "success": result.success,
-                "progress": 1.0,
-                "duration": duration
-            })
+            await self._notify_progress(
+                on_progress,
+                {
+                    "task_id": task_id,
+                    "state": "completed",
+                    "success": result.success,
+                    "progress": 1.0,
+                    "duration": duration,
+                },
+            )
 
             return result
 
@@ -256,15 +263,13 @@ class AutomationEngine:
                 subtasks_completed=self.progress.get_completed_count(task_id),
                 subtasks_total=len(task.subtasks),
                 duration_seconds=duration,
-                error=str(e)
+                error=str(e),
             )
             self._task_results[task_id] = result
 
-            await self._notify_progress(on_progress, {
-                "task_id": task_id,
-                "state": "failed",
-                "error": str(e)
-            })
+            await self._notify_progress(
+                on_progress, {"task_id": task_id, "state": "failed", "error": str(e)}
+            )
 
             return result
 
@@ -274,10 +279,7 @@ class AutomationEngine:
             self.progress.end_task(task_id)
 
     async def _execute_phase(
-        self,
-        task: RunningTask,
-        phase: ExecutionPhase,
-        on_progress: Optional[Callable]
+        self, task: RunningTask, phase: ExecutionPhase, on_progress: Optional[Callable]
     ) -> List[Dict[str, Any]]:
         """Execute a single phase of subtasks."""
         results = []
@@ -294,17 +296,17 @@ class AutomationEngine:
                 for subtask in phase.subtasks
             ]
 
-            phase_results = await asyncio.gather(
-                *async_tasks, return_exceptions=True
-            )
+            phase_results = await asyncio.gather(*async_tasks, return_exceptions=True)
 
             for i, result in enumerate(phase_results):
                 if isinstance(result, Exception):
-                    results.append({
-                        "subtask": phase.subtasks[i].description,
-                        "success": False,
-                        "error": str(result)
-                    })
+                    results.append(
+                        {
+                            "subtask": phase.subtasks[i].description,
+                            "success": False,
+                            "error": str(result),
+                        }
+                    )
                 else:
                     results.append(result)
 
@@ -324,23 +326,23 @@ class AutomationEngine:
         return results
 
     async def _execute_subtask(
-        self,
-        task: RunningTask,
-        subtask: Subtask,
-        on_progress: Optional[Callable]
+        self, task: RunningTask, subtask: Subtask, on_progress: Optional[Callable]
     ) -> Dict[str, Any]:
         """Execute a single subtask."""
         logger.info(f"Task {task.task_id}: Executing subtask: {subtask.description}")
 
         self.progress.start_subtask(task.task_id, subtask.id)
 
-        await self._notify_progress(on_progress, {
-            "task_id": task.task_id,
-            "state": "executing_subtask",
-            "subtask": subtask.description,
-            "approach": subtask.approach,
-            "progress": self.progress.get_progress(task.task_id)
-        })
+        await self._notify_progress(
+            on_progress,
+            {
+                "task_id": task.task_id,
+                "state": "executing_subtask",
+                "subtask": subtask.description,
+                "approach": subtask.approach,
+                "progress": self.progress.get_progress(task.task_id),
+            },
+        )
 
         start_time = time.time()
         result = {"subtask": subtask.description, "approach": subtask.approach}
@@ -358,10 +360,14 @@ class AutomationEngine:
             elif subtask.approach == "vision":
                 result["data"] = await self._execute_vision_subtask(subtask, timeout)
             elif subtask.approach == "specialist":
-                result["data"] = await self._execute_specialist_subtask(subtask, timeout)
+                result["data"] = await self._execute_specialist_subtask(
+                    subtask, timeout
+                )
             else:
                 # Default: use orchestrator
-                result["data"] = await self._execute_orchestrator_subtask(subtask, timeout)
+                result["data"] = await self._execute_orchestrator_subtask(
+                    subtask, timeout
+                )
 
             result["success"] = True
             result["duration"] = time.time() - start_time
@@ -393,9 +399,9 @@ class AutomationEngine:
                 self.subagents.tool_call_planning(
                     approach="keyboard",
                     goal=subtask.description,
-                    context=subtask.context or {}
+                    context=subtask.context or {},
                 ),
-                timeout=timeout
+                timeout=timeout,
             )
 
             if plan_result.success and self.orchestrator:
@@ -416,9 +422,9 @@ class AutomationEngine:
                 self.subagents.tool_call_planning(
                     approach="mouse",
                     goal=subtask.description,
-                    context=subtask.context or {}
+                    context=subtask.context or {},
                 ),
-                timeout=timeout
+                timeout=timeout,
             )
 
             if plan_result.success and self.orchestrator:
@@ -438,18 +444,15 @@ class AutomationEngine:
                 self.subagents.spawn_parallel_planners(
                     goal=subtask.description,
                     approaches=["keyboard", "mouse", "hybrid"],
-                    context=subtask.context or {}
+                    context=subtask.context or {},
                 ),
-                timeout=timeout
+                timeout=timeout,
             )
 
             if best_plan.success and self.orchestrator:
                 return await self._execute_plan_actions(best_plan, timeout)
 
-            return {
-                "approach": best_plan.approach,
-                "confidence": best_plan.confidence
-            }
+            return {"approach": best_plan.approach, "confidence": best_plan.confidence}
 
         return await self._execute_orchestrator_subtask(subtask, timeout)
 
@@ -460,22 +463,31 @@ class AutomationEngine:
         if self.subagents:
             # Get current screenshot
             screenshot_ref = None
-            if self.orchestrator and hasattr(self.orchestrator, 'moire_client'):
+            if self.orchestrator and hasattr(self.orchestrator, "moire_client"):
                 # Capture screenshot via MoireServer
                 pass
 
             # Parallel vision analysis
-            regions = subtask.context.get("regions", [
-                {"name": "main_content", "x": 0, "y": 0, "width": 1920, "height": 1080}
-            ])
+            regions = subtask.context.get(
+                "regions",
+                [
+                    {
+                        "name": "main_content",
+                        "x": 0,
+                        "y": 0,
+                        "width": 1920,
+                        "height": 1080,
+                    }
+                ],
+            )
 
             vision_results = await asyncio.wait_for(
                 self.subagents.spawn_parallel_vision(
                     regions=regions,
                     prompts=[subtask.description] * len(regions),
-                    screenshot_ref=screenshot_ref
+                    screenshot_ref=screenshot_ref,
                 ),
-                timeout=timeout
+                timeout=timeout,
             )
 
             return {"vision_results": vision_results}
@@ -491,18 +503,16 @@ class AutomationEngine:
 
             result = await asyncio.wait_for(
                 self.subagents.query_specialist(
-                    domain=domain,
-                    query=subtask.description,
-                    context=subtask.context
+                    domain=domain, query=subtask.description, context=subtask.context
                 ),
-                timeout=timeout
+                timeout=timeout,
             )
 
             return {
                 "domain": domain,
                 "answer": result.answer,
                 "shortcuts": result.shortcuts,
-                "workflow": result.workflow
+                "workflow": result.workflow,
             }
 
         return {"answer": "Specialist not available without subagents"}
@@ -516,14 +526,14 @@ class AutomationEngine:
                 self.orchestrator.execute_task_with_reflection(
                     goal=subtask.description,
                     max_reflection_rounds=2,
-                    actions_per_round=3
+                    actions_per_round=3,
                 ),
-                timeout=timeout
+                timeout=timeout,
             )
 
             return {
                 "orchestrator_result": result,
-                "actions_executed": getattr(result, 'actions_executed', 0)
+                "actions_executed": getattr(result, "actions_executed", 0),
             }
 
         # Mock execution if no orchestrator
@@ -541,7 +551,7 @@ class AutomationEngine:
         # This would integrate with orchestrator.execute_actions()
         return {
             "plan_executed": True,
-            "actions": plan_result.result.get("data", {}).get("actions", [])
+            "actions": plan_result.result.get("data", {}).get("actions", []),
         }
 
     def _should_continue(self, phase_results: List[Dict]) -> bool:
@@ -567,16 +577,14 @@ class AutomationEngine:
 
         if failed:
             summary_parts.append(
-                f"Failed {len(failed)} subtask(s): " +
-                ", ".join(r.get("subtask", "unknown") for r in failed[:3])
+                f"Failed {len(failed)} subtask(s): "
+                + ", ".join(r.get("subtask", "unknown") for r in failed[:3])
             )
 
         return " ".join(summary_parts) or "No subtasks executed."
 
     async def _notify_progress(
-        self,
-        callback: Optional[Callable],
-        status: Dict[str, Any]
+        self, callback: Optional[Callable], status: Dict[str, Any]
     ):
         """Notify progress callback if provided."""
         if callback:
@@ -599,7 +607,7 @@ class AutomationEngine:
                 "state": task.state.value,
                 "progress": self.progress.get_progress(task.task_id),
                 "subtasks_total": len(task.subtasks),
-                "current_phase": task.current_phase
+                "current_phase": task.current_phase,
             }
             for task in self._running_tasks.values()
         ]
@@ -618,7 +626,7 @@ class AutomationEngine:
                     for s in task.subtasks
                 ],
                 "current_phase": task.current_phase,
-                "running": True
+                "running": True,
             }
         elif task_id in self._task_results:
             result = self._task_results[task_id]
@@ -629,7 +637,7 @@ class AutomationEngine:
                 "progress": 1.0,
                 "success": result.success,
                 "summary": result.summary,
-                "running": False
+                "running": False,
             }
         return None
 
@@ -652,10 +660,7 @@ _engine_instance: Optional[AutomationEngine] = None
 
 
 async def get_automation_engine(
-    orchestrator=None,
-    subagent_manager=None,
-    redis_client=None,
-    openrouter_client=None
+    orchestrator=None, subagent_manager=None, redis_client=None, openrouter_client=None
 ) -> AutomationEngine:
     """
     Get or create the singleton AutomationEngine instance.
@@ -676,7 +681,7 @@ async def get_automation_engine(
             orchestrator=orchestrator,
             subagent_manager=subagent_manager,
             redis_client=redis_client,
-            openrouter_client=openrouter_client
+            openrouter_client=openrouter_client,
         )
 
     return _engine_instance

@@ -4,22 +4,22 @@ Executes parsed intents using MCP tools and PyAutoGUI.
 Connects the intent parser output to actual desktop automation.
 """
 
-import os
-import sys
 import asyncio
 import logging
-import webbrowser
+import os
+import sys
 import time
-from typing import Optional, List, Dict, Any, Callable
+import webbrowser
 from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Handle both module and standalone imports
 try:
-    from .intent_parser import ParsedIntent, Action, ActionType
+    from .intent_parser import Action, ActionType, ParsedIntent
 except ImportError:
-    from intent_parser import ParsedIntent, Action, ActionType
+    from intent_parser import Action, ActionType, ParsedIntent
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExecutionResult:
     """Result of executing an action."""
+
     success: bool
     action: Action
     result: Any = None
@@ -37,6 +38,7 @@ class ExecutionResult:
 @dataclass
 class ExecutionReport:
     """Report of executing all actions in an intent."""
+
     intent: ParsedIntent
     results: List[ExecutionResult] = field(default_factory=list)
     total_duration_ms: float = 0
@@ -52,7 +54,7 @@ class CommandExecutor:
         on_action_start: Optional[Callable[[Action], None]] = None,
         on_action_complete: Optional[Callable[[ExecutionResult], None]] = None,
         on_feedback: Optional[Callable[[str], None]] = None,
-        use_vision: bool = True
+        use_vision: bool = True,
     ):
         """Initialize CommandExecutor.
 
@@ -75,6 +77,7 @@ class CommandExecutor:
         """Get pyautogui module (lazy import)."""
         if self._pyautogui is None:
             import pyautogui
+
             pyautogui.FAILSAFE = True  # Move mouse to corner to abort
             pyautogui.PAUSE = 0.1  # Small pause between actions
             self._pyautogui = pyautogui
@@ -85,6 +88,7 @@ class CommandExecutor:
         if self._vision_agent is None and self.use_vision:
             try:
                 from agents.vision_agent import get_vision_agent
+
                 self._vision_agent = get_vision_agent()
             except ImportError:
                 logger.warning("Vision agent not available")
@@ -121,7 +125,9 @@ class CommandExecutor:
             return report
 
         # Announce what we're doing
-        self._send_feedback(f"Führe {len(intent.actions)} Aktionen aus: {intent.context}")
+        self._send_feedback(
+            f"Führe {len(intent.actions)} Aktionen aus: {intent.context}"
+        )
 
         for action in intent.actions:
             if self.on_action_start:
@@ -166,23 +172,15 @@ class CommandExecutor:
                 return ExecutionResult(
                     success=False,
                     action=action,
-                    error=f"Unknown action type: {action.type.value}"
+                    error=f"Unknown action type: {action.type.value}",
                 )
 
             result = await handler(action.params)
-            return ExecutionResult(
-                success=True,
-                action=action,
-                result=result
-            )
+            return ExecutionResult(success=True, action=action, result=result)
 
         except Exception as e:
             logger.error(f"Action execution failed: {e}")
-            return ExecutionResult(
-                success=False,
-                action=action,
-                error=str(e)
-            )
+            return ExecutionResult(success=False, action=action, error=str(e))
 
     def _get_handler(self, action_type: ActionType):
         """Get handler function for action type."""
@@ -293,7 +291,10 @@ class CommandExecutor:
             pyautogui = self._get_pyautogui()
             screenshot = pyautogui.screenshot()
             screenshot.save("vision_analysis.png")
-            return {"analysis": "Vision agent not available", "screenshot": "vision_analysis.png"}
+            return {
+                "analysis": "Vision agent not available",
+                "screenshot": "vision_analysis.png",
+            }
 
         try:
             # Get screenshot
@@ -302,6 +303,7 @@ class CommandExecutor:
 
             # Convert to bytes
             import io
+
             buffer = io.BytesIO()
             screenshot.save(buffer, format="PNG")
             image_bytes = buffer.getvalue()
@@ -339,11 +341,14 @@ class CommandExecutor:
         try:
             # Try using the MCP handoff tools
             from mcp_server_handoff import handle_read_screen
+
             result = await handle_read_screen(region=region)
             return result
         except ImportError:
             # Fallback: use vision_analyze
-            return await self._handle_vision_analyze({"prompt": "Read all visible text on the screen"})
+            return await self._handle_vision_analyze(
+                {"prompt": "Read all visible text on the screen"}
+            )
 
     async def _handle_find_element(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Find a UI element by description."""
@@ -367,6 +372,7 @@ class CommandExecutor:
         screen_width, screen_height = screenshot.size
 
         import io
+
         buffer = io.BytesIO()
         screenshot.save(buffer, format="PNG")
         image_bytes = buffer.getvalue()
@@ -402,15 +408,17 @@ Important: Return ONLY the JSON, no other text."""
         # Try multiple JSON extraction patterns
         json_patterns = [
             r'\{[^{}]*"found"[^{}]*\}',  # Match JSON with "found" key
-            r'```json\s*(\{[^`]*\})\s*```',  # Match JSON in code block
-            r'(\{[^{}]*\})',  # Match any simple JSON
+            r"```json\s*(\{[^`]*\})\s*```",  # Match JSON in code block
+            r"(\{[^{}]*\})",  # Match any simple JSON
         ]
 
         for pattern in json_patterns:
             json_match = re.search(pattern, result, re.DOTALL)
             if json_match:
                 try:
-                    json_str = json_match.group(1) if '```' in pattern else json_match.group()
+                    json_str = (
+                        json_match.group(1) if "```" in pattern else json_match.group()
+                    )
                     element_data = json.loads(json_str)
                     logger.info(f"Parsed element data: {element_data}")
 
@@ -478,6 +486,7 @@ Important: Return ONLY the JSON, no other text."""
         else:
             # Try to open as application (Windows)
             import subprocess
+
             try:
                 subprocess.Popen(["start", target], shell=True)
                 return {"target": target, "opened": True}
@@ -493,7 +502,7 @@ class VoiceAutomationPipeline:
         on_listening: Optional[Callable[[], None]] = None,
         on_thinking: Optional[Callable[[], None]] = None,
         on_executing: Optional[Callable[[str], None]] = None,
-        on_complete: Optional[Callable[[str], None]] = None
+        on_complete: Optional[Callable[[str], None]] = None,
     ):
         """Initialize the full pipeline.
 
@@ -510,17 +519,15 @@ class VoiceAutomationPipeline:
 
         # Initialize components
         try:
-            from .speech_to_text import SpeechToText, STTBackend
             from .intent_parser import IntentParser, QuickIntentParser
+            from .speech_to_text import SpeechToText, STTBackend
         except ImportError:
-            from speech_to_text import SpeechToText, STTBackend
             from intent_parser import IntentParser, QuickIntentParser
+            from speech_to_text import SpeechToText, STTBackend
 
         self.stt = SpeechToText(language="de")  # Auto-detect backend
         self.intent_parser = QuickIntentParser(fallback_parser=IntentParser())
-        self.executor = CommandExecutor(
-            on_feedback=self._handle_feedback
-        )
+        self.executor = CommandExecutor(on_feedback=self._handle_feedback)
 
         self._tts = None
 
@@ -554,7 +561,7 @@ class VoiceAutomationPipeline:
             return ExecutionReport(
                 intent=ParsedIntent(original_text="", error="No speech detected"),
                 success=False,
-                feedback_message="Ich habe nichts verstanden"
+                feedback_message="Ich habe nichts verstanden",
             )
 
         logger.info(f"Transcribed: {transcription.text}")
@@ -597,6 +604,7 @@ class VoiceAutomationPipeline:
 
 # Test/demo code
 if __name__ == "__main__":
+
     async def main():
         print("=== Command Executor Test ===\n")
 
@@ -604,9 +612,7 @@ if __name__ == "__main__":
         from intent_parser import IntentParser, QuickIntentParser
 
         parser = QuickIntentParser()
-        executor = CommandExecutor(
-            on_feedback=lambda msg: print(f"[Feedback] {msg}")
-        )
+        executor = CommandExecutor(on_feedback=lambda msg: print(f"[Feedback] {msg}"))
 
         test_commands = [
             "Scrolle nach unten",

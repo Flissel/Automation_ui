@@ -14,16 +14,15 @@ Examples:
     python main.py --mode interactive
 """
 
+import argparse
+import asyncio
+import logging
 import os
 import sys
-import asyncio
-import argparse
-import logging
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -33,15 +32,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 async def run_interactive_mode():
     """Run interactive text command mode."""
-    from speech_to_text import SpeechToText, STTBackend
-    from intent_parser import QuickIntentParser, IntentParser
     from command_executor import CommandExecutor
-    from text_to_speech import TextToSpeech, TTSConfig, TTSBackend, VoiceFeedback
+    from intent_parser import IntentParser, QuickIntentParser
+    from speech_to_text import SpeechToText, STTBackend
+    from text_to_speech import (TextToSpeech, TTSBackend, TTSConfig,
+                                VoiceFeedback)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("   Voice-Controlled Desktop Automation")
     print("   Interactive Mode")
-    print("="*60)
+    print("=" * 60)
     print("\nGib Befehle ein (z.B. 'Öffne Google', 'Scrolle nach unten')")
     print("Tippe 'quit' oder 'exit' zum Beenden.\n")
 
@@ -66,7 +66,7 @@ async def run_interactive_mode():
             if not command:
                 continue
 
-            if command.lower() in ['quit', 'exit', 'beenden', 'q']:
+            if command.lower() in ["quit", "exit", "beenden", "q"]:
                 print("\nAuf Wiedersehen!")
                 break
 
@@ -113,15 +113,15 @@ async def run_interactive_mode():
 
 async def run_listen_mode(wake_word: str = None, voice_feedback: bool = True):
     """Run real-time voice listening mode."""
-    from speech_to_text import SpeechToText, STTBackend, RealtimeSpeechToText
-    from intent_parser import QuickIntentParser, IntentParser
     from command_executor import CommandExecutor
-    from text_to_speech import TextToSpeech, TTSConfig, TTSBackend
+    from intent_parser import IntentParser, QuickIntentParser
+    from speech_to_text import RealtimeSpeechToText, SpeechToText, STTBackend
+    from text_to_speech import TextToSpeech, TTSBackend, TTSConfig
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("   Voice-Controlled Desktop Automation")
     print("   Listening Mode")
-    print("="*60)
+    print("=" * 60)
 
     if wake_word:
         print(f"\nWake Word: '{wake_word}'")
@@ -160,8 +160,7 @@ async def run_listen_mode(wake_word: str = None, voice_feedback: bool = True):
 
     # Create realtime STT
     realtime = RealtimeSpeechToText(
-        stt=stt,
-        on_transcription=lambda t: asyncio.create_task(on_transcription(t))
+        stt=stt, on_transcription=lambda t: asyncio.create_task(on_transcription(t))
     )
 
     try:
@@ -179,9 +178,9 @@ async def run_listen_mode(wake_word: str = None, voice_feedback: bool = True):
 
 async def run_single_command(command: str, voice_feedback: bool = False):
     """Execute a single command."""
-    from intent_parser import QuickIntentParser, IntentParser
     from command_executor import CommandExecutor
-    from text_to_speech import TextToSpeech, TTSConfig, TTSBackend
+    from intent_parser import IntentParser, QuickIntentParser
+    from text_to_speech import TextToSpeech, TTSBackend, TTSConfig
 
     print(f"\n[Command] {command}")
 
@@ -225,40 +224,34 @@ Examples:
   python main.py --mode listen --wake-word "Hey Moire"
   python main.py --mode command "Öffne Google"
   python main.py --mode command "Scrolle nach unten" --voice-feedback
-        """
+        """,
     )
 
     argparser.add_argument(
-        '--mode', '-m',
-        choices=['interactive', 'listen', 'command'],
-        default='interactive',
-        help='Operation mode (default: interactive)'
+        "--mode",
+        "-m",
+        choices=["interactive", "listen", "command"],
+        default="interactive",
+        help="Operation mode (default: interactive)",
     )
 
     argparser.add_argument(
-        '--command', '-c',
-        type=str,
-        help='Command to execute (for command mode)'
+        "--command", "-c", type=str, help="Command to execute (for command mode)"
     )
 
     argparser.add_argument(
-        '--wake-word', '-w',
+        "--wake-word",
+        "-w",
         type=str,
         default=None,
-        help='Wake word for listening mode (e.g., "Hey Moire")'
+        help='Wake word for listening mode (e.g., "Hey Moire")',
     )
 
     argparser.add_argument(
-        '--voice-feedback', '-v',
-        action='store_true',
-        help='Enable voice feedback'
+        "--voice-feedback", "-v", action="store_true", help="Enable voice feedback"
     )
 
-    argparser.add_argument(
-        '--debug',
-        action='store_true',
-        help='Enable debug logging'
-    )
+    argparser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = argparser.parse_args()
 
@@ -267,17 +260,17 @@ Examples:
         logging.getLogger().setLevel(logging.DEBUG)
 
     # Handle command mode
-    if args.mode == 'command':
+    if args.mode == "command":
         if args.command:
             command = args.command
         else:
             print("Error: --mode command requires --command 'Your command'")
-            print("Usage: python main.py --mode command --command \"Öffne Google\"")
+            print('Usage: python main.py --mode command --command "Öffne Google"')
             sys.exit(1)
 
         asyncio.run(run_single_command(command, args.voice_feedback))
 
-    elif args.mode == 'listen':
+    elif args.mode == "listen":
         asyncio.run(run_listen_mode(args.wake_word, args.voice_feedback))
 
     else:  # interactive

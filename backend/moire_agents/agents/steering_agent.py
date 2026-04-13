@@ -18,42 +18,46 @@ Usage:
 
 import asyncio
 import logging
+import os
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
-import sys
-import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.action_executor import ActionExecutor
-from validation.change_detector import ChangeDetector, ChangeRegion, ChangeDetectionResult
 from bridge.websocket_client import MoireWebSocketClient
+from core.action_executor import ActionExecutor
+from validation.change_detector import (ChangeDetectionResult, ChangeDetector,
+                                        ChangeRegion)
 
 logger = logging.getLogger(__name__)
 
 
 class ActionCategory(Enum):
     """Category of action for routing."""
-    SAFE = "safe"                    # Keyboard actions - no visual validation needed
-    VISUAL_DEPENDENT = "visual"      # Click/scroll - requires visual validation
-    FIND_DEPENDENT = "find"          # Find element then click - requires OCR/vision search
-    WAIT = "wait"                    # Sleep/wait - just timing
+
+    SAFE = "safe"  # Keyboard actions - no visual validation needed
+    VISUAL_DEPENDENT = "visual"  # Click/scroll - requires visual validation
+    FIND_DEPENDENT = "find"  # Find element then click - requires OCR/vision search
+    WAIT = "wait"  # Sleep/wait - just timing
     UNKNOWN = "unknown"
 
 
 class RecoveryStrategy(Enum):
     """Strategy for recovering from failures."""
-    RETRY_SAME = "retry_same"           # Same action, different timing
-    RETRY_ALTERNATIVE = "retry_alt"     # Different approach
-    SKIP_AND_CONTINUE = "skip"          # Non-critical, move on
-    ABORT_AND_REPORT = "abort"          # Critical failure, stop
-    REPLAN = "replan"                   # Generate new plan from current state
+
+    RETRY_SAME = "retry_same"  # Same action, different timing
+    RETRY_ALTERNATIVE = "retry_alt"  # Different approach
+    SKIP_AND_CONTINUE = "skip"  # Non-critical, move on
+    ABORT_AND_REPORT = "abort"  # Critical failure, stop
+    REPLAN = "replan"  # Generate new plan from current state
 
 
 @dataclass
 class TaskMessage:
     """Message passed between agents via handoff."""
+
     task_id: str
     conversation_history: List[Dict] = field(default_factory=list)
     current_action: Optional[Dict] = None
@@ -67,6 +71,7 @@ class TaskMessage:
 @dataclass
 class HandoffResult:
     """Result returned after agent completes task."""
+
     success: bool
     next_agent: Optional[str] = None  # Handoff target or None if done
     updated_plan: Optional[List] = None  # If plan was modified
@@ -79,6 +84,7 @@ class HandoffResult:
 @dataclass
 class SteeringResult:
     """Final result from steering agent execution."""
+
     success: bool
     goal_achieved: bool
     actions_executed: int
@@ -111,7 +117,7 @@ class SteeringAgent:
         moire_host: str = "localhost",
         moire_port: int = 8765,
         validation_threshold: float = 0.3,
-        max_retries: int = 2
+        max_retries: int = 2,
     ):
         """
         Initialize the SteeringAgent.
@@ -134,7 +140,7 @@ class SteeringAgent:
             "safe_actions": 0,
             "visual_actions": 0,
             "recoveries": 0,
-            "total_regions": 0
+            "total_regions": 0,
         }
 
     async def connect(self) -> bool:
@@ -184,10 +190,7 @@ class SteeringAgent:
             return ActionCategory.UNKNOWN
 
     async def execute_with_steering(
-        self,
-        subtasks: List,
-        goal: str,
-        on_progress: Optional[Callable] = None
+        self, subtasks: List, goal: str, on_progress: Optional[Callable] = None
     ) -> SteeringResult:
         """
         Main execution loop with steering and handoffs.
@@ -208,6 +211,7 @@ class SteeringAgent:
             SteeringResult with execution summary and visual feedback
         """
         import time
+
         start_time = time.time()
 
         total = len(subtasks)
@@ -229,7 +233,7 @@ class SteeringAgent:
                 current_action=action,
                 goal=goal,
                 subtask_index=i,
-                total_subtasks=total
+                total_subtasks=total,
             )
 
             # Progress callback
@@ -266,7 +270,9 @@ class SteeringAgent:
 
                 # Show change regions
                 for region in result.change_regions:
-                    print(f"      Region {region.id}: {region.bounds} - {region.intensity.value}")
+                    print(
+                        f"      Region {region.id}: {region.bounds} - {region.intensity.value}"
+                    )
 
             else:
                 # Attempt recovery
@@ -305,14 +311,11 @@ class SteeringAgent:
             change_regions=all_regions,
             recovery_attempts=recovery_count,
             total_time_seconds=total_time,
-            summary=summary
+            summary=summary,
         )
 
     async def _route_action(
-        self,
-        task: TaskMessage,
-        category: ActionCategory,
-        subtask
+        self, task: TaskMessage, category: ActionCategory, subtask
     ) -> HandoffResult:
         """
         Route action to appropriate handler based on category.
@@ -366,15 +369,11 @@ class SteeringAgent:
             return HandoffResult(
                 success=success,
                 message="Action executed" if success else "Execution failed",
-                confidence=1.0 if success else 0.0
+                confidence=1.0 if success else 0.0,
             )
         except Exception as e:
             logger.error(f"Safe action failed: {e}")
-            return HandoffResult(
-                success=False,
-                message=f"Error: {e}",
-                confidence=0.0
-            )
+            return HandoffResult(success=False, message=f"Error: {e}", confidence=0.0)
 
     async def _execute_with_validation(self, action: Dict) -> HandoffResult:
         """
@@ -398,19 +397,22 @@ class SteeringAgent:
         try:
             # 1. Capture BEFORE
             if self._connected:
-                before_result = await self.moire_client.capture_and_wait_for_complete(timeout=10.0)
+                before_result = await self.moire_client.capture_and_wait_for_complete(
+                    timeout=10.0
+                )
                 if before_result.success and before_result.screenshot_base64:
                     import base64
-                    before_screenshot = base64.b64decode(before_result.screenshot_base64)
+
+                    before_screenshot = base64.b64decode(
+                        before_result.screenshot_base64
+                    )
 
             # 2. Execute action
             success = await self.action_executor.execute_action(action)
 
             if not success:
                 return HandoffResult(
-                    success=False,
-                    message="Action execution failed",
-                    confidence=0.0
+                    success=False, message="Action execution failed", confidence=0.0
                 )
 
             # 3. Wait for UI to update
@@ -418,60 +420,61 @@ class SteeringAgent:
 
             # 4. Capture AFTER
             if self._connected:
-                after_result = await self.moire_client.capture_and_wait_for_complete(timeout=10.0)
+                after_result = await self.moire_client.capture_and_wait_for_complete(
+                    timeout=10.0
+                )
                 if after_result.success and after_result.screenshot_base64:
                     import base64
+
                     after_screenshot = base64.b64decode(after_result.screenshot_base64)
 
             # 5. Detect changes
             if before_screenshot and after_screenshot:
                 detection = self.change_detector.detect_changes(
-                    before_screenshot,
-                    after_screenshot,
-                    return_diff_image=False
+                    before_screenshot, after_screenshot, return_diff_image=False
                 )
 
                 # Validate based on changes
                 if detection.changed and detection.regions:
                     # Generate annotated screenshot
                     annotated = self.change_detector.annotate_screenshot(
-                        after_screenshot,
-                        detection.regions,
-                        style="boxes"
+                        after_screenshot, detection.regions, style="boxes"
                     )
 
                     # Calculate confidence based on change intensity
-                    high_count = sum(1 for r in detection.regions if r.intensity.value == "high")
-                    confidence = min(1.0, 0.5 + (high_count * 0.2) + (len(detection.regions) * 0.1))
+                    high_count = sum(
+                        1 for r in detection.regions if r.intensity.value == "high"
+                    )
+                    confidence = min(
+                        1.0, 0.5 + (high_count * 0.2) + (len(detection.regions) * 0.1)
+                    )
 
                     return HandoffResult(
                         success=True,
                         change_regions=detection.regions,
                         annotated_screenshot=annotated,
                         message=f"Validated with {len(detection.regions)} change regions ({detection.total_change_percentage:.1f}% total)",
-                        confidence=confidence
+                        confidence=confidence,
                     )
                 else:
                     # No change detected - action may have failed
                     return HandoffResult(
                         success=False,
                         message="No visual change detected",
-                        confidence=0.2
+                        confidence=0.2,
                     )
             else:
                 # No screenshots - fall back to execution-only success
                 return HandoffResult(
                     success=True,
                     message="Executed (no visual validation)",
-                    confidence=0.5
+                    confidence=0.5,
                 )
 
         except Exception as e:
             logger.error(f"Visual validation failed: {e}")
             return HandoffResult(
-                success=False,
-                message=f"Validation error: {e}",
-                confidence=0.0
+                success=False, message=f"Validation error: {e}", confidence=0.0
             )
 
     async def _execute_find_and_click(self, action: Dict) -> HandoffResult:
@@ -491,6 +494,7 @@ class SteeringAgent:
             HandoffResult with success status and change regions
         """
         import base64
+
         import pyautogui
 
         target = action.get("target", "")
@@ -498,7 +502,7 @@ class SteeringAgent:
             return HandoffResult(
                 success=False,
                 message="No target specified for find_and_click",
-                confidence=0.0
+                confidence=0.0,
             )
 
         logger.info(f"Finding element: '{target}'")
@@ -509,7 +513,7 @@ class SteeringAgent:
                 return HandoffResult(
                     success=False,
                     message="Not connected to MoireServer for visual search",
-                    confidence=0.0
+                    confidence=0.0,
                 )
 
             result = await self.moire_client.capture_and_wait_for_complete(timeout=15.0)
@@ -518,7 +522,7 @@ class SteeringAgent:
                 return HandoffResult(
                     success=False,
                     message=f"Screen capture failed: {result.message}",
-                    confidence=0.0
+                    confidence=0.0,
                 )
 
             # 2. Try OCR-based text search first
@@ -540,19 +544,18 @@ class SteeringAgent:
                     def decode_b64_vision(data):
                         if not data:
                             return None
-                        if ',' in data:
-                            data = data.split(',', 1)[1]
+                        if "," in data:
+                            data = data.split(",", 1)[1]
                         missing = len(data) % 4
                         if missing:
-                            data += '=' * (4 - missing)
+                            data += "=" * (4 - missing)
                         return base64.b64decode(data)
 
                     vision_agent = VisionAnalystAgent()
                     if result.screenshot_base64:
                         screenshot_bytes = decode_b64_vision(result.screenshot_base64)
                         location = await vision_agent.find_element_from_screenshot(
-                            screenshot_bytes,
-                            target
+                            screenshot_bytes, target
                         )
 
                         if location.found:
@@ -563,30 +566,30 @@ class SteeringAgent:
                             return HandoffResult(
                                 success=False,
                                 message=f"Could not find element: {target}",
-                                confidence=0.0
+                                confidence=0.0,
                             )
                     else:
                         return HandoffResult(
                             success=False,
                             message="No screenshot available for vision search",
-                            confidence=0.0
+                            confidence=0.0,
                         )
                 except ImportError:
                     return HandoffResult(
                         success=False,
                         message=f"Could not find '{target}' (vision agent not available)",
-                        confidence=0.0
+                        confidence=0.0,
                     )
 
             # Helper to decode base64 with data URI handling
             def decode_b64(data):
                 if not data:
                     return None
-                if ',' in data:
-                    data = data.split(',', 1)[1]
+                if "," in data:
+                    data = data.split(",", 1)[1]
                 missing = len(data) % 4
                 if missing:
-                    data += '=' * (4 - missing)
+                    data += "=" * (4 - missing)
                 return base64.b64decode(data)
 
             # Capture BEFORE screenshot for validation
@@ -600,23 +603,21 @@ class SteeringAgent:
             await asyncio.sleep(0.3)
 
             # 5. Capture AFTER and validate with change detection
-            after_result = await self.moire_client.capture_and_wait_for_complete(timeout=10.0)
+            after_result = await self.moire_client.capture_and_wait_for_complete(
+                timeout=10.0
+            )
             after_screenshot = None
             if after_result.success and after_result.screenshot_base64:
                 after_screenshot = decode_b64(after_result.screenshot_base64)
 
             if before_screenshot and after_screenshot:
                 detection = self.change_detector.detect_changes(
-                    before_screenshot,
-                    after_screenshot,
-                    return_diff_image=False
+                    before_screenshot, after_screenshot, return_diff_image=False
                 )
 
                 if detection.changed and detection.regions:
                     annotated = self.change_detector.annotate_screenshot(
-                        after_screenshot,
-                        detection.regions,
-                        style="boxes"
+                        after_screenshot, detection.regions, style="boxes"
                     )
 
                     return HandoffResult(
@@ -624,34 +625,28 @@ class SteeringAgent:
                         change_regions=detection.regions,
                         annotated_screenshot=annotated,
                         message=f"Found and clicked '{target}' - {len(detection.regions)} regions changed",
-                        confidence=0.9
+                        confidence=0.9,
                     )
                 else:
                     # Click executed but no change detected - might still be successful
                     return HandoffResult(
                         success=True,
                         message=f"Clicked '{target}' but no visual change detected",
-                        confidence=0.6
+                        confidence=0.6,
                     )
             else:
                 return HandoffResult(
                     success=True,
                     message=f"Clicked '{target}' (no visual validation)",
-                    confidence=0.5
+                    confidence=0.5,
                 )
 
         except Exception as e:
             logger.error(f"Find and click failed: {e}")
-            return HandoffResult(
-                success=False,
-                message=f"Error: {e}",
-                confidence=0.0
-            )
+            return HandoffResult(success=False, message=f"Error: {e}", confidence=0.0)
 
     async def _handle_failure(
-        self,
-        task: TaskMessage,
-        failed_result: HandoffResult
+        self, task: TaskMessage, failed_result: HandoffResult
     ) -> HandoffResult:
         """
         Handle action failure with recovery strategies.
@@ -697,7 +692,7 @@ class SteeringAgent:
             return HandoffResult(
                 success=False,
                 message=f"Failed after {attempt} attempts: {failed_result.message}",
-                confidence=0.0
+                confidence=0.0,
             )
 
     def get_stats(self) -> Dict[str, int]:
@@ -716,32 +711,40 @@ async def demo():
             approach="keyboard",
             context={
                 "pyautogui_action": {"type": "hotkey", "keys": ["win", "r"]},
-                "wait_after": 0.5
-            }
+                "wait_after": 0.5,
+            },
         ),
         Subtask.create(
             description="Type notepad",
             approach="keyboard",
             context={
-                "pyautogui_action": {"type": "write", "text": "notepad", "interval": 0.05},
-                "wait_after": 0.2
-            }
+                "pyautogui_action": {
+                    "type": "write",
+                    "text": "notepad",
+                    "interval": 0.05,
+                },
+                "wait_after": 0.2,
+            },
         ),
         Subtask.create(
             description="Press Enter to launch",
             approach="keyboard",
             context={
                 "pyautogui_action": {"type": "press", "key": "enter"},
-                "wait_after": 2.0
-            }
+                "wait_after": 2.0,
+            },
         ),
         Subtask.create(
             description="Type Hello World",
             approach="keyboard",
             context={
-                "pyautogui_action": {"type": "write", "text": "Hello from SteeringAgent!", "interval": 0.03},
-                "wait_after": 0.2
-            }
+                "pyautogui_action": {
+                    "type": "write",
+                    "text": "Hello from SteeringAgent!",
+                    "interval": 0.03,
+                },
+                "wait_after": 0.2,
+            },
         ),
     ]
 
@@ -762,12 +765,13 @@ async def demo():
         # Connect to MoireServer
         connected = await agent.connect()
         if not connected:
-            print("\n[WARNING] Could not connect to MoireServer - running without validation")
+            print(
+                "\n[WARNING] Could not connect to MoireServer - running without validation"
+            )
 
         # Execute with steering
         result = await agent.execute_with_steering(
-            subtasks=subtasks,
-            goal="Open Notepad and type Hello World"
+            subtasks=subtasks, goal="Open Notepad and type Hello World"
         )
 
         # Show results

@@ -10,8 +10,8 @@ import base64
 import logging
 from typing import Any, Dict, List, Optional
 
-from .base_agent import BaseHandoffAgent, AgentConfig
-from .messages import UserTask, HandoffRequest
+from .base_agent import AgentConfig, BaseHandoffAgent
+from .messages import HandoffRequest, UserTask
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +29,7 @@ class VisionHandoffAgent(BaseHandoffAgent):
     Integrates with MoireServer for OCR and vision analysis.
     """
 
-    def __init__(
-        self,
-        moire_host: str = "localhost",
-        moire_port: int = 8765
-    ):
+    def __init__(self, moire_host: str = "localhost", moire_port: int = 8765):
         """
         Initialize the vision agent.
 
@@ -45,7 +41,7 @@ class VisionHandoffAgent(BaseHandoffAgent):
             name="vision",
             description="Finds UI elements via OCR and vision analysis",
             topic_type="vision",
-            timeout=30.0
+            timeout=30.0,
         )
         super().__init__(config)
 
@@ -59,13 +55,13 @@ class VisionHandoffAgent(BaseHandoffAgent):
         self.register_delegate_tool(
             name="return_to_orchestrator",
             target_agent="orchestrator",
-            description="Return control with found element coordinates"
+            description="Return control with found element coordinates",
         )
 
         self.register_delegate_tool(
             name="delegate_to_execution",
             target_agent="execution",
-            description="Send click action to execution agent"
+            description="Send click action to execution agent",
         )
 
     async def _get_moire_client(self):
@@ -73,9 +69,9 @@ class VisionHandoffAgent(BaseHandoffAgent):
         if self._moire_client is None:
             try:
                 from bridge.websocket_client import MoireWebSocketClient
+
                 self._moire_client = MoireWebSocketClient(
-                    host=self.moire_host,
-                    port=self.moire_port
+                    host=self.moire_host, port=self.moire_port
                 )
                 await self._moire_client.connect()
             except Exception as e:
@@ -89,6 +85,7 @@ class VisionHandoffAgent(BaseHandoffAgent):
         if self._vision_agent is None:
             try:
                 from agents.vision_agent import VisionAnalystAgent
+
                 self._vision_agent = VisionAnalystAgent()
             except Exception as e:
                 logger.warning(f"Could not create VisionAgent: {e}")
@@ -123,12 +120,12 @@ class VisionHandoffAgent(BaseHandoffAgent):
             # Return to orchestrator with failure
             task.context["vision_result"] = result
             return await self.hand_off_to(
-                "orchestrator",
-                task,
-                reason=f"Element not found: {target}"
+                "orchestrator", task, reason=f"Element not found: {target}"
             )
 
-        await self.report_progress(task, 75.0, f"Found at ({result['x']}, {result['y']})")
+        await self.report_progress(
+            task, 75.0, f"Found at ({result['x']}, {result['y']})"
+        )
 
         # Handle based on return mode
         if return_mode == "execute_click":
@@ -136,28 +133,21 @@ class VisionHandoffAgent(BaseHandoffAgent):
             task.context["action"] = {
                 "type": "click",
                 "x": result["x"],
-                "y": result["y"]
+                "y": result["y"],
             }
             task.context["vision_result"] = result
             return await self.hand_off_to(
-                "execution",
-                task,
-                reason=f"Click element: {target}"
+                "execution", task, reason=f"Click element: {target}"
             )
         else:
             # Return coordinates to orchestrator
             task.context["vision_result"] = result
             return await self.hand_off_to(
-                "orchestrator",
-                task,
-                reason=f"Found element: {target}"
+                "orchestrator", task, reason=f"Found element: {target}"
             )
 
     async def _find_element(
-        self,
-        target: str,
-        method: str,
-        task: UserTask
+        self, target: str, method: str, task: UserTask
     ) -> Dict[str, Any]:
         """
         Find an element on screen.
@@ -185,22 +175,19 @@ class VisionHandoffAgent(BaseHandoffAgent):
         # Fallback: center of screen
         if task.context.get("use_fallback", True):
             import pyautogui
+
             screen_width, screen_height = pyautogui.size()
             return {
                 "found": True,
                 "x": screen_width // 2,
                 "y": int(screen_height * 0.85),
                 "confidence": 0.3,
-                "method": "fallback"
+                "method": "fallback",
             }
 
         return {"found": False, "error": f"Could not find: {target}"}
 
-    async def _find_via_ocr(
-        self,
-        target: str,
-        task: UserTask
-    ) -> Dict[str, Any]:
+    async def _find_via_ocr(self, target: str, task: UserTask) -> Dict[str, Any]:
         """Find element using OCR via MoireServer."""
         try:
             client = await self._get_moire_client()
@@ -225,7 +212,7 @@ class VisionHandoffAgent(BaseHandoffAgent):
                     "y": y,
                     "confidence": 0.8,
                     "method": "ocr",
-                    "text": element.text
+                    "text": element.text,
                 }
 
             return {"found": False, "method": "ocr"}
@@ -234,11 +221,7 @@ class VisionHandoffAgent(BaseHandoffAgent):
             logger.error(f"OCR search failed: {e}")
             return {"found": False, "error": str(e)}
 
-    async def _find_via_vision(
-        self,
-        target: str,
-        task: UserTask
-    ) -> Dict[str, Any]:
+    async def _find_via_vision(self, target: str, task: UserTask) -> Dict[str, Any]:
         """Find element using Claude Vision API."""
         try:
             vision_agent = await self._get_vision_agent()
@@ -265,8 +248,7 @@ class VisionHandoffAgent(BaseHandoffAgent):
 
             # Use vision agent to find element
             location = await vision_agent.find_element_from_screenshot(
-                screenshot_bytes,
-                target
+                screenshot_bytes, target
             )
 
             if location.found:
@@ -275,7 +257,7 @@ class VisionHandoffAgent(BaseHandoffAgent):
                     "x": location.x,
                     "y": location.y,
                     "confidence": location.confidence,
-                    "method": "vision"
+                    "method": "vision",
                 }
 
             return {"found": False, "method": "vision"}
@@ -290,13 +272,13 @@ class VisionHandoffAgent(BaseHandoffAgent):
             return None
 
         # Handle data URI prefix
-        if ',' in data:
-            data = data.split(',', 1)[1]
+        if "," in data:
+            data = data.split(",", 1)[1]
 
         # Fix padding
         missing = len(data) % 4
         if missing:
-            data += '=' * (4 - missing)
+            data += "=" * (4 - missing)
 
         return base64.b64decode(data)
 

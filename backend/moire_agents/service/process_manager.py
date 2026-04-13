@@ -8,17 +8,18 @@ Handles process lifecycle management including:
 - PID file management
 """
 
+import asyncio
+import logging
 import os
-import sys
 import signal
 import subprocess
-import asyncio
-import psutil
-from pathlib import Path
-from typing import Optional, Callable
+import sys
 from dataclasses import dataclass
 from datetime import datetime
-import logging
+from pathlib import Path
+from typing import Callable, Optional
+
+import psutil
 
 from ..config import get_config
 
@@ -26,6 +27,7 @@ from ..config import get_config
 @dataclass
 class ProcessInfo:
     """Information about a managed process"""
+
     name: str
     pid: Optional[int]
     started_at: Optional[datetime]
@@ -44,7 +46,7 @@ class ProcessManager:
 
     def __init__(self):
         self.config = get_config()
-        self.logger = logging.getLogger('ProcessManager')
+        self.logger = logging.getLogger("ProcessManager")
 
         # Process tracking
         self.processes: dict[str, ProcessInfo] = {}
@@ -68,7 +70,7 @@ class ProcessManager:
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""
-        if sys.platform == 'win32':
+        if sys.platform == "win32":
             # Windows doesn't have SIGTERM, use SIGINT and SIGBREAK
             signal.signal(signal.SIGINT, self._signal_handler)
             signal.signal(signal.SIGBREAK, self._signal_handler)
@@ -114,7 +116,10 @@ class ProcessManager:
         """
         name = "moire_server"
 
-        if name in self.subprocess_handles and self.subprocess_handles[name].poll() is None:
+        if (
+            name in self.subprocess_handles
+            and self.subprocess_handles[name].poll() is None
+        ):
             self.logger.info("MoireServer is already running")
             return True
 
@@ -127,14 +132,16 @@ class ProcessManager:
                 cwd=str(moire_path),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0
+                creationflags=(
+                    subprocess.CREATE_NEW_PROCESS_GROUP
+                    if sys.platform == "win32"
+                    else 0
+                ),
             )
 
             self.subprocess_handles[name] = proc
             self.processes[name] = ProcessInfo(
-                name=name,
-                pid=proc.pid,
-                started_at=datetime.now()
+                name=name, pid=proc.pid, started_at=datetime.now()
             )
 
             self._write_pid_file(name, proc.pid)
@@ -168,7 +175,10 @@ class ProcessManager:
         """
         name = "mcp_server"
 
-        if name in self.subprocess_handles and self.subprocess_handles[name].poll() is None:
+        if (
+            name in self.subprocess_handles
+            and self.subprocess_handles[name].poll() is None
+        ):
             self.logger.info("MCP Server is already running")
             return True
 
@@ -184,14 +194,16 @@ class ProcessManager:
                 cwd=self.config.python_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0
+                creationflags=(
+                    subprocess.CREATE_NEW_PROCESS_GROUP
+                    if sys.platform == "win32"
+                    else 0
+                ),
             )
 
             self.subprocess_handles[name] = proc
             self.processes[name] = ProcessInfo(
-                name=name,
-                pid=proc.pid,
-                started_at=datetime.now()
+                name=name, pid=proc.pid, started_at=datetime.now()
             )
 
             self._write_pid_file(name, proc.pid)
@@ -232,7 +244,7 @@ class ProcessManager:
 
         try:
             # Try graceful shutdown first
-            if sys.platform == 'win32':
+            if sys.platform == "win32":
                 # Send CTRL+BREAK on Windows
                 proc.send_signal(signal.CTRL_BREAK_EVENT)
             else:
@@ -244,7 +256,9 @@ class ProcessManager:
                 self.logger.info(f"Process {name} stopped gracefully")
             except subprocess.TimeoutExpired:
                 # Force kill if graceful shutdown failed
-                self.logger.warning(f"Process {name} didn't stop gracefully, forcing kill...")
+                self.logger.warning(
+                    f"Process {name} didn't stop gracefully, forcing kill..."
+                )
                 proc.kill()
                 proc.wait(timeout=5)
 
@@ -317,15 +331,22 @@ class ProcessManager:
                     # Auto-restart if configured
                     if self.config.auto_restart_on_failure:
                         info = self.processes.get(name)
-                        if info and info.restart_count < self.config.max_restart_attempts:
-                            self.logger.info(f"Auto-restarting {name} (attempt {info.restart_count + 1}/{self.config.max_restart_attempts})")
+                        if (
+                            info
+                            and info.restart_count < self.config.max_restart_attempts
+                        ):
+                            self.logger.info(
+                                f"Auto-restarting {name} (attempt {info.restart_count + 1}/{self.config.max_restart_attempts})"
+                            )
 
                             if await self.restart_process(name):
                                 if name in self.processes:
                                     self.processes[name].restart_count += 1
                                     self.processes[name].last_restart = datetime.now()
                         else:
-                            self.logger.error(f"Max restart attempts reached for {name}")
+                            self.logger.error(
+                                f"Max restart attempts reached for {name}"
+                            )
                             self._cleanup_process(name)
 
             await asyncio.sleep(check_interval)
@@ -340,7 +361,9 @@ class ProcessManager:
                 "pid": info.pid if running else None,
                 "started_at": info.started_at.isoformat() if info.started_at else None,
                 "restart_count": info.restart_count,
-                "last_restart": info.last_restart.isoformat() if info.last_restart else None
+                "last_restart": (
+                    info.last_restart.isoformat() if info.last_restart else None
+                ),
             }
         return status
 
@@ -352,7 +375,9 @@ class ProcessManager:
                 try:
                     proc = psutil.Process(pid)
                     if proc.is_running():
-                        self.logger.warning(f"Killing orphaned {name} process (PID {pid})")
+                        self.logger.warning(
+                            f"Killing orphaned {name} process (PID {pid})"
+                        )
                         proc.terminate()
                         proc.wait(timeout=5)
                 except (psutil.NoSuchProcess, psutil.TimeoutExpired):

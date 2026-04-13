@@ -5,11 +5,11 @@ Tool abstractions that trigger handoffs to other agents.
 Based on AutoGen's delegate tool pattern.
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
-import logging
 
-from .messages import UserTask, HandoffRequest
+from .messages import HandoffRequest, UserTask
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ class DelegateTool:
     When executed, creates a HandoffRequest instead of
     performing an action directly.
     """
+
     name: str
     description: str
     target_agent: str
@@ -35,10 +36,7 @@ class DelegateTool:
             raise ValueError("DelegateTool requires a target_agent")
 
     async def execute(
-        self,
-        task: UserTask,
-        source_agent: str = "",
-        **kwargs
+        self, task: UserTask, source_agent: str = "", **kwargs
     ) -> HandoffRequest:
         """
         Execute the delegate tool (creates handoff request).
@@ -61,7 +59,7 @@ class DelegateTool:
             task=task,
             source_agent=source_agent,
             priority=self.priority,
-            handoff_count=task.context.get("handoff_count", 0)
+            handoff_count=task.context.get("handoff_count", 0),
         )
 
 
@@ -73,6 +71,7 @@ class ActionTool:
     Unlike DelegateTool, this executes a handler function
     and returns the result.
     """
+
     name: str
     description: str
     handler: Callable
@@ -85,6 +84,7 @@ class ActionTool:
         if callable(self.handler):
             # Check if handler is async
             import asyncio
+
             if asyncio.iscoroutinefunction(self.handler):
                 return await self.handler(task, **kwargs)
             else:
@@ -94,10 +94,7 @@ class ActionTool:
 
 
 def create_delegate_tool(
-    name: str,
-    target_agent: str,
-    description: str,
-    priority: int = 0
+    name: str, target_agent: str, description: str, priority: int = 0
 ) -> DelegateTool:
     """
     Factory function to create a delegate tool.
@@ -112,18 +109,12 @@ def create_delegate_tool(
         Configured DelegateTool
     """
     return DelegateTool(
-        name=name,
-        description=description,
-        target_agent=target_agent,
-        priority=priority
+        name=name, description=description, target_agent=target_agent, priority=priority
     )
 
 
 def create_action_tool(
-    name: str,
-    description: str,
-    handler: Callable,
-    timeout: float = 30.0
+    name: str, description: str, handler: Callable, timeout: float = 30.0
 ) -> ActionTool:
     """
     Factory function to create an action tool.
@@ -138,10 +129,7 @@ def create_action_tool(
         Configured ActionTool
     """
     return ActionTool(
-        name=name,
-        description=description,
-        handler=handler,
-        timeout=timeout
+        name=name, description=description, handler=handler, timeout=timeout
     )
 
 
@@ -151,14 +139,14 @@ def create_action_tool(
 transfer_to_execution = create_delegate_tool(
     name="transfer_to_execution",
     target_agent="execution",
-    description="Use for executing keyboard actions (hotkey, type, press) or mouse actions (click, scroll)"
+    description="Use for executing keyboard actions (hotkey, type, press) or mouse actions (click, scroll)",
 )
 
 # Vision agent - for finding UI elements
 transfer_to_vision = create_delegate_tool(
     name="transfer_to_vision",
     target_agent="vision",
-    description="Use for finding UI elements on screen via OCR or vision analysis"
+    description="Use for finding UI elements on screen via OCR or vision analysis",
 )
 
 # Recovery agent - for handling failures
@@ -166,18 +154,19 @@ transfer_to_recovery = create_delegate_tool(
     name="transfer_to_recovery",
     target_agent="recovery",
     description="Use when an action fails and recovery is needed",
-    priority=1  # Higher priority for recovery
+    priority=1,  # Higher priority for recovery
 )
 
 # Orchestrator - return control to orchestrator
 transfer_to_orchestrator = create_delegate_tool(
     name="transfer_to_orchestrator",
     target_agent="orchestrator",
-    description="Return control to orchestrator for next step or completion"
+    description="Return control to orchestrator for next step or completion",
 )
 
 
 # ==================== Tool Registry ====================
+
 
 class ToolRegistry:
     """
@@ -225,7 +214,8 @@ class ToolRegistry:
     def get_tools_for_agent(self, agent_name: str) -> List[DelegateTool]:
         """Get delegate tools that target a specific agent."""
         return [
-            tool for tool in self._delegate_tools.values()
+            tool
+            for tool in self._delegate_tools.values()
             if tool.target_agent == agent_name
         ]
 

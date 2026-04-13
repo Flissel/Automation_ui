@@ -27,7 +27,7 @@ Example:
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Awaitable
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TaskSubmission:
     """A submitted task."""
+
     task_id: str
     goal: str
     context: Dict[str, Any]
@@ -76,7 +77,7 @@ class ConversationInterface:
         self,
         natural_language_task: str,
         context: Optional[Dict[str, Any]] = None,
-        wait: bool = False
+        wait: bool = False,
     ) -> str:
         """
         Submit a task for automation.
@@ -98,7 +99,7 @@ class ConversationInterface:
             task_id=task_id,
             goal=natural_language_task,
             context=context,
-            submitted_at=time.time()
+            submitted_at=time.time(),
         )
         self._pending[task_id] = submission
 
@@ -121,12 +122,7 @@ class ConversationInterface:
 
         return task_id
 
-    async def _execute_task(
-        self,
-        task_id: str,
-        goal: str,
-        context: Dict[str, Any]
-    ):
+    async def _execute_task(self, task_id: str, goal: str, context: Dict[str, Any]):
         """Execute a task through the automation engine."""
         try:
             # Update status
@@ -139,9 +135,7 @@ class ConversationInterface:
 
             # Execute
             result = await self.engine.execute_complex_task(
-                goal=goal,
-                context=context,
-                on_progress=on_progress
+                goal=goal, context=context, on_progress=on_progress
             )
 
             # Store result
@@ -155,10 +149,7 @@ class ConversationInterface:
 
         except Exception as e:
             logger.error(f"Task {task_id} failed: {e}")
-            self._results[task_id] = {
-                "success": False,
-                "error": str(e)
-            }
+            self._results[task_id] = {"success": False, "error": str(e)}
             if task_id in self._pending:
                 self._pending[task_id].status = "failed"
             raise
@@ -194,14 +185,14 @@ class ConversationInterface:
                     return {
                         "task_id": task_id,
                         "goal": submission.goal,
-                        **engine_status
+                        **engine_status,
                     }
 
             return {
                 "task_id": task_id,
                 "goal": submission.goal,
                 "state": submission.status,
-                "progress": 0.0 if submission.status == "submitted" else None
+                "progress": 0.0 if submission.status == "submitted" else None,
             }
 
         # Check results
@@ -211,14 +202,10 @@ class ConversationInterface:
                 "task_id": task_id,
                 "state": "completed" if result.get("success", False) else "failed",
                 "progress": 1.0,
-                "success": result.get("success", False)
+                "success": result.get("success", False),
             }
 
-        return {
-            "task_id": task_id,
-            "state": "not_found",
-            "error": "Task not found"
-        }
+        return {"task_id": task_id, "state": "not_found", "error": "Task not found"}
 
     async def get_result(self, task_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -267,9 +254,7 @@ class ConversationInterface:
         return False
 
     def subscribe_to_updates(
-        self,
-        task_id: str,
-        callback: Callable[[Dict[str, Any]], Awaitable[None]]
+        self, task_id: str, callback: Callable[[Dict[str, Any]], Awaitable[None]]
     ) -> None:
         """
         Subscribe to real-time status updates for a task.
@@ -282,11 +267,7 @@ class ConversationInterface:
             self._subscribers[task_id] = []
         self._subscribers[task_id].append(callback)
 
-    def unsubscribe_from_updates(
-        self,
-        task_id: str,
-        callback: Callable
-    ) -> None:
+    def unsubscribe_from_updates(self, task_id: str, callback: Callable) -> None:
         """
         Unsubscribe from task updates.
 
@@ -300,11 +281,7 @@ class ConversationInterface:
             except ValueError:
                 pass
 
-    async def _notify_subscribers(
-        self,
-        task_id: str,
-        status: Dict[str, Any]
-    ) -> None:
+    async def _notify_subscribers(self, task_id: str, status: Dict[str, Any]) -> None:
         """Notify all subscribers of a status update."""
         if task_id in self._subscribers:
             for callback in self._subscribers[task_id]:
@@ -313,10 +290,7 @@ class ConversationInterface:
                 except Exception as e:
                     logger.warning(f"Subscriber callback failed: {e}")
 
-    async def list_tasks(
-        self,
-        include_completed: bool = False
-    ) -> List[Dict[str, Any]]:
+    async def list_tasks(self, include_completed: bool = False) -> List[Dict[str, Any]]:
         """
         List all tasks.
 
@@ -330,22 +304,26 @@ class ConversationInterface:
 
         # Pending/running tasks
         for task_id, submission in self._pending.items():
-            tasks.append({
-                "task_id": task_id,
-                "goal": submission.goal,
-                "state": submission.status,
-                "submitted_at": submission.submitted_at
-            })
+            tasks.append(
+                {
+                    "task_id": task_id,
+                    "goal": submission.goal,
+                    "state": submission.status,
+                    "submitted_at": submission.submitted_at,
+                }
+            )
 
         # Completed tasks
         if include_completed:
             for task_id, result in self._results.items():
                 if task_id not in self._pending:
-                    tasks.append({
-                        "task_id": task_id,
-                        "state": "completed" if result.get("success") else "failed",
-                        "success": result.get("success", False)
-                    })
+                    tasks.append(
+                        {
+                            "task_id": task_id,
+                            "state": "completed" if result.get("success") else "failed",
+                            "success": result.get("success", False),
+                        }
+                    )
 
         return tasks
 
@@ -358,7 +336,8 @@ class ConversationInterface:
         """
         # Find completed tasks
         completed = [
-            task_id for task_id, sub in self._pending.items()
+            task_id
+            for task_id, sub in self._pending.items()
             if sub.status in ("completed", "failed", "cancelled")
         ]
 
@@ -374,9 +353,7 @@ class ConversationInterface:
 
 # Convenience function for simple usage
 async def quick_automate(
-    goal: str,
-    engine=None,
-    on_progress: Callable = None
+    goal: str, engine=None, on_progress: Callable = None
 ) -> Dict[str, Any]:
     """
     Quick automation helper for one-off tasks.
@@ -391,6 +368,7 @@ async def quick_automate(
     """
     if engine is None:
         from ..core.automation_engine import get_automation_engine
+
         engine = await get_automation_engine()
 
     interface = ConversationInterface(engine)

@@ -12,15 +12,14 @@ import os
 import shutil
 import subprocess
 import sys
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from dataclasses import dataclass, field, asdict
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("HealthMonitor")
 
@@ -28,6 +27,7 @@ logger = logging.getLogger("HealthMonitor")
 @dataclass
 class ComponentStatus:
     """Status of a single component"""
+
     name: str
     status: str  # "healthy", "degraded", "unhealthy", "unknown"
     message: str = ""
@@ -42,6 +42,7 @@ class ComponentStatus:
 @dataclass
 class SystemMetrics:
     """System-wide metrics"""
+
     uptime_seconds: float = 0
     plans_created: int = 0
     plans_executed: int = 0
@@ -97,28 +98,28 @@ class HealthMonitor:
                             name="MoireServer",
                             status="healthy",
                             message=f"Connected to {uri}",
-                            details={"uri": uri}
+                            details={"uri": uri},
                         )
             except asyncio.TimeoutError:
                 return ComponentStatus(
                     name="MoireServer",
                     status="unhealthy",
                     message=f"Connection timeout to {uri}",
-                    details={"uri": uri}
+                    details={"uri": uri},
                 )
             except Exception as e:
                 return ComponentStatus(
                     name="MoireServer",
                     status="unhealthy",
                     message=f"Connection failed: {e}",
-                    details={"uri": uri, "error": str(e)}
+                    details={"uri": uri, "error": str(e)},
                 )
 
         except ImportError:
             return ComponentStatus(
                 name="MoireServer",
                 status="unknown",
-                message="websockets package not installed"
+                message="websockets package not installed",
             )
 
     async def check_openrouter_api(self) -> ComponentStatus:
@@ -133,7 +134,7 @@ class HealthMonitor:
             return ComponentStatus(
                 name="OpenRouter API",
                 status="unhealthy",
-                message="API key not configured"
+                message="API key not configured",
             )
 
         # Just check if key format looks valid (don't make actual API call)
@@ -142,19 +143,20 @@ class HealthMonitor:
                 name="OpenRouter API",
                 status="healthy",
                 message="API key configured",
-                details={"key_prefix": api_key[:10] + "..."}
+                details={"key_prefix": api_key[:10] + "..."},
             )
         else:
             return ComponentStatus(
                 name="OpenRouter API",
                 status="degraded",
                 message="API key format may be invalid",
-                details={"key_length": len(api_key)}
+                details={"key_length": len(api_key)},
             )
 
     def check_tesseract(self) -> ComponentStatus:
         """Check if Tesseract OCR is available"""
         import shutil
+
         tesseract_path = os.getenv("TESSERACT_PATH") or shutil.which("tesseract")
         if self.config and self.config.tesseract_path:
             tesseract_path = self.config.tesseract_path
@@ -166,21 +168,21 @@ class HealthMonitor:
                     [tesseract_path, "--version"],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=5,
                 )
-                version = result.stdout.split('\n')[0] if result.stdout else "unknown"
+                version = result.stdout.split("\n")[0] if result.stdout else "unknown"
                 return ComponentStatus(
                     name="Tesseract OCR",
                     status="healthy",
                     message=f"Installed: {version}",
-                    details={"path": tesseract_path, "version": version}
+                    details={"path": tesseract_path, "version": version},
                 )
             except Exception as e:
                 return ComponentStatus(
                     name="Tesseract OCR",
                     status="degraded",
                     message=f"Binary exists but failed to run: {e}",
-                    details={"path": tesseract_path, "error": str(e)}
+                    details={"path": tesseract_path, "error": str(e)},
                 )
         else:
             # Check if it's in PATH
@@ -190,13 +192,13 @@ class HealthMonitor:
                     name="Tesseract OCR",
                     status="healthy",
                     message=f"Found in PATH: {tesseract_in_path}",
-                    details={"path": tesseract_in_path}
+                    details={"path": tesseract_in_path},
                 )
             return ComponentStatus(
                 name="Tesseract OCR",
                 status="degraded",
                 message="Not installed (optional - will use MoireServer OCR)",
-                details={"expected_path": tesseract_path}
+                details={"expected_path": tesseract_path},
             )
 
     def check_pyautogui(self) -> ComponentStatus:
@@ -211,39 +213,30 @@ class HealthMonitor:
                     name="PyAutoGUI",
                     status="healthy",
                     message=f"Display access OK ({size.width}x{size.height})",
-                    details={"screen_width": size.width, "screen_height": size.height}
+                    details={"screen_width": size.width, "screen_height": size.height},
                 )
             except Exception as e:
                 return ComponentStatus(
                     name="PyAutoGUI",
                     status="unhealthy",
                     message=f"No display access: {e}",
-                    details={"error": str(e)}
+                    details={"error": str(e)},
                 )
 
         except ImportError:
             return ComponentStatus(
                 name="PyAutoGUI",
                 status="unhealthy",
-                message="pyautogui package not installed"
+                message="pyautogui package not installed",
             )
 
     def check_python_environment(self) -> ComponentStatus:
         """Check Python environment and critical dependencies"""
         issues = []
-        details = {
-            "python_version": sys.version,
-            "platform": sys.platform
-        }
+        details = {"python_version": sys.version, "platform": sys.platform}
 
         # Check critical packages
-        critical_packages = [
-            "pyautogui",
-            "pytesseract",
-            "websockets",
-            "aiohttp",
-            "mcp"
-        ]
+        critical_packages = ["pyautogui", "pytesseract", "websockets", "aiohttp", "mcp"]
 
         missing = []
         for pkg in critical_packages:
@@ -261,14 +254,14 @@ class HealthMonitor:
                 name="Python Environment",
                 status="degraded" if len(missing) < 3 else "unhealthy",
                 message="; ".join(issues),
-                details=details
+                details=details,
             )
 
         return ComponentStatus(
             name="Python Environment",
             status="healthy",
             message=f"Python {sys.version_info.major}.{sys.version_info.minor} with all dependencies",
-            details=details
+            details=details,
         )
 
     # ==================== Health Check Runner ====================
@@ -285,14 +278,20 @@ class HealthMonitor:
 
         results = await asyncio.gather(*checks, return_exceptions=True)
 
-        component_names = ["MoireServer", "Tesseract", "PyAutoGUI", "Python", "OpenRouter"]
+        component_names = [
+            "MoireServer",
+            "Tesseract",
+            "PyAutoGUI",
+            "Python",
+            "OpenRouter",
+        ]
 
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 self._component_status[component_names[i]] = ComponentStatus(
                     name=component_names[i],
                     status="unknown",
-                    message=f"Check failed: {result}"
+                    message=f"Check failed: {result}",
                 )
             else:
                 self._component_status[result.name] = result
@@ -344,7 +343,9 @@ class HealthMonitor:
 
     def get_metrics(self) -> dict:
         """Get current metrics"""
-        self.metrics.uptime_seconds = (datetime.now() - self._startup_time).total_seconds()
+        self.metrics.uptime_seconds = (
+            datetime.now() - self._startup_time
+        ).total_seconds()
         return asdict(self.metrics)
 
     # ==================== Structured Logging ====================
@@ -357,8 +358,8 @@ class HealthMonitor:
             "details": details,
             "metrics_snapshot": {
                 "uptime": (datetime.now() - self._startup_time).total_seconds(),
-                "errors": self.metrics.errors_count
-            }
+                "errors": self.metrics.errors_count,
+            },
         }
 
         log_func = getattr(logger, level.lower(), logger.info)
@@ -376,13 +377,16 @@ class HealthMonitor:
                 await self.check_all_components()
                 status = self.get_overall_status()
 
-                self.log_event("health_check", {
-                    "overall_status": status,
-                    "components": {
-                        name: {"status": c.status, "message": c.message}
-                        for name, c in self._component_status.items()
-                    }
-                })
+                self.log_event(
+                    "health_check",
+                    {
+                        "overall_status": status,
+                        "components": {
+                            name: {"status": c.status, "message": c.message}
+                            for name, c in self._component_status.items()
+                        },
+                    },
+                )
 
             except Exception as e:
                 logger.error(f"Health check failed: {e}")
@@ -403,10 +407,9 @@ class HealthMonitor:
             "timestamp": datetime.now().isoformat(),
             "overall_status": self.get_overall_status(),
             "components": {
-                name: asdict(status)
-                for name, status in self._component_status.items()
+                name: asdict(status) for name, status in self._component_status.items()
             },
-            "metrics": self.get_metrics()
+            "metrics": self.get_metrics(),
         }
 
     def print_status_report(self):
@@ -423,7 +426,7 @@ class HealthMonitor:
                 "healthy": "[OK]",
                 "degraded": "[!!]",
                 "unhealthy": "[XX]",
-                "unknown": "[??]"
+                "unknown": "[??]",
             }.get(status.status, "[??]")
             print(f"  {icon} {name}: {status.message}")
         print("-" * 60)

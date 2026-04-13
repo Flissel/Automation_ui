@@ -13,9 +13,9 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from .messages import UserTask, AgentResponse, HandoffRequest, ProgressUpdate
+from .messages import AgentResponse, HandoffRequest, ProgressUpdate, UserTask
 
 if TYPE_CHECKING:
     from .runtime import AgentRuntime
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Tool:
     """A tool that an agent can use."""
+
     name: str
     description: str
     handler: Callable
@@ -36,6 +37,7 @@ class Tool:
 @dataclass
 class AgentConfig:
     """Configuration for an agent."""
+
     name: str
     description: str = ""
     topic_type: str = ""  # Topic this agent subscribes to
@@ -55,7 +57,7 @@ class BaseHandoffAgent(ABC):
     5. Return AgentResponse with results
     """
 
-    def __init__(self, config: AgentConfig, runtime: Optional['AgentRuntime'] = None):
+    def __init__(self, config: AgentConfig, runtime: Optional["AgentRuntime"] = None):
         self.config = config
         self.runtime = runtime
         self.tools: Dict[str, Tool] = {}
@@ -73,7 +75,7 @@ class BaseHandoffAgent(ABC):
     def name(self) -> str:
         return self.config.name
 
-    def set_runtime(self, runtime: 'AgentRuntime'):
+    def set_runtime(self, runtime: "AgentRuntime"):
         """Set the agent runtime (for message passing)."""
         self.runtime = runtime
 
@@ -84,19 +86,15 @@ class BaseHandoffAgent(ABC):
         self.tools[tool.name] = tool
         logger.debug(f"Agent {self.name}: Registered tool '{tool.name}'")
 
-    def register_delegate_tool(
-        self,
-        name: str,
-        target_agent: str,
-        description: str
-    ):
+    def register_delegate_tool(self, name: str, target_agent: str, description: str):
         """Register a delegate tool that hands off to another agent."""
+
         async def delegate_handler(task: UserTask, **kwargs) -> HandoffRequest:
             return HandoffRequest(
                 target_agent=target_agent,
                 reason=f"Delegated via {name}",
                 task=task,
-                source_agent=self.name
+                source_agent=self.name,
             )
 
         tool = Tool(
@@ -104,7 +102,7 @@ class BaseHandoffAgent(ABC):
             description=description,
             handler=delegate_handler,
             is_delegate=True,
-            target_agent=target_agent
+            target_agent=target_agent,
         )
         self.register_tool(tool)
 
@@ -144,7 +142,7 @@ class BaseHandoffAgent(ABC):
                     result=result,
                     source_agent=self.name,
                     session_id=task.session_id,
-                    execution_time_ms=(time.time() - start_time) * 1000
+                    execution_time_ms=(time.time() - start_time) * 1000,
                 )
 
             # Return regular response
@@ -153,7 +151,7 @@ class BaseHandoffAgent(ABC):
                 result=result,
                 source_agent=self.name,
                 session_id=task.session_id,
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
         except Exception as e:
@@ -165,7 +163,7 @@ class BaseHandoffAgent(ABC):
                 error=str(e),
                 source_agent=self.name,
                 session_id=task.session_id,
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
     @abstractmethod
@@ -181,19 +179,20 @@ class BaseHandoffAgent(ABC):
 
     # ==================== Handoff Helpers ====================
 
-    async def hand_off_to(self, target_agent: str, task: UserTask, reason: str = "") -> HandoffRequest:
+    async def hand_off_to(
+        self, target_agent: str, task: UserTask, reason: str = ""
+    ) -> HandoffRequest:
         """Create a handoff request to another agent."""
-        task.add_to_history(self.name, "handoff", {
-            "target": target_agent,
-            "reason": reason
-        })
+        task.add_to_history(
+            self.name, "handoff", {"target": target_agent, "reason": reason}
+        )
 
         return HandoffRequest(
             target_agent=target_agent,
             reason=reason,
             task=task,
             source_agent=self.name,
-            handoff_count=task.context.get("handoff_count", 0) + 1
+            handoff_count=task.context.get("handoff_count", 0) + 1,
         )
 
     async def execute_tool(self, tool_name: str, task: UserTask, **kwargs) -> Any:
@@ -207,10 +206,11 @@ class BaseHandoffAgent(ABC):
         result = await tool.handler(task, **kwargs)
 
         # Log to history
-        task.add_to_history(self.name, f"tool:{tool_name}", {
-            "kwargs": kwargs,
-            "is_delegate": tool.is_delegate
-        })
+        task.add_to_history(
+            self.name,
+            f"tool:{tool_name}",
+            {"kwargs": kwargs, "is_delegate": tool.is_delegate},
+        )
 
         return result
 
@@ -221,7 +221,7 @@ class BaseHandoffAgent(ABC):
         task: UserTask,
         percentage: float,
         current_action: str,
-        blockers: List[str] = None
+        blockers: List[str] = None,
     ):
         """Report progress to the runtime."""
         if self.runtime:
@@ -230,7 +230,7 @@ class BaseHandoffAgent(ABC):
                 session_id=task.session_id,
                 progress_percentage=percentage,
                 current_action=current_action,
-                blockers=blockers or []
+                blockers=blockers or [],
             )
             await self.runtime.publish_progress(update)
 
@@ -253,5 +253,5 @@ class BaseHandoffAgent(ABC):
             "tasks_processed": self.tasks_processed,
             "handoffs_made": self.handoffs_made,
             "errors_encountered": self.errors_encountered,
-            "tools_count": len(self.tools)
+            "tools_count": len(self.tools),
         }

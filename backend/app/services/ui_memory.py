@@ -15,10 +15,10 @@ Two optimizations to reduce expensive vision/OCR calls:
 """
 
 import json
-import time
 import logging
+import time
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -29,17 +29,18 @@ CACHE_FILE = CACHE_DIR / "element_cache.json"
 
 # Cache settings
 CACHE_MAX_AGE_HOURS = 168  # 7 days - elements are very stable
-MIN_CONFIDENCE = 0.5       # Don't cache low-confidence results
-USER_CONFIRM_THRESHOLD = 3 # After 3 user confirmations → auto-trust (no more asking)
+MIN_CONFIDENCE = 0.5  # Don't cache low-confidence results
+USER_CONFIRM_THRESHOLD = 3  # After 3 user confirmations → auto-trust (no more asking)
 
 # ASCII grid dimensions
 GRID_COLS = 100  # chars wide
-GRID_ROWS = 30   # chars tall
+GRID_ROWS = 30  # chars tall
 
 
 # ============================================
 # Element Position Cache
 # ============================================
+
 
 def _normalize_key(app_context: str, element: str) -> str:
     """Create normalized cache key from app name and element description."""
@@ -72,8 +73,7 @@ def _save_cache(data: Dict) -> None:
     """Save element cache to disk."""
     try:
         CACHE_FILE.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2),
-            encoding="utf-8"
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
     except OSError as e:
         logger.error(f"[UIMemory] Failed to save cache: {e}")
@@ -83,6 +83,7 @@ def get_screen_resolution() -> str:
     """Get current primary screen resolution."""
     try:
         import pyautogui
+
         size = pyautogui.size()
         return f"{size.width}x{size.height}"
     except Exception:
@@ -90,11 +91,7 @@ def get_screen_resolution() -> str:
 
 
 def cache_element(
-    app_context: str,
-    element: str,
-    x: int,
-    y: int,
-    confidence: float = 1.0
+    app_context: str, element: str, x: int, y: int, confidence: float = 1.0
 ) -> None:
     """
     Store a found element position in cache.
@@ -127,7 +124,7 @@ def cache_element(
         "hits": existing.get("hits", 0) + 1,
         "user_confirmed": existing.get("user_confirmed", 0),
         "app_raw": app_context,
-        "element_raw": element
+        "element_raw": element,
     }
     _save_cache(cache)
     logger.info(f"[UIMemory] Cached: {key} -> ({x},{y}) conf={confidence:.2f}")
@@ -154,7 +151,9 @@ def lookup_element(app_context: str, element: str) -> Optional[Dict[str, Any]]:
         for cached_key, cached_entry in cache["elements"].items():
             cached_app, cached_elem = cached_key.split(":", 1)
             norm_app = _normalize_key(app_context, "x").split(":")[0]
-            if cached_app == norm_app and _fuzzy_match(element, cached_entry.get("element_raw", "")):
+            if cached_app == norm_app and _fuzzy_match(
+                element, cached_entry.get("element_raw", "")
+            ):
                 entry = cached_entry
                 break
 
@@ -181,7 +180,7 @@ def lookup_element(app_context: str, element: str) -> Optional[Dict[str, Any]]:
         "user_confirmed": confirmed,
         "trusted": confirmed >= USER_CONFIRM_THRESHOLD,
         "age_hours": round(age_hours, 1),
-        "cached": True
+        "cached": True,
     }
 
 
@@ -227,7 +226,9 @@ def confirm_element(app_context: str, element: str) -> bool:
     _save_cache(cache)
 
     trusted = entry["user_confirmed"] >= USER_CONFIRM_THRESHOLD
-    logger.info(f"[UIMemory] Confirmed: {key} ({entry['user_confirmed']}/{USER_CONFIRM_THRESHOLD}) trusted={trusted}")
+    logger.info(
+        f"[UIMemory] Confirmed: {key} ({entry['user_confirmed']}/{USER_CONFIRM_THRESHOLD}) trusted={trusted}"
+    )
     return trusted
 
 
@@ -269,11 +270,12 @@ def clear_cache() -> None:
 # ASCII Screen Layout
 # ============================================
 
+
 def build_ascii_layout(
     elements: List[Dict[str, Any]],
     screen_width: int = 1920,
     screen_height: int = 1080,
-    window_title: str = ""
+    window_title: str = "",
 ) -> str:
     """
     Build ASCII representation of screen from detected UI elements.
@@ -292,16 +294,16 @@ def build_ascii_layout(
         Compact ASCII layout string with coordinate annotations
     """
     # Calculate scale factors
-    char_w = screen_width / GRID_COLS    # pixels per character horizontally
-    char_h = screen_height / GRID_ROWS   # pixels per character vertically
+    char_w = screen_width / GRID_COLS  # pixels per character horizontally
+    char_h = screen_height / GRID_ROWS  # pixels per character vertically
 
     # Initialize grid with spaces
-    grid = [[' ' for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
+    grid = [[" " for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
 
     # Sort elements by y position (top to bottom), then x (left to right)
     sorted_elements = sorted(
         [e for e in elements if e.get("text", "").strip()],
-        key=lambda e: (e.get("y", 0), e.get("x", 0))
+        key=lambda e: (e.get("y", 0), e.get("x", 0)),
     )
 
     # Place each element's text on the grid
@@ -332,12 +334,17 @@ def build_ascii_layout(
         text_short = text[:max_len]
 
         # Check for collision - if space is occupied, skip or find next row
-        occupied = any(grid[row][col + i] != ' ' for i in range(min(len(text_short), max_len)))
+        occupied = any(
+            grid[row][col + i] != " " for i in range(min(len(text_short), max_len))
+        )
         if occupied:
             # Try one row below
             if row + 1 < GRID_ROWS:
                 row += 1
-                occupied = any(grid[row][col + i] != ' ' for i in range(min(len(text_short), max_len)))
+                occupied = any(
+                    grid[row][col + i] != " "
+                    for i in range(min(len(text_short), max_len))
+                )
 
         if not occupied:
             # Place text on grid
@@ -345,15 +352,19 @@ def build_ascii_layout(
                 if col + i < GRID_COLS:
                     grid[row][col + i] = ch
 
-        placed.append({
-            "text": text_short,
-            "grid": f"[{col},{row}]",
-            "px": f"({int(cx)},{int(cy)})"
-        })
+        placed.append(
+            {
+                "text": text_short,
+                "grid": f"[{col},{row}]",
+                "px": f"({int(cx)},{int(cy)})",
+            }
+        )
 
     # Build output string
     lines = []
-    lines.append(f"ASCII-LAYOUT {screen_width}x{screen_height} | 1char={int(char_w)}x{int(char_h)}px | {len(placed)} Elemente")
+    lines.append(
+        f"ASCII-LAYOUT {screen_width}x{screen_height} | 1char={int(char_w)}x{int(char_h)}px | {len(placed)} Elemente"
+    )
     if window_title:
         lines.append(f"Fenster: {window_title}")
 
@@ -375,7 +386,9 @@ def build_ascii_layout(
     return "\n".join(lines)
 
 
-def ocr_text_to_elements(ocr_text: str, screen_width: int = 1920, screen_height: int = 1080) -> List[Dict]:
+def ocr_text_to_elements(
+    ocr_text: str, screen_width: int = 1920, screen_height: int = 1080
+) -> List[Dict]:
     """
     Convert raw OCR text lines into element dicts with approximate positions.
 
@@ -393,12 +406,16 @@ def ocr_text_to_elements(ocr_text: str, screen_width: int = 1920, screen_height:
         text = line.strip()
         if not text:
             continue
-        elements.append({
-            "text": text,
-            "x": 10,  # Left margin estimate
-            "y": int(i * line_height),
-            "width": min(len(text) * 8, screen_width - 20),  # ~8px per char estimate
-            "height": int(line_height * 0.8)
-        })
+        elements.append(
+            {
+                "text": text,
+                "x": 10,  # Left margin estimate
+                "y": int(i * line_height),
+                "width": min(
+                    len(text) * 8, screen_width - 20
+                ),  # ~8px per char estimate
+                "height": int(line_height * 0.8),
+            }
+        )
 
     return elements

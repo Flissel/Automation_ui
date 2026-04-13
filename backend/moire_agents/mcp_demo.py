@@ -13,25 +13,25 @@ Usage:
     python mcp_demo.py --monitor 1  # Nur Monitor 1
 """
 
-import asyncio
-import json
-import sys
-import os
 import argparse
+import asyncio
 import base64
-from datetime import datetime
-from typing import Dict, Any, List, Optional
+import json
+import os
+import sys
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 # Add parent to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Imports
 try:
+    import mss
     import pyautogui
     from PIL import Image
-    import mss
 except ImportError as e:
     print(f"Missing dependency: {e}")
     print("Install with: pip install pyautogui pillow mss")
@@ -42,6 +42,7 @@ from agents.orchestrator import ClaudeCLIWrapper
 
 class WorkflowType(Enum):
     """Types of workflows that can be created."""
+
     BROWSER_AUTOMATION = "browser"
     DESKTOP_APP = "desktop_app"
     FILE_MANAGER = "file_manager"
@@ -54,6 +55,7 @@ class WorkflowType(Enum):
 @dataclass
 class MonitorWorkflow:
     """Workflow for a single monitor."""
+
     monitor_id: int
     monitor_info: Dict[str, Any]
     screenshot_path: Optional[str] = None
@@ -89,14 +91,16 @@ class MCPDemo:
             monitors = []
             # Skip first monitor (virtual combined screen)
             for i, monitor in enumerate(sct.monitors[1:], start=0):
-                monitors.append({
-                    "id": i,
-                    "left": monitor["left"],
-                    "top": monitor["top"],
-                    "width": monitor["width"],
-                    "height": monitor["height"],
-                    "name": f"Monitor {i}"
-                })
+                monitors.append(
+                    {
+                        "id": i,
+                        "left": monitor["left"],
+                        "top": monitor["top"],
+                        "width": monitor["width"],
+                        "height": monitor["height"],
+                        "name": f"Monitor {i}",
+                    }
+                )
             return monitors
 
     def capture_monitor(self, monitor_id: int) -> Optional[str]:
@@ -113,7 +117,9 @@ class MCPDemo:
                 filepath = os.path.join(self.output_dir, filename)
 
                 # Convert to PIL and save
-                img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+                img = Image.frombytes(
+                    "RGB", screenshot.size, screenshot.bgra, "raw", "BGRX"
+                )
                 img.save(filepath)
 
                 print(f"[Monitor {monitor_id}] Screenshot saved: {filepath}")
@@ -128,7 +134,9 @@ class MCPDemo:
         with open(filepath, "rb") as f:
             return base64.b64encode(f.read()).decode("utf-8")
 
-    async def analyze_screenshot(self, monitor_id: int, screenshot_path: str) -> Dict[str, Any]:
+    async def analyze_screenshot(
+        self, monitor_id: int, screenshot_path: str
+    ) -> Dict[str, Any]:
         """Analyze a screenshot using Claude CLI."""
         print(f"[Monitor {monitor_id}] Analyzing screenshot...")
 
@@ -154,10 +162,7 @@ Antworte als JSON:
     ]
 }}"""
 
-        result = await self.claude_cli.run_command(
-            prompt=prompt,
-            output_format="json"
-        )
+        result = await self.claude_cli.run_command(prompt=prompt, output_format="json")
 
         if result["success"] and isinstance(result["output"], dict):
             return result["output"]
@@ -171,20 +176,32 @@ Antworte als JSON:
         # Fallback if Claude CLI fails
         return self._fallback_analysis(monitor_id, screenshot_path)
 
-    def _fallback_analysis(self, monitor_id: int, screenshot_path: str) -> Dict[str, Any]:
+    def _fallback_analysis(
+        self, monitor_id: int, screenshot_path: str
+    ) -> Dict[str, Any]:
         """Fallback analysis without Claude CLI."""
         return {
             "detected_type": "unknown",
             "applications": ["Unknown Application"],
             "current_state": f"Monitor {monitor_id} - Screenshot captured",
             "suggested_workflow": [
-                {"action": "capture", "target": f"monitor_{monitor_id}", "description": "Capture screen state"},
+                {
+                    "action": "capture",
+                    "target": f"monitor_{monitor_id}",
+                    "description": "Capture screen state",
+                },
                 {"action": "wait", "duration": 1, "description": "Wait for state"},
-                {"action": "verify", "target": "screen", "description": "Verify screen content"}
-            ]
+                {
+                    "action": "verify",
+                    "target": "screen",
+                    "description": "Verify screen content",
+                },
+            ],
         }
 
-    def create_workflow(self, monitor_id: int, analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def create_workflow(
+        self, monitor_id: int, analysis: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """Create workflow steps based on analysis."""
         detected_type = analysis.get("detected_type", "unknown")
         suggested = analysis.get("suggested_workflow", [])
@@ -196,43 +213,98 @@ Antworte als JSON:
         # Otherwise, create default workflow based on type
         workflows = {
             "browser": [
-                {"action": "find_element", "target": "address_bar", "description": "Find browser address bar"},
-                {"action": "click", "target": "found_element", "description": "Click address bar"},
-                {"action": "wait", "duration": 0.3, "description": "Wait for focus"}
+                {
+                    "action": "find_element",
+                    "target": "address_bar",
+                    "description": "Find browser address bar",
+                },
+                {
+                    "action": "click",
+                    "target": "found_element",
+                    "description": "Click address bar",
+                },
+                {"action": "wait", "duration": 0.3, "description": "Wait for focus"},
             ],
             "desktop_app": [
                 {"action": "capture", "description": "Capture current state"},
-                {"action": "find_element", "target": "main_window", "description": "Find main window"},
-                {"action": "verify", "target": "window_active", "description": "Verify window is active"}
+                {
+                    "action": "find_element",
+                    "target": "main_window",
+                    "description": "Find main window",
+                },
+                {
+                    "action": "verify",
+                    "target": "window_active",
+                    "description": "Verify window is active",
+                },
             ],
             "file_manager": [
                 {"action": "capture", "description": "Capture file list"},
-                {"action": "find_element", "target": "file_list", "description": "Find file listing"},
-                {"action": "scroll", "direction": "down", "amount": 3, "description": "Scroll file list"}
+                {
+                    "action": "find_element",
+                    "target": "file_list",
+                    "description": "Find file listing",
+                },
+                {
+                    "action": "scroll",
+                    "direction": "down",
+                    "amount": 3,
+                    "description": "Scroll file list",
+                },
             ],
             "terminal": [
-                {"action": "click", "target": "terminal_window", "description": "Focus terminal"},
-                {"action": "type", "text": "echo 'MCP Demo'", "description": "Type command"},
-                {"action": "press_key", "key": "enter", "description": "Execute command"}
+                {
+                    "action": "click",
+                    "target": "terminal_window",
+                    "description": "Focus terminal",
+                },
+                {
+                    "action": "type",
+                    "text": "echo 'MCP Demo'",
+                    "description": "Type command",
+                },
+                {
+                    "action": "press_key",
+                    "key": "enter",
+                    "description": "Execute command",
+                },
             ],
             "chat_app": [
-                {"action": "find_element", "target": "chat_input", "description": "Find chat input"},
-                {"action": "click", "target": "found_element", "description": "Click input field"},
-                {"action": "type", "text": "Hello from MCP Demo!", "description": "Type message"}
+                {
+                    "action": "find_element",
+                    "target": "chat_input",
+                    "description": "Find chat input",
+                },
+                {
+                    "action": "click",
+                    "target": "found_element",
+                    "description": "Click input field",
+                },
+                {
+                    "action": "type",
+                    "text": "Hello from MCP Demo!",
+                    "description": "Type message",
+                },
             ],
             "document": [
                 {"action": "capture", "description": "Capture document state"},
-                {"action": "verify", "target": "document_loaded", "description": "Verify document loaded"}
+                {
+                    "action": "verify",
+                    "target": "document_loaded",
+                    "description": "Verify document loaded",
+                },
             ],
             "unknown": [
                 {"action": "capture", "description": "Capture screen"},
-                {"action": "wait", "duration": 1, "description": "Observe state"}
-            ]
+                {"action": "wait", "duration": 1, "description": "Observe state"},
+            ],
         }
 
         return workflows.get(detected_type, workflows["unknown"])
 
-    async def execute_workflow(self, monitor_id: int, steps: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def execute_workflow(
+        self, monitor_id: int, steps: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Execute workflow steps for a monitor."""
         print(f"\n[Monitor {monitor_id}] Executing workflow ({len(steps)} steps)...")
 
@@ -247,58 +319,90 @@ Antworte als JSON:
                 if action == "capture":
                     # Just capture state
                     await asyncio.sleep(0.1)
-                    results.append({"step": i+1, "action": action, "success": True})
+                    results.append({"step": i + 1, "action": action, "success": True})
 
                 elif action == "wait":
                     duration = step.get("duration", 1)
                     await asyncio.sleep(float(duration))
-                    results.append({"step": i+1, "action": action, "success": True})
+                    results.append({"step": i + 1, "action": action, "success": True})
 
                 elif action == "find_element":
                     # Simulated element find
                     await asyncio.sleep(0.2)
-                    results.append({
-                        "step": i+1,
-                        "action": action,
-                        "success": True,
-                        "found": step.get("target")
-                    })
+                    results.append(
+                        {
+                            "step": i + 1,
+                            "action": action,
+                            "success": True,
+                            "found": step.get("target"),
+                        }
+                    )
 
                 elif action == "click":
                     # Only simulate in demo mode
                     await asyncio.sleep(0.1)
-                    results.append({"step": i+1, "action": action, "success": True, "simulated": True})
+                    results.append(
+                        {
+                            "step": i + 1,
+                            "action": action,
+                            "success": True,
+                            "simulated": True,
+                        }
+                    )
 
                 elif action == "type":
                     # Simulate typing
                     text = step.get("text", "")
                     await asyncio.sleep(len(text) * 0.05)
-                    results.append({"step": i+1, "action": action, "success": True, "text_length": len(text)})
+                    results.append(
+                        {
+                            "step": i + 1,
+                            "action": action,
+                            "success": True,
+                            "text_length": len(text),
+                        }
+                    )
 
                 elif action == "scroll":
                     await asyncio.sleep(0.2)
-                    results.append({"step": i+1, "action": action, "success": True})
+                    results.append({"step": i + 1, "action": action, "success": True})
 
                 elif action == "verify":
                     await asyncio.sleep(0.1)
-                    results.append({"step": i+1, "action": action, "success": True, "verified": True})
+                    results.append(
+                        {
+                            "step": i + 1,
+                            "action": action,
+                            "success": True,
+                            "verified": True,
+                        }
+                    )
 
                 elif action == "press_key":
                     await asyncio.sleep(0.1)
-                    results.append({"step": i+1, "action": action, "success": True})
+                    results.append({"step": i + 1, "action": action, "success": True})
 
                 else:
-                    results.append({"step": i+1, "action": action, "success": False, "error": f"Unknown action: {action}"})
+                    results.append(
+                        {
+                            "step": i + 1,
+                            "action": action,
+                            "success": False,
+                            "error": f"Unknown action: {action}",
+                        }
+                    )
 
             except Exception as e:
-                results.append({"step": i+1, "action": action, "success": False, "error": str(e)})
+                results.append(
+                    {"step": i + 1, "action": action, "success": False, "error": str(e)}
+                )
                 success = False
 
         return {
             "monitor_id": monitor_id,
             "success": success,
             "steps_executed": len(results),
-            "results": results
+            "results": results,
         }
 
     async def run_demo(self, monitor_ids: Optional[List[int]] = None):
@@ -313,7 +417,9 @@ Antworte als JSON:
         monitors = self.get_monitors()
         print(f"  Found {len(monitors)} monitor(s):")
         for m in monitors:
-            print(f"    Monitor {m['id']}: {m['width']}x{m['height']} at ({m['left']}, {m['top']})")
+            print(
+                f"    Monitor {m['id']}: {m['width']}x{m['height']} at ({m['left']}, {m['top']})"
+            )
 
         # Filter monitors if specified
         if monitor_ids is not None:
@@ -324,10 +430,7 @@ Antworte als JSON:
         print("\n[Step 2] Capturing screenshots...")
         for monitor in monitors:
             mid = monitor["id"]
-            workflow = MonitorWorkflow(
-                monitor_id=mid,
-                monitor_info=monitor
-            )
+            workflow = MonitorWorkflow(monitor_id=mid, monitor_info=monitor)
             workflow.screenshot_path = self.capture_monitor(mid)
             self.monitor_workflows[mid] = workflow
 
@@ -343,7 +446,9 @@ Antworte als JSON:
         for mid, task in analysis_tasks:
             analysis = await task
             workflow = self.monitor_workflows[mid]
-            workflow.detected_type = WorkflowType(analysis.get("detected_type", "unknown"))
+            workflow.detected_type = WorkflowType(
+                analysis.get("detected_type", "unknown")
+            )
             workflow.analysis = analysis
             print(f"  [Monitor {mid}] Detected: {workflow.detected_type.value}")
             print(f"    Applications: {analysis.get('applications', ['Unknown'])}")
@@ -354,7 +459,9 @@ Antworte als JSON:
         for mid, workflow in self.monitor_workflows.items():
             if workflow.analysis:
                 workflow.workflow_steps = self.create_workflow(mid, workflow.analysis)
-                print(f"  [Monitor {mid}] Created {len(workflow.workflow_steps)} step(s)")
+                print(
+                    f"  [Monitor {mid}] Created {len(workflow.workflow_steps)} step(s)"
+                )
 
         # Step 5: Execute workflows in parallel
         print("\n[Step 5] Executing workflows in parallel...")
@@ -400,7 +507,7 @@ Antworte als JSON:
                 "detected_type": workflow.detected_type.value,
                 "analysis": workflow.analysis,
                 "workflow_steps": workflow.workflow_steps,
-                "execution_result": workflow.execution_result
+                "execution_result": workflow.execution_result,
             }
 
         filepath = os.path.join(self.output_dir, "demo_results.json")
@@ -412,15 +519,17 @@ async def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="MCP Demo - Dual-Monitor Workflows")
     parser.add_argument(
-        "--monitor", "-m",
+        "--monitor",
+        "-m",
         type=int,
         action="append",
-        help="Specific monitor ID(s) to use (can be specified multiple times)"
+        help="Specific monitor ID(s) to use (can be specified multiple times)",
     )
     parser.add_argument(
-        "--list-monitors", "-l",
+        "--list-monitors",
+        "-l",
         action="store_true",
-        help="List available monitors and exit"
+        help="List available monitors and exit",
     )
 
     args = parser.parse_args()
@@ -431,7 +540,9 @@ async def main():
         monitors = demo.get_monitors()
         print("Available monitors:")
         for m in monitors:
-            print(f"  {m['id']}: {m['width']}x{m['height']} at ({m['left']}, {m['top']})")
+            print(
+                f"  {m['id']}: {m['width']}x{m['height']} at ({m['left']}, {m['top']})"
+            )
         return
 
     await demo.run_demo(monitor_ids=args.monitor)

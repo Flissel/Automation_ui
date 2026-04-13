@@ -196,6 +196,7 @@ async def take_desktop_screenshot(request: Request):
             elif isinstance(screenshot_data, (bytes, bytearray)):
                 import base64
                 from datetime import datetime
+
                 result = {
                     "data": base64.b64encode(screenshot_data).decode("ascii"),
                     "format": "png",
@@ -204,8 +205,13 @@ async def take_desktop_screenshot(request: Request):
                     "timestamp": datetime.now().isoformat(),
                 }
             else:
-                result = {"data": str(screenshot_data), "format": "png",
-                          "width": 0, "height": 0, "timestamp": None}
+                result = {
+                    "data": str(screenshot_data),
+                    "format": "png",
+                    "width": 0,
+                    "height": 0,
+                    "timestamp": None,
+                }
 
             return JSONResponse(
                 content={
@@ -306,18 +312,20 @@ async def get_cached_frame(monitor_id: int = 0, max_age_ms: int = 5000):
     and external processes (like MCP server) that need access to live frames.
     """
     try:
-        import sys
         import os
+        import sys
+
         moire_agents_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "moire_agents"
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "moire_agents"
         )
         if moire_agents_path not in sys.path:
             sys.path.insert(0, moire_agents_path)
 
         from stream_frame_cache import StreamFrameCache
 
-        frame = StreamFrameCache.get_fresh_frame(monitor_id=monitor_id, max_age_ms=max_age_ms)
+        frame = StreamFrameCache.get_fresh_frame(
+            monitor_id=monitor_id, max_age_ms=max_age_ms
+        )
 
         if frame:
             return JSONResponse(
@@ -352,11 +360,11 @@ async def get_cached_frame(monitor_id: int = 0, max_age_ms: int = 5000):
 async def get_cache_status():
     """Get StreamFrameCache status for debugging."""
     try:
-        import sys
         import os
+        import sys
+
         moire_agents_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "moire_agents"
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "moire_agents"
         )
         if moire_agents_path not in sys.path:
             sys.path.insert(0, moire_agents_path)

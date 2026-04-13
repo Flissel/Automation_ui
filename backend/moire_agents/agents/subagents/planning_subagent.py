@@ -41,15 +41,17 @@ logger = logging.getLogger(__name__)
 
 class PlanningApproach(Enum):
     """Planning approaches."""
+
     KEYBOARD = "keyboard"  # Prefer hotkeys and typing
-    MOUSE = "mouse"       # Prefer clicking
-    HYBRID = "hybrid"     # Best of both
+    MOUSE = "mouse"  # Prefer clicking
+    HYBRID = "hybrid"  # Best of both
 
 
 @dataclass
 class PlannedAction:
     """A single planned action."""
-    action: str          # click, type, press_key, scroll, wait, drag
+
+    action: str  # click, type, press_key, scroll, wait, drag
     params: Dict[str, Any]
     description: str
     confidence: float = 1.0
@@ -86,7 +88,6 @@ OUTPUT FORMAT (JSON):
   "reasoning": "Using keyboard-only approach via Start menu search"
 }
 """,
-
     PlanningApproach.MOUSE: """You are a mouse-focused automation planner.
 
 RULES:
@@ -117,7 +118,6 @@ OUTPUT FORMAT (JSON):
   "reasoning": "Using visual navigation through Start menu"
 }
 """,
-
     PlanningApproach.HYBRID: """You are an efficient automation planner that uses the best tool for each step.
 
 RULES:
@@ -148,7 +148,7 @@ OUTPUT FORMAT (JSON):
   "confidence": 0.90,
   "reasoning": "Hybrid approach: keyboard for speed, click for accuracy"
 }
-"""
+""",
 }
 
 
@@ -160,23 +160,35 @@ APP_PATTERNS = {
             {"action": "wait", "duration": 0.5, "description": "Wait for menu"},
             {"action": "type", "text": "Word", "description": "Search for Word"},
             {"action": "wait", "duration": 0.5, "description": "Wait for results"},
-            {"action": "press_key", "key": "enter", "description": "Open first result"}
+            {"action": "press_key", "key": "enter", "description": "Open first result"},
         ],
         PlanningApproach.MOUSE: [
-            {"action": "click", "target": "Start button", "description": "Open Start menu"},
+            {
+                "action": "click",
+                "target": "Start button",
+                "description": "Open Start menu",
+            },
             {"action": "wait", "duration": 0.5, "description": "Wait for menu"},
             {"action": "click", "target": "Search box", "description": "Focus search"},
             {"action": "type", "text": "Word", "description": "Search for Word"},
             {"action": "wait", "duration": 0.5, "description": "Wait for results"},
-            {"action": "click", "target": "Microsoft Word", "description": "Click Word"}
+            {
+                "action": "click",
+                "target": "Microsoft Word",
+                "description": "Click Word",
+            },
         ],
         PlanningApproach.HYBRID: [
             {"action": "press_key", "key": "win", "description": "Open Start menu"},
             {"action": "wait", "duration": 0.5, "description": "Wait for menu"},
             {"action": "type", "text": "Word", "description": "Search for Word"},
             {"action": "wait", "duration": 0.5, "description": "Wait for results"},
-            {"action": "click", "target": "Microsoft Word", "description": "Click exact match"}
-        ]
+            {
+                "action": "click",
+                "target": "Microsoft Word",
+                "description": "Click exact match",
+            },
+        ],
     },
     "excel": {
         PlanningApproach.KEYBOARD: [
@@ -184,7 +196,7 @@ APP_PATTERNS = {
             {"action": "wait", "duration": 0.5, "description": "Wait for menu"},
             {"action": "type", "text": "Excel", "description": "Search for Excel"},
             {"action": "wait", "duration": 0.5, "description": "Wait for results"},
-            {"action": "press_key", "key": "enter", "description": "Open first result"}
+            {"action": "press_key", "key": "enter", "description": "Open first result"},
         ]
     },
     "chrome": {
@@ -193,7 +205,7 @@ APP_PATTERNS = {
             {"action": "wait", "duration": 0.5, "description": "Wait for menu"},
             {"action": "type", "text": "Chrome", "description": "Search for Chrome"},
             {"action": "wait", "duration": 0.5, "description": "Wait for results"},
-            {"action": "press_key", "key": "enter", "description": "Open first result"}
+            {"action": "press_key", "key": "enter", "description": "Open first result"},
         ]
     },
     "notepad": {
@@ -201,9 +213,9 @@ APP_PATTERNS = {
             {"action": "hotkey", "keys": "win+r", "description": "Open Run dialog"},
             {"action": "wait", "duration": 0.3, "description": "Wait for dialog"},
             {"action": "type", "text": "notepad", "description": "Type notepad"},
-            {"action": "press_key", "key": "enter", "description": "Run notepad"}
+            {"action": "press_key", "key": "enter", "description": "Run notepad"},
         ]
-    }
+    },
 }
 
 
@@ -220,7 +232,7 @@ class PlanningSubagent(BaseSubagent):
         subagent_id: str,
         approach: PlanningApproach,
         openrouter_client: Optional[Any] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the planning subagent.
@@ -241,7 +253,7 @@ class PlanningSubagent(BaseSubagent):
             "type": "planning",
             "approach": self.approach.value,
             "can_handle": ["open_app", "navigate", "file_operations", "ui_interaction"],
-            "requires_vision": self.approach == PlanningApproach.MOUSE
+            "requires_vision": self.approach == PlanningApproach.MOUSE,
         }
 
     async def execute(self, context: SubagentContext) -> SubagentOutput:
@@ -303,10 +315,10 @@ class PlanningSubagent(BaseSubagent):
                     result={
                         "actions": actions,
                         "confidence": self._get_approach_confidence(),
-                        "reasoning": f"Using {self.approach.value} pattern for {app_name}"
+                        "reasoning": f"Using {self.approach.value} pattern for {app_name}",
                     },
                     confidence=self._get_approach_confidence(),
-                    reasoning=f"Pattern match: {app_name}"
+                    reasoning=f"Pattern match: {app_name}",
                 )
 
             # Fall back to keyboard pattern if approach not available
@@ -317,10 +329,10 @@ class PlanningSubagent(BaseSubagent):
                     result={
                         "actions": actions,
                         "confidence": 0.7,
-                        "reasoning": f"Using keyboard fallback for {app_name}"
+                        "reasoning": f"Using keyboard fallback for {app_name}",
                     },
                     confidence=0.7,
-                    reasoning=f"Pattern fallback: {app_name}"
+                    reasoning=f"Pattern fallback: {app_name}",
                 )
 
         return None
@@ -331,7 +343,7 @@ class PlanningSubagent(BaseSubagent):
         confidence_map = {
             PlanningApproach.KEYBOARD: 0.95,
             PlanningApproach.HYBRID: 0.85,
-            PlanningApproach.MOUSE: 0.75
+            PlanningApproach.MOUSE: 0.75,
         }
         return confidence_map.get(self.approach, 0.5)
 
@@ -349,27 +361,55 @@ class PlanningSubagent(BaseSubagent):
             actions = [
                 {"action": "press_key", "key": "win", "description": "Open Start menu"},
                 {"action": "wait", "duration": 0.5, "description": "Wait for menu"},
-                {"action": "type", "text": app_name, "description": f"Search for {app_name}"},
+                {
+                    "action": "type",
+                    "text": app_name,
+                    "description": f"Search for {app_name}",
+                },
                 {"action": "wait", "duration": 0.5, "description": "Wait for results"},
-                {"action": "press_key", "key": "enter", "description": "Open first result"}
+                {
+                    "action": "press_key",
+                    "key": "enter",
+                    "description": "Open first result",
+                },
             ]
             confidence = 0.8
         elif self.approach == PlanningApproach.MOUSE:
             actions = [
-                {"action": "click", "target": "Start button", "description": "Open Start menu"},
+                {
+                    "action": "click",
+                    "target": "Start button",
+                    "description": "Open Start menu",
+                },
                 {"action": "wait", "duration": 0.5, "description": "Wait for menu"},
-                {"action": "type", "text": app_name, "description": f"Search for {app_name}"},
+                {
+                    "action": "type",
+                    "text": app_name,
+                    "description": f"Search for {app_name}",
+                },
                 {"action": "wait", "duration": 0.5, "description": "Wait for results"},
-                {"action": "click", "target": f"{app_name} in search results", "description": f"Click {app_name}"}
+                {
+                    "action": "click",
+                    "target": f"{app_name} in search results",
+                    "description": f"Click {app_name}",
+                },
             ]
             confidence = 0.65
         else:  # HYBRID
             actions = [
                 {"action": "press_key", "key": "win", "description": "Open Start menu"},
                 {"action": "wait", "duration": 0.5, "description": "Wait for menu"},
-                {"action": "type", "text": app_name, "description": f"Search for {app_name}"},
+                {
+                    "action": "type",
+                    "text": app_name,
+                    "description": f"Search for {app_name}",
+                },
                 {"action": "wait", "duration": 0.5, "description": "Wait for results"},
-                {"action": "click", "target": f"{app_name}", "description": f"Click exact match"}
+                {
+                    "action": "click",
+                    "target": f"{app_name}",
+                    "description": f"Click exact match",
+                },
             ]
             confidence = 0.75
 
@@ -378,10 +418,10 @@ class PlanningSubagent(BaseSubagent):
             result={
                 "actions": actions,
                 "confidence": confidence,
-                "reasoning": f"Generic {self.approach.value} plan for: {goal}"
+                "reasoning": f"Generic {self.approach.value} plan for: {goal}",
             },
             confidence=confidence,
-            reasoning="Generic pattern"
+            reasoning="Generic pattern",
         )
 
     async def _plan_with_llm(self, context: SubagentContext) -> SubagentOutput:
@@ -406,25 +446,28 @@ Return ONLY valid JSON with actions, confidence, and reasoning."""
                 model="openai/gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.3,
-                max_tokens=500
+                max_tokens=500,
             )
 
             # Parse response
             import json
-            content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+            content = (
+                response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            )
 
             # Extract JSON from response
-            json_match = re.search(r'\{[\s\S]*\}', content)
+            json_match = re.search(r"\{[\s\S]*\}", content)
             if json_match:
                 plan_data = json.loads(json_match.group())
                 return SubagentOutput(
                     success=True,
                     result=plan_data,
                     confidence=plan_data.get("confidence", 0.7),
-                    reasoning=plan_data.get("reasoning", "LLM generated plan")
+                    reasoning=plan_data.get("reasoning", "LLM generated plan"),
                 )
             else:
                 raise ValueError("No JSON found in LLM response")
@@ -436,7 +479,8 @@ Return ONLY valid JSON with actions, confidence, and reasoning."""
 
 
 # Runner for the planning subagent
-from core.subagent_runner import SubagentRunner, SubagentType, SubagentTask, SubagentResult
+from core.subagent_runner import (SubagentResult, SubagentRunner, SubagentTask,
+                                  SubagentType)
 
 
 class PlanningSubagentRunner(SubagentRunner):
@@ -451,18 +495,18 @@ class PlanningSubagentRunner(SubagentRunner):
         redis_client,
         approach: PlanningApproach,
         worker_id: Optional[str] = None,
-        openrouter_client: Optional[Any] = None
+        openrouter_client: Optional[Any] = None,
     ):
         super().__init__(
             redis_client=redis_client,
             agent_type=SubagentType.PLANNING,
-            worker_id=worker_id or f"planning_{approach.value}"
+            worker_id=worker_id or f"planning_{approach.value}",
         )
         self.approach = approach
         self.subagent = PlanningSubagent(
             subagent_id=self.worker_id,
             approach=approach,
-            openrouter_client=openrouter_client
+            openrouter_client=openrouter_client,
         )
 
     async def execute(self, task: SubagentTask) -> SubagentResult:
@@ -474,7 +518,7 @@ class PlanningSubagentRunner(SubagentRunner):
             params=task.params,
             active_app=task.params.get("context", {}).get("active_app"),
             screen_elements=task.params.get("context", {}).get("elements", []),
-            timeout=task.timeout
+            timeout=task.timeout,
         )
 
         # Execute planning
@@ -484,15 +528,13 @@ class PlanningSubagentRunner(SubagentRunner):
             success=output.success,
             result=output.result,
             confidence=output.confidence,
-            error=output.error
+            error=output.error,
         )
 
 
 # Convenience function to start planning workers
 async def start_planning_workers(
-    redis_client,
-    openrouter_client=None,
-    approaches: List[PlanningApproach] = None
+    redis_client, openrouter_client=None, approaches: List[PlanningApproach] = None
 ) -> List[PlanningSubagentRunner]:
     """
     Start planning subagent workers for all approaches.
@@ -514,7 +556,7 @@ async def start_planning_workers(
         runner = PlanningSubagentRunner(
             redis_client=redis_client,
             approach=approach,
-            openrouter_client=openrouter_client
+            openrouter_client=openrouter_client,
         )
         runners.append(runner)
         asyncio.create_task(runner.run_forever())

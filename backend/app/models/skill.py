@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 class SkillCategory(str, Enum):
     """Skill categories from ClawHub."""
+
     AUTOMATION = "automation"
     BROWSER = "browser"
     DESKTOP = "desktop"
@@ -28,6 +29,7 @@ class SkillCategory(str, Enum):
 
 class SkillStatus(str, Enum):
     """Local installation status."""
+
     AVAILABLE = "available"
     INSTALLED = "installed"
     UPDATING = "updating"
@@ -36,6 +38,7 @@ class SkillStatus(str, Enum):
 
 class SkillPermission(str, Enum):
     """Permissions a skill can request."""
+
     FILESYSTEM = "filesystem"
     NETWORK = "network"
     DESKTOP_CONTROL = "desktop_control"
@@ -48,6 +51,7 @@ class SkillPermission(str, Enum):
 
 class SkillSummary(BaseModel):
     """Compact skill representation for list views."""
+
     id: str
     name: str
     description: str
@@ -63,6 +67,7 @@ class SkillSummary(BaseModel):
 
 class SkillDetail(SkillSummary):
     """Full skill details for detail views."""
+
     long_description: Optional[str] = None
     permissions: List[SkillPermission] = Field(default_factory=list)
     dependencies: List[str] = Field(default_factory=list)
@@ -77,6 +82,7 @@ class SkillDetail(SkillSummary):
 
 class InstalledSkill(BaseModel):
     """Locally installed skill with runtime metadata."""
+
     id: str
     name: str
     description: str
@@ -96,15 +102,19 @@ class InstalledSkill(BaseModel):
 
 class SkillSearchRequest(BaseModel):
     """Search request for ClawHub skills."""
+
     query: str = Field(..., min_length=1, description="Search query")
     category: Optional[SkillCategory] = None
     limit: int = Field(default=20, ge=1, le=100)
     offset: int = Field(default=0, ge=0)
-    sort_by: str = Field(default="relevance", description="relevance, rating, installs, newest")
+    sort_by: str = Field(
+        default="relevance", description="relevance, rating, installs, newest"
+    )
 
 
 class SkillSearchResponse(BaseModel):
     """Search response with paginated results."""
+
     query: str
     total: int
     skills: List[SkillSummary]
@@ -114,12 +124,14 @@ class SkillSearchResponse(BaseModel):
 
 class SkillInstallRequest(BaseModel):
     """Request to install a skill."""
+
     skill_id: str
     version: Optional[str] = None
 
 
 class SkillExecuteRequest(BaseModel):
     """Request to execute an installed skill."""
+
     skill_id: str
     params: Dict[str, Any] = Field(default_factory=dict)
     user_id: str = "web_user"
@@ -128,6 +140,7 @@ class SkillExecuteRequest(BaseModel):
 
 class SkillExecuteResponse(BaseModel):
     """Response from skill execution."""
+
     success: bool
     skill_id: str
     message: str

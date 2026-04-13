@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class SubagentState(Enum):
     """States a subagent can be in."""
+
     IDLE = "idle"
     PROCESSING = "processing"
     WAITING = "waiting"
@@ -36,6 +37,7 @@ class SubagentContext:
     Contains all information the subagent needs to process a task,
     isolated from other concurrent tasks.
     """
+
     task_id: str
     goal: str
     params: Dict[str, Any]
@@ -67,6 +69,7 @@ class SubagentOutput:
 
     Standardized output format that all subagents return.
     """
+
     success: bool
     result: Any
     confidence: float = 1.0
@@ -84,7 +87,7 @@ class SubagentOutput:
             "reasoning": self.reasoning,
             "metadata": self.metadata,
             "error": self.error,
-            "execution_time_ms": self.execution_time_ms
+            "execution_time_ms": self.execution_time_ms,
         }
 
 
@@ -107,7 +110,7 @@ class BaseSubagent(ABC):
         self,
         subagent_id: str,
         openrouter_client: Optional[Any] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the subagent.
@@ -129,7 +132,7 @@ class BaseSubagent(ABC):
             "tasks_executed": 0,
             "tasks_succeeded": 0,
             "tasks_failed": 0,
-            "total_execution_time_ms": 0
+            "total_execution_time_ms": 0,
         }
 
     @abstractmethod
@@ -209,7 +212,7 @@ class BaseSubagent(ABC):
                 success=False,
                 result=None,
                 error=str(e),
-                execution_time_ms=execution_time
+                execution_time_ms=execution_time,
             )
 
         finally:
@@ -220,7 +223,7 @@ class BaseSubagent(ABC):
         return self.state in [
             SubagentState.IDLE,
             SubagentState.COMPLETED,
-            SubagentState.FAILED
+            SubagentState.FAILED,
         ]
 
     def get_stats(self) -> Dict[str, Any]:
@@ -228,15 +231,14 @@ class BaseSubagent(ABC):
         avg_time = 0
         if self._stats["tasks_executed"] > 0:
             avg_time = (
-                self._stats["total_execution_time_ms"] /
-                self._stats["tasks_executed"]
+                self._stats["total_execution_time_ms"] / self._stats["tasks_executed"]
             )
 
         return {
             **self._stats,
             "subagent_id": self.subagent_id,
             "state": self.state.value,
-            "average_execution_time_ms": avg_time
+            "average_execution_time_ms": avg_time,
         }
 
     async def cancel(self):

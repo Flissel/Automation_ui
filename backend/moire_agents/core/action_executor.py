@@ -190,9 +190,7 @@ class ActionExecutor:
         return True
 
     async def execute_subtasks(
-        self,
-        subtasks: List,
-        on_progress: Optional[callable] = None
+        self, subtasks: List, on_progress: Optional[callable] = None
     ) -> bool:
         """
         Execute all subtasks in order.
@@ -242,32 +240,40 @@ async def demo():
             approach="keyboard",
             context={
                 "pyautogui_action": {"type": "hotkey", "keys": ["win", "r"]},
-                "wait_after": 0.5
-            }
+                "wait_after": 0.5,
+            },
         ),
         Subtask.create(
             description="Type notepad",
             approach="keyboard",
             context={
-                "pyautogui_action": {"type": "write", "text": "notepad", "interval": 0.05},
-                "wait_after": 0.2
-            }
+                "pyautogui_action": {
+                    "type": "write",
+                    "text": "notepad",
+                    "interval": 0.05,
+                },
+                "wait_after": 0.2,
+            },
         ),
         Subtask.create(
             description="Press Enter to launch",
             approach="keyboard",
             context={
                 "pyautogui_action": {"type": "press", "key": "enter"},
-                "wait_after": 2.0
-            }
+                "wait_after": 2.0,
+            },
         ),
         Subtask.create(
             description="Type Hello World",
             approach="keyboard",
             context={
-                "pyautogui_action": {"type": "write", "text": "Hello World from ActionExecutor!", "interval": 0.03},
-                "wait_after": 0.2
-            }
+                "pyautogui_action": {
+                    "type": "write",
+                    "text": "Hello World from ActionExecutor!",
+                    "interval": 0.03,
+                },
+                "wait_after": 0.2,
+            },
         ),
     ]
 

@@ -41,7 +41,9 @@ class AutoDualMonitorStarter:
         Args:
             server_url: WebSocket Server URL für Verbindung
         """
-        self.server_url = server_url or os.getenv("SUPABASE_WS_URL", "ws://localhost:8007/ws/live-desktop")
+        self.server_url = server_url or os.getenv(
+            "SUPABASE_WS_URL", "ws://localhost:8007/ws/live-desktop"
+        )
         self.websocket: Optional[websockets.WebSocketServerProtocol] = None
         self.detected_monitors: List[Dict] = []
         self.started_clients: List[subprocess.Popen] = []

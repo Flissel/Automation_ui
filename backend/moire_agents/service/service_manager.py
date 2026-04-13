@@ -9,18 +9,18 @@ Supports:
 Provides unified interface for service installation, control, and monitoring.
 """
 
+import logging
 import os
-import sys
-import subprocess
 import platform
 import shutil
-from pathlib import Path
-from typing import Optional, Dict, Any
+import subprocess
+import sys
 from dataclasses import dataclass
 from enum import Enum
-import logging
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-logger = logging.getLogger('ServiceManager')
+logger = logging.getLogger("ServiceManager")
 
 
 class Platform(Enum):
@@ -33,6 +33,7 @@ class Platform(Enum):
 @dataclass
 class ServiceConfig:
     """Configuration for a managed service"""
+
     name: str
     display_name: str
     description: str
@@ -177,26 +178,45 @@ class ServiceManager:
                 return False
 
             # Set working directory
-            self._run_command([nssm_path, "set", config.name, "AppDirectory", config.working_dir])
+            self._run_command(
+                [nssm_path, "set", config.name, "AppDirectory", config.working_dir]
+            )
 
             # Set display name and description
-            self._run_command([nssm_path, "set", config.name, "DisplayName", config.display_name])
-            self._run_command([nssm_path, "set", config.name, "Description", config.description])
+            self._run_command(
+                [nssm_path, "set", config.name, "DisplayName", config.display_name]
+            )
+            self._run_command(
+                [nssm_path, "set", config.name, "Description", config.description]
+            )
 
             # Set auto-start
-            start_type = "SERVICE_AUTO_START" if config.auto_start else "SERVICE_DEMAND_START"
+            start_type = (
+                "SERVICE_AUTO_START" if config.auto_start else "SERVICE_DEMAND_START"
+            )
             self._run_command([nssm_path, "set", config.name, "Start", start_type])
 
             # Set restart on failure
             if config.restart_on_failure:
-                self._run_command([nssm_path, "set", config.name, "AppExit", "Default", "Restart"])
-                self._run_command([nssm_path, "set", config.name, "AppRestartDelay",
-                                   str(config.restart_delay_seconds * 1000)])
+                self._run_command(
+                    [nssm_path, "set", config.name, "AppExit", "Default", "Restart"]
+                )
+                self._run_command(
+                    [
+                        nssm_path,
+                        "set",
+                        config.name,
+                        "AppRestartDelay",
+                        str(config.restart_delay_seconds * 1000),
+                    ]
+                )
 
             # Set environment variables
             if config.environment:
                 env_str = " ".join([f"{k}={v}" for k, v in config.environment.items()])
-                self._run_command([nssm_path, "set", config.name, "AppEnvironmentExtra", env_str])
+                self._run_command(
+                    [nssm_path, "set", config.name, "AppEnvironmentExtra", env_str]
+                )
 
             logger.info(f"Service '{config.name}' installed via NSSM")
             return True
@@ -213,12 +233,17 @@ class ServiceManager:
 
             # Create task using schtasks
             cmd = [
-                "schtasks", "/create",
-                "/tn", config.name,
-                "/tr", full_command,
-                "/sc", "onlogon" if config.auto_start else "ondemand",
-                "/rl", "limited",
-                "/f"  # Force overwrite
+                "schtasks",
+                "/create",
+                "/tn",
+                config.name,
+                "/tr",
+                full_command,
+                "/sc",
+                "onlogon" if config.auto_start else "ondemand",
+                "/rl",
+                "limited",
+                "/f",  # Force overwrite
             ]
 
             if not self._run_command(cmd):
@@ -245,9 +270,7 @@ class ServiceManager:
         """Get Windows service status"""
         try:
             result = subprocess.run(
-                ["sc", "query", name],
-                capture_output=True,
-                text=True
+                ["sc", "query", name], capture_output=True, text=True
             )
 
             if result.returncode == 0:
@@ -257,14 +280,12 @@ class ServiceManager:
                     "name": name,
                     "running": running,
                     "status": "running" if running else "stopped",
-                    "platform": "windows"
+                    "platform": "windows",
                 }
             else:
                 # Try Task Scheduler
                 result = subprocess.run(
-                    ["schtasks", "/query", "/tn", name],
-                    capture_output=True,
-                    text=True
+                    ["schtasks", "/query", "/tn", name], capture_output=True, text=True
                 )
                 if result.returncode == 0:
                     running = "Running" in result.stdout
@@ -272,13 +293,18 @@ class ServiceManager:
                         "name": name,
                         "running": running,
                         "status": "running" if running else "ready",
-                        "platform": "windows-task"
+                        "platform": "windows-task",
                     }
 
         except Exception as e:
             logger.error(f"Status check failed: {e}")
 
-        return {"name": name, "running": False, "status": "not_found", "platform": "windows"}
+        return {
+            "name": name,
+            "running": False,
+            "status": "not_found",
+            "platform": "windows",
+        }
 
     # ==========================================
     # Linux Implementation (systemd)
@@ -292,7 +318,9 @@ class ServiceManager:
             systemd_dir.mkdir(parents=True, exist_ok=True)
 
             # Build environment string
-            env_lines = "\n".join([f"Environment={k}={v}" for k, v in config.environment.items()])
+            env_lines = "\n".join(
+                [f"Environment={k}={v}" for k, v in config.environment.items()]
+            )
 
             # Create service unit file
             service_content = f"""[Unit]
@@ -334,7 +362,9 @@ WantedBy=default.target
             self._run_command(["systemctl", "--user", "stop", name])
             self._run_command(["systemctl", "--user", "disable", name])
 
-            service_file = Path.home() / ".config" / "systemd" / "user" / f"{name}.service"
+            service_file = (
+                Path.home() / ".config" / "systemd" / "user" / f"{name}.service"
+            )
             if service_file.exists():
                 service_file.unlink()
 
@@ -351,14 +381,14 @@ WantedBy=default.target
             result = subprocess.run(
                 ["systemctl", "--user", "is-active", name],
                 capture_output=True,
-                text=True
+                text=True,
             )
             active = result.stdout.strip() == "active"
 
             result2 = subprocess.run(
                 ["systemctl", "--user", "is-enabled", name],
                 capture_output=True,
-                text=True
+                text=True,
             )
             enabled = result2.stdout.strip() == "enabled"
 
@@ -367,12 +397,17 @@ WantedBy=default.target
                 "running": active,
                 "status": "active" if active else "inactive",
                 "enabled": enabled,
-                "platform": "linux-systemd"
+                "platform": "linux-systemd",
             }
 
         except Exception as e:
             logger.error(f"Status check failed: {e}")
-            return {"name": name, "running": False, "status": "error", "platform": "linux"}
+            return {
+                "name": name,
+                "running": False,
+                "status": "error",
+                "platform": "linux",
+            }
 
     # ==========================================
     # macOS Implementation (launchd)
@@ -388,10 +423,12 @@ WantedBy=default.target
             label = f"com.handoff.{config.name}"
 
             # Build environment dict for plist
-            env_dict = "\n".join([
-                f"        <key>{k}</key>\n        <string>{v}</string>"
-                for k, v in config.environment.items()
-            ])
+            env_dict = "\n".join(
+                [
+                    f"        <key>{k}</key>\n        <string>{v}</string>"
+                    for k, v in config.environment.items()
+                ]
+            )
 
             # Create plist file
             plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -453,9 +490,7 @@ WantedBy=default.target
         try:
             label = f"com.handoff.{name}"
             result = subprocess.run(
-                ["launchctl", "list", label],
-                capture_output=True,
-                text=True
+                ["launchctl", "list", label], capture_output=True, text=True
             )
 
             running = result.returncode == 0
@@ -463,12 +498,17 @@ WantedBy=default.target
                 "name": name,
                 "running": running,
                 "status": "running" if running else "not_running",
-                "platform": "macos-launchd"
+                "platform": "macos-launchd",
             }
 
         except Exception as e:
             logger.error(f"Status check failed: {e}")
-            return {"name": name, "running": False, "status": "error", "platform": "macos"}
+            return {
+                "name": name,
+                "running": False,
+                "status": "error",
+                "platform": "macos",
+            }
 
     # ==========================================
     # Utility Methods
@@ -500,9 +540,7 @@ WantedBy=default.target
                 working_dir=str(self.python_root),
                 auto_start=True,
                 restart_on_failure=True,
-                environment={
-                    "PYTHONUNBUFFERED": "1"
-                }
+                environment={"PYTHONUNBUFFERED": "1"},
             ),
             ServiceConfig(
                 name="MoireServer",
@@ -512,8 +550,8 @@ WantedBy=default.target
                 args=["run", "dev"],
                 working_dir=str(self.project_root),
                 auto_start=True,
-                restart_on_failure=True
-            )
+                restart_on_failure=True,
+            ),
         ]
 
 
@@ -525,8 +563,13 @@ def main():
     logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser(description="Handoff MCP Service Manager")
-    parser.add_argument("action", choices=["install", "uninstall", "start", "stop", "restart", "status", "info"])
-    parser.add_argument("--service", "-s", default="all", help="Service name (default: all)")
+    parser.add_argument(
+        "action",
+        choices=["install", "uninstall", "start", "stop", "restart", "status", "info"],
+    )
+    parser.add_argument(
+        "--service", "-s", default="all", help="Service name (default: all)"
+    )
     parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
@@ -536,7 +579,7 @@ def main():
         "platform": manager.platform.value,
         "project_root": str(manager.project_root),
         "services": [],
-        "success": True
+        "success": True,
     }
 
     if not args.json:
@@ -553,7 +596,7 @@ def main():
                 "description": c.description,
                 "command": c.command,
                 "working_dir": c.working_dir,
-                "auto_start": c.auto_start
+                "auto_start": c.auto_start,
             }
             for c in configs
         ]
@@ -571,11 +614,7 @@ def main():
         services = [s for s in services if s.name == args.service]
 
     for config in services:
-        service_result = {
-            "name": config.name,
-            "action": args.action,
-            "success": False
-        }
+        service_result = {"name": config.name, "action": args.action, "success": False}
 
         if not args.json:
             print(f"\n=== {config.name} ===")

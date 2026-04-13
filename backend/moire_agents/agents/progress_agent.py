@@ -13,16 +13,16 @@ Key Features:
 """
 
 import asyncio
-import logging
-import time
 import base64
-from typing import Optional, Dict, Any, List, Literal, Callable
-from dataclasses import dataclass, field
-from enum import Enum
-
+import logging
+import os
 # Local imports
 import sys
-import os
+import time
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Callable, Dict, List, Literal, Optional
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.event_queue import ActionEvent, ActionStatus
@@ -30,13 +30,16 @@ from core.event_queue import ActionEvent, ActionStatus
 # Optional imports
 try:
     from bridge.websocket_client import MoireWebSocketClient
+
     HAS_MOIRE = True
 except ImportError:
     HAS_MOIRE = False
     MoireWebSocketClient = None
 
 try:
-    from validation.change_detector import ChangeDetector, ChangeDetectionResult
+    from validation.change_detector import (ChangeDetectionResult,
+                                            ChangeDetector)
+
     HAS_CHANGE_DETECTOR = True
 except ImportError:
     HAS_CHANGE_DETECTOR = False
@@ -44,6 +47,7 @@ except ImportError:
 
 try:
     from agents.vision_agent import VisionAnalystAgent, get_vision_agent
+
     HAS_VISION = True
 except ImportError:
     HAS_VISION = False
@@ -51,6 +55,7 @@ except ImportError:
 
 try:
     from core.localization import L
+
     HAS_LOCALIZATION = True
 except ImportError:
     HAS_LOCALIZATION = False
@@ -63,6 +68,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ScreenState:
     """Captured screen state at a point in time."""
+
     screenshot: bytes
     ocr_texts: List[str]
     timestamp: float
@@ -72,6 +78,7 @@ class ScreenState:
 @dataclass
 class TaskProgress:
     """Progress tracking for a task."""
+
     task_id: str
     goal: str
     total_actions: int
@@ -91,6 +98,7 @@ class TaskProgress:
 @dataclass
 class ActionAdjustment:
     """Suggested adjustment to the action plan."""
+
     type: Literal["modify", "insert", "skip", "retry"]
     action_index: int
     new_params: Optional[Dict[str, Any]] = None
@@ -101,6 +109,7 @@ class ActionAdjustment:
 @dataclass
 class ProgressAnalysis:
     """Result of analyzing progress after an action."""
+
     action_succeeded: bool
     expected_vs_actual: str
     progress_delta: float  # -1.0 to 1.0 (negative = regression)
@@ -127,11 +136,13 @@ class ProgressAgent:
         vision_agent: Optional[VisionAnalystAgent] = None,
         change_detector: Optional[ChangeDetector] = None,
         capture_interval: float = 0.5,
-        max_state_history: int = 10
+        max_state_history: int = 10,
     ):
         self.moire_client = moire_client
         self.vision_agent = vision_agent or (get_vision_agent() if HAS_VISION else None)
-        self.change_detector = change_detector or (ChangeDetector() if HAS_CHANGE_DETECTOR else None)
+        self.change_detector = change_detector or (
+            ChangeDetector() if HAS_CHANGE_DETECTOR else None
+        )
 
         self.capture_interval = capture_interval
         self.max_state_history = max_state_history
@@ -148,10 +159,7 @@ class ProgressAgent:
         self.on_goal_achieved: Optional[Callable[[TaskProgress], None]] = None
 
     async def start_monitoring(
-        self,
-        task_id: str,
-        goal: str,
-        actions: List[ActionEvent]
+        self, task_id: str, goal: str, actions: List[ActionEvent]
     ) -> None:
         """
         Start async monitoring loop for task.
@@ -167,7 +175,7 @@ class ProgressAgent:
             task_id=task_id,
             goal=goal,
             total_actions=len(actions),
-            actions=actions.copy()
+            actions=actions.copy(),
         )
 
         self._running = True
@@ -206,9 +214,7 @@ class ProgressAgent:
         return self.current_progress
 
     async def action_completed(
-        self,
-        action_index: int,
-        result: Dict[str, Any]
+        self, action_index: int, result: Dict[str, Any]
     ) -> Optional[ProgressAnalysis]:
         """
         Notify that an action has completed.
@@ -228,7 +234,9 @@ class ProgressAgent:
         self.current_progress.completed_actions += 1
         self.current_progress.current_action_index = action_index + 1
         self.current_progress.progress_percentage = (
-            self.current_progress.completed_actions / self.current_progress.total_actions * 100
+            self.current_progress.completed_actions
+            / self.current_progress.total_actions
+            * 100
         )
 
         self._action_just_completed = True
@@ -287,7 +295,10 @@ class ProgressAgent:
                 if current_state and self.current_progress:
                     # Store in rolling history
                     self.current_progress.state_history.append(current_state)
-                    if len(self.current_progress.state_history) > self.max_state_history:
+                    if (
+                        len(self.current_progress.state_history)
+                        > self.max_state_history
+                    ):
                         self.current_progress.state_history.pop(0)
 
                     # If action just completed, analysis is handled by action_completed()
@@ -318,29 +329,34 @@ class ProgressAgent:
 
             # Decode screenshot
             screenshot_b64 = result.screenshot_base64
-            if ',' in screenshot_b64:
-                screenshot_b64 = screenshot_b64.split(',', 1)[1]
+            if "," in screenshot_b64:
+                screenshot_b64 = screenshot_b64.split(",", 1)[1]
 
             screenshot_bytes = base64.b64decode(screenshot_b64)
 
             # Extract OCR texts
             ocr_texts = []
             elements = []
-            if hasattr(self.moire_client, 'current_context') and self.moire_client.current_context:
+            if (
+                hasattr(self.moire_client, "current_context")
+                and self.moire_client.current_context
+            ):
                 for elem in self.moire_client.current_context.elements:
-                    if hasattr(elem, 'text') and elem.text:
+                    if hasattr(elem, "text") and elem.text:
                         ocr_texts.append(elem.text)
-                    elements.append({
-                        'text': getattr(elem, 'text', ''),
-                        'bounds': getattr(elem, 'bounds', {}),
-                        'center': getattr(elem, 'center', {})
-                    })
+                    elements.append(
+                        {
+                            "text": getattr(elem, "text", ""),
+                            "bounds": getattr(elem, "bounds", {}),
+                            "center": getattr(elem, "center", {}),
+                        }
+                    )
 
             return ScreenState(
                 screenshot=screenshot_bytes,
                 ocr_texts=ocr_texts,
                 timestamp=time.time(),
-                elements=elements
+                elements=elements,
             )
 
         except Exception as e:
@@ -348,9 +364,7 @@ class ProgressAgent:
             return None
 
     async def _analyze_progress(
-        self,
-        current_state: ScreenState,
-        action_index: int
+        self, current_state: ScreenState, action_index: int
     ) -> ProgressAnalysis:
         """
         Analyze progress after an action completed.
@@ -369,7 +383,7 @@ class ProgressAgent:
                 action_succeeded=False,
                 expected_vs_actual="No progress context",
                 progress_delta=0.0,
-                confidence=0.0
+                confidence=0.0,
             )
 
         action = self.current_progress.actions[action_index]
@@ -383,11 +397,11 @@ class ProgressAgent:
             try:
                 detection = self.change_detector.detect_changes(
                     self.current_progress.last_successful_state.screenshot,
-                    current_state.screenshot
+                    current_state.screenshot,
                 )
                 total_change = detection.total_change_percentage
                 change_regions = [
-                    {'bounds': r.bounds, 'intensity': r.intensity.value}
+                    {"bounds": r.bounds, "intensity": r.intensity.value}
                     for r in detection.regions
                 ]
             except Exception as e:
@@ -429,7 +443,7 @@ class ProgressAgent:
             suggested_adjustment=suggested_adjustment,
             goal_achieved=goal_achieved,
             confidence=0.8 if action_succeeded else 0.4,
-            change_regions=change_regions
+            change_regions=change_regions,
         )
 
         # Update last successful state if action succeeded
@@ -456,7 +470,7 @@ class ProgressAgent:
         action: ActionEvent,
         change_percentage: float,
         new_texts: List[str],
-        removed_texts: List[str]
+        removed_texts: List[str],
     ) -> bool:
         """Evaluate if action succeeded based on type and observed changes."""
         action_type = action.action_type
@@ -482,7 +496,10 @@ class ProgressAgent:
             typed_text = action.params.get("text", "")
             # Check if any part of typed text appears in new texts
             for new_text in new_texts:
-                if typed_text.lower() in new_text.lower() or new_text.lower() in typed_text.lower():
+                if (
+                    typed_text.lower() in new_text.lower()
+                    or new_text.lower() in typed_text.lower()
+                ):
                     return True
             # Fallback: any text change
             return len(new_texts) > 0 or change_percentage > 1
@@ -504,17 +521,21 @@ class ProgressAgent:
             return False
 
         # Only check periodically to save API calls
-        if self.current_progress.completed_actions < self.current_progress.total_actions * 0.5:
+        if (
+            self.current_progress.completed_actions
+            < self.current_progress.total_actions * 0.5
+        ):
             return False
 
         try:
             # Use vision agent to check goal
             result = await self.vision_agent.analyze_screen_for_task(
-                current_state.screenshot,
-                self.current_progress.goal
+                current_state.screenshot, self.current_progress.goal
             )
 
-            return result.get('task_completable', False) and result.get('goal_achieved', False)
+            return result.get("task_completable", False) and result.get(
+                "goal_achieved", False
+            )
 
         except Exception as e:
             logger.warning(f"Goal check failed: {e}")
@@ -525,7 +546,7 @@ class ProgressAgent:
         failed_action: ActionEvent,
         action_index: int,
         current_state: ScreenState,
-        change_percentage: float
+        change_percentage: float,
     ) -> Optional[ActionAdjustment]:
         """Suggest an adjustment based on the failed action."""
         action_type = failed_action.action_type
@@ -539,7 +560,7 @@ class ProgressAgent:
                     type="retry",
                     action_index=action_index,
                     new_params={"use_vision": True},
-                    reason=f"Click on '{target}' failed, retrying with vision"
+                    reason=f"Click on '{target}' failed, retrying with vision",
                 )
 
         # Type failed - might need to click input first
@@ -553,9 +574,9 @@ class ProgressAgent:
                     action_type="find_and_click",
                     params={"target": "text input field"},
                     description="Click input field before typing",
-                    status=ActionStatus.PENDING
+                    status=ActionStatus.PENDING,
                 ),
-                reason="Typing failed, inserting click on input field"
+                reason="Typing failed, inserting click on input field",
             )
 
         # Hotkey failed - wait and retry
@@ -564,7 +585,7 @@ class ProgressAgent:
                 type="retry",
                 action_index=action_index,
                 new_params={"delay_before": 1.0},
-                reason="Hotkey failed, retrying with delay"
+                reason="Hotkey failed, retrying with delay",
             )
 
         # No specific suggestion
@@ -575,7 +596,11 @@ class ProgressAgent:
         if not self.current_progress:
             return
 
-        desc_prefix = L.get('progress_adjustment', reason=adjustment.reason) if HAS_LOCALIZATION and L else f"Adjusted: {adjustment.reason}"
+        desc_prefix = (
+            L.get("progress_adjustment", reason=adjustment.reason)
+            if HAS_LOCALIZATION and L
+            else f"Adjusted: {adjustment.reason}"
+        )
         logger.info(desc_prefix)
 
         if adjustment.type == "modify":
@@ -589,15 +614,22 @@ class ProgressAgent:
         elif adjustment.type == "insert":
             # Store inserted action for execution
             if adjustment.new_action:
-                if adjustment.action_index not in self.current_progress.inserted_actions:
+                if (
+                    adjustment.action_index
+                    not in self.current_progress.inserted_actions
+                ):
                     self.current_progress.inserted_actions[adjustment.action_index] = []
-                self.current_progress.inserted_actions[adjustment.action_index].append(adjustment.new_action)
+                self.current_progress.inserted_actions[adjustment.action_index].append(
+                    adjustment.new_action
+                )
                 self.current_progress.total_actions += 1
 
         elif adjustment.type == "skip":
             # Mark action as skipped
             if adjustment.action_index < len(self.current_progress.actions):
-                self.current_progress.actions[adjustment.action_index].status = ActionStatus.SKIPPED
+                self.current_progress.actions[adjustment.action_index].status = (
+                    ActionStatus.SKIPPED
+                )
 
         elif adjustment.type == "retry":
             # Create retry action
@@ -609,15 +641,23 @@ class ProgressAgent:
                     action_type=original.action_type,
                     params={**original.params, **(adjustment.new_params or {})},
                     description=f"Retry: {original.description}",
-                    status=ActionStatus.PENDING
+                    status=ActionStatus.PENDING,
                 )
-                if adjustment.action_index not in self.current_progress.inserted_actions:
+                if (
+                    adjustment.action_index
+                    not in self.current_progress.inserted_actions
+                ):
                     self.current_progress.inserted_actions[adjustment.action_index] = []
-                self.current_progress.inserted_actions[adjustment.action_index].append(retry_action)
+                self.current_progress.inserted_actions[adjustment.action_index].append(
+                    retry_action
+                )
                 self.current_progress.total_actions += 1
 
         # Add blocker info
-        if adjustment.reason and adjustment.reason not in self.current_progress.blockers:
+        if (
+            adjustment.reason
+            and adjustment.reason not in self.current_progress.blockers
+        ):
             self.current_progress.blockers.append(adjustment.reason)
 
     def get_progress_summary(self) -> Dict[str, Any]:
@@ -633,7 +673,7 @@ class ProgressAgent:
             "total_actions": self.current_progress.total_actions,
             "goal_achieved": self.current_progress.goal_achieved,
             "blockers": self.current_progress.blockers,
-            "duration": time.time() - self.current_progress.started_at
+            "duration": time.time() - self.current_progress.started_at,
         }
 
 
@@ -642,7 +682,7 @@ _progress_agent_instance: Optional[ProgressAgent] = None
 
 
 def get_progress_agent(
-    moire_client: Optional[MoireWebSocketClient] = None
+    moire_client: Optional[MoireWebSocketClient] = None,
 ) -> ProgressAgent:
     """Get or create singleton ProgressAgent instance."""
     global _progress_agent_instance

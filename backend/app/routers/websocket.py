@@ -290,15 +290,20 @@ async def handle_websocket_message(
 
         elif message_type == "get_task_queue_status":
             status = await get_task_queue_status()
-            await websocket.send_text(json.dumps({
-                "type": "task_queue_status",
-                "status": status,
-                "timestamp": datetime.now().isoformat()
-            }))
+            await websocket.send_text(
+                json.dumps(
+                    {
+                        "type": "task_queue_status",
+                        "status": status,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+            )
 
         elif message_type == "action_ack":
             # ACK from desktop client for a delegated action (remote mode)
             from ..services.action_router import action_router
+
             command_id = message.get("commandId", "")
             ack_result = {
                 "success": message.get("success", False),
@@ -307,7 +312,9 @@ async def handle_websocket_message(
             }
             resolved = action_router.handle_ack(command_id, ack_result)
             if resolved:
-                logger.info(f"Action ACK resolved: {command_id} (success={ack_result['success']})")
+                logger.info(
+                    f"Action ACK resolved: {command_id} (success={ack_result['success']})"
+                )
 
         else:
             logger.warning(f"⚠️ Unknown message type from {client_id}: {message_type}")
@@ -348,21 +355,24 @@ async def handle_frame_data(
 
     # Store frame in StreamFrameCache for MCP tools (vision_analyze, handoff_read_screen)
     try:
-        import sys
         import os
+        import sys
+
         moire_agents_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "moire_agents"
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "moire_agents"
         )
         if moire_agents_path not in sys.path:
             sys.path.insert(0, moire_agents_path)
 
         from stream_frame_cache import StreamFrameCache
-        monitor_num = int(monitor_id.replace("monitor_", "")) if isinstance(monitor_id, str) else monitor_id
+
+        monitor_num = (
+            int(monitor_id.replace("monitor_", ""))
+            if isinstance(monitor_id, str)
+            else monitor_id
+        )
         StreamFrameCache.update_frame(
-            monitor_id=monitor_num,
-            frame_base64=frame_data,
-            metadata=metadata
+            monitor_id=monitor_num, frame_base64=frame_data, metadata=metadata
         )
         logger.debug(f"📦 Frame cached for monitor {monitor_num}")
     except Exception as cache_error:
@@ -1155,28 +1165,40 @@ async def websocket_echo(websocket: WebSocket):
 task_queue_subscribers: Set[str] = set()
 
 
-async def handle_subscribe_task_queue(websocket: WebSocket, client_id: str, message: Dict):
+async def handle_subscribe_task_queue(
+    websocket: WebSocket, client_id: str, message: Dict
+):
     """Handle task queue subscription request"""
     task_queue_subscribers.add(client_id)
     logger.info(f"📋 Client {client_id} subscribed to task queue events")
 
-    await websocket.send_text(json.dumps({
-        "type": "task_queue_subscribed",
-        "clientId": client_id,
-        "timestamp": datetime.now().isoformat()
-    }))
+    await websocket.send_text(
+        json.dumps(
+            {
+                "type": "task_queue_subscribed",
+                "clientId": client_id,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+    )
 
 
-async def handle_unsubscribe_task_queue(websocket: WebSocket, client_id: str, message: Dict):
+async def handle_unsubscribe_task_queue(
+    websocket: WebSocket, client_id: str, message: Dict
+):
     """Handle task queue unsubscription request"""
     task_queue_subscribers.discard(client_id)
     logger.info(f"📋 Client {client_id} unsubscribed from task queue events")
 
-    await websocket.send_text(json.dumps({
-        "type": "task_queue_unsubscribed",
-        "clientId": client_id,
-        "timestamp": datetime.now().isoformat()
-    }))
+    await websocket.send_text(
+        json.dumps(
+            {
+                "type": "task_queue_unsubscribed",
+                "clientId": client_id,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+    )
 
 
 async def broadcast_task_event(event_data: Dict[str, Any]):
@@ -1195,7 +1217,7 @@ async def broadcast_task_event(event_data: Dict[str, Any]):
     message = {
         "type": "task_event",
         "event": event_data.get("status", "unknown"),
-        "data": event_data
+        "data": event_data,
     }
     message_json = json.dumps(message)
 
@@ -1205,7 +1227,9 @@ async def broadcast_task_event(event_data: Dict[str, Any]):
         if client_id in manager.active_connections:
             try:
                 await manager.active_connections[client_id].send_text(message_json)
-                logger.debug(f"📋 Task event sent to {client_id}: {event_data.get('status')}")
+                logger.debug(
+                    f"📋 Task event sent to {client_id}: {event_data.get('status')}"
+                )
             except Exception as e:
                 logger.error(f"❌ Failed to send task event to {client_id}: {e}")
                 disconnected_clients.append(client_id)
@@ -1223,8 +1247,9 @@ async def setup_task_queue_bridge():
     Call this during app startup to subscribe to Redis task channels.
     """
     try:
-        from ..services.redis_pubsub import redis_pubsub
         import os
+
+        from ..services.redis_pubsub import redis_pubsub
 
         # Connect to Redis if not already connected
         if not redis_pubsub.is_connected:
@@ -1238,7 +1263,9 @@ async def setup_task_queue_bridge():
         return True
 
     except Exception as e:
-        logger.warning(f"⚠️ Task Queue Bridge setup failed (Redis may not be running): {e}")
+        logger.warning(
+            f"⚠️ Task Queue Bridge setup failed (Redis may not be running): {e}"
+        )
         return False
 
 
@@ -1246,6 +1273,7 @@ async def get_task_queue_status() -> Dict[str, Any]:
     """Get task queue bridge status"""
     try:
         from ..services.redis_pubsub import redis_pubsub
+
         redis_connected = redis_pubsub.is_connected
     except:
         redis_connected = False
@@ -1254,5 +1282,5 @@ async def get_task_queue_status() -> Dict[str, Any]:
         "subscribers": len(task_queue_subscribers),
         "subscriber_ids": list(task_queue_subscribers),
         "redis_connected": redis_connected,
-        "active_connections": manager.get_connection_count()
+        "active_connections": manager.get_connection_count(),
     }

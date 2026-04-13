@@ -16,31 +16,34 @@ Example:
     }
 """
 
+import asyncio
+import json
+import logging
 import os
 import sys
-import json
-import asyncio
-import logging
-from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(__file__), '../../../.env'))
+
+load_dotenv(os.path.join(os.path.dirname(__file__), "../../../.env"))
 
 logger = logging.getLogger(__name__)
 
 
 class LLMBackend(Enum):
     """LLM backend options for intent parsing."""
+
     ANTHROPIC = "anthropic"
     OPENROUTER = "openrouter"
 
 
 class ActionType(Enum):
     """Types of actions the system can execute."""
+
     OPEN_URL = "open_url"
     CLICK = "click"
     TYPE_TEXT = "type_text"
@@ -59,6 +62,7 @@ class ActionType(Enum):
 @dataclass
 class Action:
     """A single action to be executed."""
+
     type: ActionType
     params: Dict[str, Any] = field(default_factory=dict)
     description: str = ""
@@ -67,6 +71,7 @@ class Action:
 @dataclass
 class ParsedIntent:
     """Result of intent parsing."""
+
     original_text: str
     actions: List[Action] = field(default_factory=list)
     context: str = ""
@@ -125,7 +130,7 @@ Wichtig:
         backend: LLMBackend = None,  # Auto-detect based on available API keys
         model: str = None,  # Model name (auto-selected based on backend)
         max_tokens: int = 1000,
-        temperature: float = 0.3
+        temperature: float = 0.3,
     ):
         """Initialize IntentParser.
 
@@ -151,7 +156,9 @@ Wichtig:
                 backend = LLMBackend.ANTHROPIC
                 logger.info("Using Anthropic backend (ANTHROPIC_API_KEY found)")
             else:
-                logger.warning("No API key found (ANTHROPIC_API_KEY or OPENROUTER_API_KEY)")
+                logger.warning(
+                    "No API key found (ANTHROPIC_API_KEY or OPENROUTER_API_KEY)"
+                )
                 backend = LLMBackend.ANTHROPIC  # Default, will fail gracefully
 
         self.backend = backend
@@ -176,9 +183,12 @@ Wichtig:
         if self._client is None:
             try:
                 import anthropic
+
                 self._client = anthropic.Anthropic(api_key=self.anthropic_key)
             except ImportError:
-                logger.error("anthropic package not installed. Run: pip install anthropic")
+                logger.error(
+                    "anthropic package not installed. Run: pip install anthropic"
+                )
                 return None
         return self._client
 
@@ -197,10 +207,8 @@ Wichtig:
                     max_tokens=self.max_tokens,
                     temperature=self.temperature,
                     system=self.SYSTEM_PROMPT,
-                    messages=[
-                        {"role": "user", "content": user_prompt}
-                    ]
-                )
+                    messages=[{"role": "user", "content": user_prompt}],
+                ),
             )
             return response.content[0].text
         except Exception as e:
@@ -220,7 +228,7 @@ Wichtig:
                 "Authorization": f"Bearer {self.openrouter_key}",
                 "Content-Type": "application/json",
                 "HTTP-Referer": "https://moire-automation.local",
-                "X-Title": "Moire Voice Automation"
+                "X-Title": "Moire Voice Automation",
             }
 
             payload = {
@@ -229,8 +237,8 @@ Wichtig:
                 "temperature": self.temperature,
                 "messages": [
                     {"role": "system", "content": self.SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt}
-                ]
+                    {"role": "user", "content": user_prompt},
+                ],
             }
 
             async with aiohttp.ClientSession() as session:
@@ -238,11 +246,13 @@ Wichtig:
                     self._openrouter_url,
                     headers=headers,
                     json=payload,
-                    timeout=aiohttp.ClientTimeout(total=30)
+                    timeout=aiohttp.ClientTimeout(total=30),
                 ) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        logger.error(f"OpenRouter API error: {response.status} - {error_text}")
+                        logger.error(
+                            f"OpenRouter API error: {response.status} - {error_text}"
+                        )
                         return None
 
                     data = await response.json()
@@ -278,8 +288,7 @@ Wichtig:
 
             if response_text is None:
                 return ParsedIntent(
-                    original_text=text,
-                    error="LLM client not available"
+                    original_text=text, error="LLM client not available"
                 )
 
             # Extract JSON from response
@@ -287,7 +296,7 @@ Wichtig:
             if not parsed_json:
                 return ParsedIntent(
                     original_text=text,
-                    error=f"Could not parse JSON from response: {response_text[:200]}"
+                    error=f"Could not parse JSON from response: {response_text[:200]}",
                 )
 
             # Convert to Action objects
@@ -299,25 +308,24 @@ Wichtig:
                 except ValueError:
                     action_type = ActionType.UNKNOWN
 
-                actions.append(Action(
-                    type=action_type,
-                    params=action_data.get("params", {}),
-                    description=action_data.get("description", "")
-                ))
+                actions.append(
+                    Action(
+                        type=action_type,
+                        params=action_data.get("params", {}),
+                        description=action_data.get("description", ""),
+                    )
+                )
 
             return ParsedIntent(
                 original_text=text,
                 actions=actions,
                 context=parsed_json.get("context", ""),
-                language="de"
+                language="de",
             )
 
         except Exception as e:
             logger.error(f"Intent parsing failed: {e}")
-            return ParsedIntent(
-                original_text=text,
-                error=str(e)
-            )
+            return ParsedIntent(original_text=text, error=str(e))
 
     def _extract_json(self, text: str) -> Optional[Dict]:
         """Extract JSON object from text response."""
@@ -329,7 +337,8 @@ Wichtig:
 
         # Try to find JSON in text
         import re
-        json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+
+        json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
         matches = re.findall(json_pattern, text, re.DOTALL)
 
         for match in matches:
@@ -362,9 +371,7 @@ Wichtig:
         return None
 
     async def parse_with_screen_context(
-        self,
-        text: str,
-        screen_description: Optional[str] = None
+        self, text: str, screen_description: Optional[str] = None
     ) -> ParsedIntent:
         """Parse command with current screen context.
 
@@ -385,182 +392,364 @@ Wichtig:
 # Common intent patterns for quick matching (no API call needed)
 QUICK_PATTERNS = {
     # German patterns - URLs
-    "öffne google": [Action(ActionType.OPEN_URL, {"url": "https://google.com"}, "Öffne Google")],
-    "öffne youtube": [Action(ActionType.OPEN_URL, {"url": "https://youtube.com"}, "Öffne YouTube")],
-    "öffne anthropic": [Action(ActionType.OPEN_URL, {"url": "https://anthropic.com"}, "Öffne Anthropic")],
-    "öffne anthropic careers": [Action(ActionType.OPEN_URL, {"url": "https://anthropic.com/careers"}, "Öffne Anthropic Careers")],
-
+    "öffne google": [
+        Action(ActionType.OPEN_URL, {"url": "https://google.com"}, "Öffne Google")
+    ],
+    "öffne youtube": [
+        Action(ActionType.OPEN_URL, {"url": "https://youtube.com"}, "Öffne YouTube")
+    ],
+    "öffne anthropic": [
+        Action(ActionType.OPEN_URL, {"url": "https://anthropic.com"}, "Öffne Anthropic")
+    ],
+    "öffne anthropic careers": [
+        Action(
+            ActionType.OPEN_URL,
+            {"url": "https://anthropic.com/careers"},
+            "Öffne Anthropic Careers",
+        )
+    ],
     # German patterns - Windows Apps (via Start menu search)
     "öffne whatsapp": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "WhatsApp"}, "WhatsApp suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "App starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "App starten"),
     ],
     "oeffne whatsapp": [  # ASCII variant
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "WhatsApp"}, "WhatsApp suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "App starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "App starten"),
     ],
     "whatsapp öffnen": [  # Reversed order
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "WhatsApp"}, "WhatsApp suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "App starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "App starten"),
     ],
     "open whatsapp": [  # English variant
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "WhatsApp"}, "WhatsApp suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "App starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "App starten"),
     ],
     "öffne notepad": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "Notepad"}, "Notepad suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "App starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "App starten"),
     ],
     "öffne explorer": [
         Action(ActionType.KEY_PRESS, {"key": "win", "modifiers": []}, "Windows-Taste"),
-        Action(ActionType.KEY_PRESS, {"key": "e", "modifiers": ["win"]}, "Explorer öffnen")
+        Action(
+            ActionType.KEY_PRESS, {"key": "e", "modifiers": ["win"]}, "Explorer öffnen"
+        ),
     ],
     "öffne terminal": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "cmd"}, "Terminal suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Terminal starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Terminal starten"),
     ],
-
     # More Windows Apps
     "öffne chrome": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "Chrome"}, "Chrome suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Chrome starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Chrome starten"),
     ],
     "oeffne chrome": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "Chrome"}, "Chrome suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Chrome starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Chrome starten"),
     ],
     "open chrome": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "Chrome"}, "Chrome suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Chrome starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Chrome starten"),
     ],
     "öffne word": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "Word"}, "Word suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Word starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Word starten"),
     ],
     "oeffne word": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "Word"}, "Word suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Word starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Word starten"),
     ],
     "open word": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "Word"}, "Word suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Word starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Word starten"),
     ],
     "öffne excel": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "Excel"}, "Excel suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Excel starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Excel starten"),
     ],
     "öffne outlook": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "Outlook"}, "Outlook suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Outlook starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Outlook starten"),
     ],
     "öffne vscode": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "Visual Studio Code"}, "VS Code suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "VS Code starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "VS Code starten"),
     ],
     "öffne vs code": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "Visual Studio Code"}, "VS Code suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "VS Code starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "VS Code starten"),
     ],
     "öffne spotify": [
         Action(ActionType.KEY_PRESS, {"key": "win"}, "Windows-Taste drücken"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
         Action(ActionType.TYPE_TEXT, {"text": "Spotify"}, "Spotify suchen"),
         Action(ActionType.WAIT, {"seconds": 0.5}, "Warten"),
-        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Spotify starten")
+        Action(ActionType.KEY_PRESS, {"key": "enter"}, "Spotify starten"),
     ],
-
     # German patterns - Actions
-    "scrolle nach unten": [Action(ActionType.SCROLL, {"direction": "down", "amount": 500}, "Scrolle nach unten")],
-    "scrolle nach oben": [Action(ActionType.SCROLL, {"direction": "up", "amount": 500}, "Scrolle nach oben")],
-    "scroll runter": [Action(ActionType.SCROLL, {"direction": "down", "amount": 500}, "Scrolle nach unten")],
-    "scroll hoch": [Action(ActionType.SCROLL, {"direction": "up", "amount": 500}, "Scrolle nach oben")],
-    "screenshot": [Action(ActionType.SCREENSHOT, {"filename": "screenshot.png"}, "Screenshot erstellen")],
-    "was ist auf dem bildschirm": [Action(ActionType.VISION_ANALYZE, {"prompt": "Beschreibe was auf dem Bildschirm zu sehen ist"}, "Bildschirm analysieren")],
-
+    "scrolle nach unten": [
+        Action(
+            ActionType.SCROLL,
+            {"direction": "down", "amount": 500},
+            "Scrolle nach unten",
+        )
+    ],
+    "scrolle nach oben": [
+        Action(
+            ActionType.SCROLL, {"direction": "up", "amount": 500}, "Scrolle nach oben"
+        )
+    ],
+    "scroll runter": [
+        Action(
+            ActionType.SCROLL,
+            {"direction": "down", "amount": 500},
+            "Scrolle nach unten",
+        )
+    ],
+    "scroll hoch": [
+        Action(
+            ActionType.SCROLL, {"direction": "up", "amount": 500}, "Scrolle nach oben"
+        )
+    ],
+    "screenshot": [
+        Action(
+            ActionType.SCREENSHOT,
+            {"filename": "screenshot.png"},
+            "Screenshot erstellen",
+        )
+    ],
+    "was ist auf dem bildschirm": [
+        Action(
+            ActionType.VISION_ANALYZE,
+            {"prompt": "Beschreibe was auf dem Bildschirm zu sehen ist"},
+            "Bildschirm analysieren",
+        )
+    ],
     # Keyboard shortcuts
-    "drücke strg f": [Action(ActionType.KEY_PRESS, {"key": "f", "modifiers": ["ctrl"]}, "Suche öffnen (Strg+F)")],
-    "drücke strg+f": [Action(ActionType.KEY_PRESS, {"key": "f", "modifiers": ["ctrl"]}, "Suche öffnen (Strg+F)")],
-    "suche": [Action(ActionType.KEY_PRESS, {"key": "f", "modifiers": ["ctrl"]}, "Suche öffnen (Strg+F)")],
-    "drücke strg c": [Action(ActionType.KEY_PRESS, {"key": "c", "modifiers": ["ctrl"]}, "Kopieren (Strg+C)")],
-    "drücke strg v": [Action(ActionType.KEY_PRESS, {"key": "v", "modifiers": ["ctrl"]}, "Einfügen (Strg+V)")],
-    "drücke strg z": [Action(ActionType.KEY_PRESS, {"key": "z", "modifiers": ["ctrl"]}, "Rückgängig (Strg+Z)")],
-    "drücke strg s": [Action(ActionType.KEY_PRESS, {"key": "s", "modifiers": ["ctrl"]}, "Speichern (Strg+S)")],
-    "drücke strg a": [Action(ActionType.KEY_PRESS, {"key": "a", "modifiers": ["ctrl"]}, "Alles auswählen (Strg+A)")],
-    "drücke escape": [Action(ActionType.KEY_PRESS, {"key": "escape"}, "Escape drücken")],
+    "drücke strg f": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "f", "modifiers": ["ctrl"]},
+            "Suche öffnen (Strg+F)",
+        )
+    ],
+    "drücke strg+f": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "f", "modifiers": ["ctrl"]},
+            "Suche öffnen (Strg+F)",
+        )
+    ],
+    "suche": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "f", "modifiers": ["ctrl"]},
+            "Suche öffnen (Strg+F)",
+        )
+    ],
+    "drücke strg c": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "c", "modifiers": ["ctrl"]},
+            "Kopieren (Strg+C)",
+        )
+    ],
+    "drücke strg v": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "v", "modifiers": ["ctrl"]},
+            "Einfügen (Strg+V)",
+        )
+    ],
+    "drücke strg z": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "z", "modifiers": ["ctrl"]},
+            "Rückgängig (Strg+Z)",
+        )
+    ],
+    "drücke strg s": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "s", "modifiers": ["ctrl"]},
+            "Speichern (Strg+S)",
+        )
+    ],
+    "drücke strg a": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "a", "modifiers": ["ctrl"]},
+            "Alles auswählen (Strg+A)",
+        )
+    ],
+    "drücke escape": [
+        Action(ActionType.KEY_PRESS, {"key": "escape"}, "Escape drücken")
+    ],
     "drücke enter": [Action(ActionType.KEY_PRESS, {"key": "enter"}, "Enter drücken")],
     "drücke tab": [Action(ActionType.KEY_PRESS, {"key": "tab"}, "Tab drücken")],
-    "kopieren": [Action(ActionType.KEY_PRESS, {"key": "c", "modifiers": ["ctrl"]}, "Kopieren (Strg+C)")],
-    "einfügen": [Action(ActionType.KEY_PRESS, {"key": "v", "modifiers": ["ctrl"]}, "Einfügen (Strg+V)")],
-    "rückgängig": [Action(ActionType.KEY_PRESS, {"key": "z", "modifiers": ["ctrl"]}, "Rückgängig (Strg+Z)")],
-    "speichern": [Action(ActionType.KEY_PRESS, {"key": "s", "modifiers": ["ctrl"]}, "Speichern (Strg+S)")],
-    "alles auswählen": [Action(ActionType.KEY_PRESS, {"key": "a", "modifiers": ["ctrl"]}, "Alles auswählen (Strg+A)")],
-
+    "kopieren": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "c", "modifiers": ["ctrl"]},
+            "Kopieren (Strg+C)",
+        )
+    ],
+    "einfügen": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "v", "modifiers": ["ctrl"]},
+            "Einfügen (Strg+V)",
+        )
+    ],
+    "rückgängig": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "z", "modifiers": ["ctrl"]},
+            "Rückgängig (Strg+Z)",
+        )
+    ],
+    "speichern": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "s", "modifiers": ["ctrl"]},
+            "Speichern (Strg+S)",
+        )
+    ],
+    "alles auswählen": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "a", "modifiers": ["ctrl"]},
+            "Alles auswählen (Strg+A)",
+        )
+    ],
     # Window management
-    "minimiere fenster": [Action(ActionType.KEY_PRESS, {"key": "down", "modifiers": ["win"]}, "Fenster minimieren")],
-    "maximiere fenster": [Action(ActionType.KEY_PRESS, {"key": "up", "modifiers": ["win"]}, "Fenster maximieren")],
-    "schließe fenster": [Action(ActionType.KEY_PRESS, {"key": "f4", "modifiers": ["alt"]}, "Fenster schließen (Alt+F4)")],
-    "wechsle fenster": [Action(ActionType.KEY_PRESS, {"key": "tab", "modifiers": ["alt"]}, "Fenster wechseln (Alt+Tab)")],
-    "zeige desktop": [Action(ActionType.KEY_PRESS, {"key": "d", "modifiers": ["win"]}, "Desktop anzeigen (Win+D)")],
-
+    "minimiere fenster": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "down", "modifiers": ["win"]},
+            "Fenster minimieren",
+        )
+    ],
+    "maximiere fenster": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "up", "modifiers": ["win"]},
+            "Fenster maximieren",
+        )
+    ],
+    "schließe fenster": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "f4", "modifiers": ["alt"]},
+            "Fenster schließen (Alt+F4)",
+        )
+    ],
+    "wechsle fenster": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "tab", "modifiers": ["alt"]},
+            "Fenster wechseln (Alt+Tab)",
+        )
+    ],
+    "zeige desktop": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "d", "modifiers": ["win"]},
+            "Desktop anzeigen (Win+D)",
+        )
+    ],
     # English patterns
-    "open google": [Action(ActionType.OPEN_URL, {"url": "https://google.com"}, "Open Google")],
-    "open youtube": [Action(ActionType.OPEN_URL, {"url": "https://youtube.com"}, "Open YouTube")],
-    "scroll down": [Action(ActionType.SCROLL, {"direction": "down", "amount": 500}, "Scroll down")],
-    "scroll up": [Action(ActionType.SCROLL, {"direction": "up", "amount": 500}, "Scroll up")],
-    "take screenshot": [Action(ActionType.SCREENSHOT, {"filename": "screenshot.png"}, "Take screenshot")],
-    "press ctrl f": [Action(ActionType.KEY_PRESS, {"key": "f", "modifiers": ["ctrl"]}, "Open search (Ctrl+F)")],
-    "copy": [Action(ActionType.KEY_PRESS, {"key": "c", "modifiers": ["ctrl"]}, "Copy (Ctrl+C)")],
-    "paste": [Action(ActionType.KEY_PRESS, {"key": "v", "modifiers": ["ctrl"]}, "Paste (Ctrl+V)")],
-    "undo": [Action(ActionType.KEY_PRESS, {"key": "z", "modifiers": ["ctrl"]}, "Undo (Ctrl+Z)")],
-    "save": [Action(ActionType.KEY_PRESS, {"key": "s", "modifiers": ["ctrl"]}, "Save (Ctrl+S)")],
+    "open google": [
+        Action(ActionType.OPEN_URL, {"url": "https://google.com"}, "Open Google")
+    ],
+    "open youtube": [
+        Action(ActionType.OPEN_URL, {"url": "https://youtube.com"}, "Open YouTube")
+    ],
+    "scroll down": [
+        Action(ActionType.SCROLL, {"direction": "down", "amount": 500}, "Scroll down")
+    ],
+    "scroll up": [
+        Action(ActionType.SCROLL, {"direction": "up", "amount": 500}, "Scroll up")
+    ],
+    "take screenshot": [
+        Action(ActionType.SCREENSHOT, {"filename": "screenshot.png"}, "Take screenshot")
+    ],
+    "press ctrl f": [
+        Action(
+            ActionType.KEY_PRESS,
+            {"key": "f", "modifiers": ["ctrl"]},
+            "Open search (Ctrl+F)",
+        )
+    ],
+    "copy": [
+        Action(
+            ActionType.KEY_PRESS, {"key": "c", "modifiers": ["ctrl"]}, "Copy (Ctrl+C)"
+        )
+    ],
+    "paste": [
+        Action(
+            ActionType.KEY_PRESS, {"key": "v", "modifiers": ["ctrl"]}, "Paste (Ctrl+V)"
+        )
+    ],
+    "undo": [
+        Action(
+            ActionType.KEY_PRESS, {"key": "z", "modifiers": ["ctrl"]}, "Undo (Ctrl+Z)"
+        )
+    ],
+    "save": [
+        Action(
+            ActionType.KEY_PRESS, {"key": "s", "modifiers": ["ctrl"]}, "Save (Ctrl+S)"
+        )
+    ],
 }
 
 
@@ -595,22 +784,44 @@ class QuickIntentParser:
             ParsedIntent with actions
         """
         import re
+
         text_lower = text.lower().strip()
         words = text_lower.split()
 
         # Sort patterns by length (longest first) to prefer more specific matches
-        sorted_patterns = sorted(self.patterns.items(), key=lambda x: len(x[0]), reverse=True)
+        sorted_patterns = sorted(
+            self.patterns.items(), key=lambda x: len(x[0]), reverse=True
+        )
 
         # Short patterns that should only match as EXACT commands (not within sentences)
         # These are single-word commands that could easily match within longer sentences
         exact_match_only = {
-            "suche", "copy", "paste", "undo", "save", "kopieren", "einfügen",
-            "rückgängig", "speichern", "screenshot"
+            "suche",
+            "copy",
+            "paste",
+            "undo",
+            "save",
+            "kopieren",
+            "einfügen",
+            "rückgängig",
+            "speichern",
+            "screenshot",
         }
 
         # If the command has more than 4 words and contains context words,
         # it's likely a complex command that should go to LLM
-        complex_indicators = ["in", "nach", "für", "an", "bei", "auf", "und", "dann", "dort", "hier"]
+        complex_indicators = [
+            "in",
+            "nach",
+            "für",
+            "an",
+            "bei",
+            "auf",
+            "und",
+            "dann",
+            "dort",
+            "hier",
+        ]
         is_complex = len(words) > 4 and any(w in complex_indicators for w in words)
 
         for pattern, actions in sorted_patterns:
@@ -623,10 +834,14 @@ class QuickIntentParser:
                         original_text=text,
                         actions=actions,
                         context=f"Quick pattern: {pattern}",
-                        confidence=1.0
+                        confidence=1.0,
                     )
             # For app-opening patterns, allow if the text is short enough or matches closely
-            elif pattern.startswith("öffne ") or pattern.startswith("oeffne ") or pattern.startswith("open "):
+            elif (
+                pattern.startswith("öffne ")
+                or pattern.startswith("oeffne ")
+                or pattern.startswith("open ")
+            ):
                 # Extract app name from pattern
                 # Only match if it's a simple "open X" command, not a complex instruction
                 if not is_complex and pattern in text_lower:
@@ -636,7 +851,7 @@ class QuickIntentParser:
                             original_text=text,
                             actions=actions,
                             context=f"Quick pattern: {pattern}",
-                            confidence=1.0
+                            confidence=1.0,
                         )
             else:
                 # For other patterns (keyboard shortcuts, scroll, etc.)
@@ -645,7 +860,7 @@ class QuickIntentParser:
                         original_text=text,
                         actions=actions,
                         context=f"Quick pattern: {pattern}",
-                        confidence=1.0
+                        confidence=1.0,
                     )
 
         # Fallback to Claude parser for complex commands
@@ -654,13 +869,13 @@ class QuickIntentParser:
 
         # No match and no fallback
         return ParsedIntent(
-            original_text=text,
-            error="No pattern matched and no fallback available"
+            original_text=text, error="No pattern matched and no fallback available"
         )
 
 
 # Test/demo code
 if __name__ == "__main__":
+
     async def main():
         print("=== Intent Parser Test ===\n")
 

@@ -7,14 +7,9 @@ This module provides:
 - text_to_speech: Voice feedback
 """
 
-from .speech_to_text import SpeechToText
-from .intent_parser import IntentParser
 from .command_executor import CommandExecutor
+from .intent_parser import IntentParser
+from .speech_to_text import SpeechToText
 from .text_to_speech import TextToSpeech
 
-__all__ = [
-    "SpeechToText",
-    "IntentParser",
-    "CommandExecutor",
-    "TextToSpeech"
-]
+__all__ = ["SpeechToText", "IntentParser", "CommandExecutor", "TextToSpeech"]

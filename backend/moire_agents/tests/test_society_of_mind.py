@@ -11,40 +11,23 @@ Usage:
     python test_society_of_mind.py --test-all
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
-import sys
 import os
+import sys
 from typing import Any
 
 # Add parent to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from agents.handoff import (
-    # Team infrastructure
-    TeamAgent,
-    TeamConfig,
-    SynthesisStrategy,
-
-    # Planning team
-    PlanningTeam,
-    PlannerAgent,
-    CriticAgent,
-
-    # Validation team
-    ValidationTeam,
-    ElementFinderAgent,
-    ScreenStateValidator,
-    ChangeDetector,
-
-    # Messages
-    UserTask
-)
+from agents.handoff import (  # Team infrastructure; Planning team; Validation team; Messages
+    ChangeDetector, CriticAgent, ElementFinderAgent, PlannerAgent,
+    PlanningTeam, ScreenStateValidator, SynthesisStrategy, TeamAgent,
+    TeamConfig, UserTask, ValidationTeam)
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -71,7 +54,7 @@ async def test_planning_team():
 
     result = await team.create_plan(
         goal="Send message to Claude Desktop",
-        context={"message": "Hello from Society of Mind!"}
+        context={"message": "Hello from Society of Mind!"},
     )
 
     print(f"\nResult:")
@@ -94,7 +77,7 @@ async def test_planning_team():
     print(f"\n  Plan ({len(result.get('plan', []))} steps):")
     for i, step in enumerate(result.get("plan", []), 1):
         print(f"    {i}. [{step.get('type')}] {step.get('description')}")
-        if step.get('rationale'):
+        if step.get("rationale"):
             print(f"       Rationale: {step.get('rationale')}")
 
     # Test 2: Unknown goal
@@ -102,10 +85,7 @@ async def test_planning_team():
     print("Test 2: Plan for unknown goal")
     print("-" * 40)
 
-    result2 = await team.create_plan(
-        goal="Do something unusual",
-        context={}
-    )
+    result2 = await team.create_plan(goal="Do something unusual", context={})
 
     print(f"\nResult:")
     print(f"  Success: {result2.get('success')}")
@@ -143,14 +123,16 @@ async def test_validation_team():
 
     result = await team.validate_element(
         target="chat input field",
-        expected_state={"elements": [{"name": "input", "type": "text"}]}
+        expected_state={"elements": [{"name": "input", "type": "text"}]},
     )
 
     print(f"\nResult:")
     print(f"  Valid: {result.get('valid')}")
     print(f"  Overall confidence: {result.get('overall_confidence', 0):.1%}")
     print(f"  Threshold: {result.get('threshold', 0):.0%}")
-    print(f"  Validators succeeded: {result.get('validators_succeeded')}/{result.get('validators_total')}")
+    print(
+        f"  Validators succeeded: {result.get('validators_succeeded')}/{result.get('validators_total')}"
+    )
 
     if result.get("element_location"):
         loc = result["element_location"]
@@ -168,18 +150,21 @@ async def test_validation_team():
 
     before_state = {
         "text": ["Type a message..."],
-        "elements": [{"id": "input", "type": "text"}]
+        "elements": [{"id": "input", "type": "text"}],
     }
 
     after_state = {
         "text": ["Type a message...", "Hello!"],
-        "elements": [{"id": "input", "type": "text"}, {"id": "msg1", "type": "message"}]
+        "elements": [
+            {"id": "input", "type": "text"},
+            {"id": "msg1", "type": "message"},
+        ],
     }
 
     result2 = await team.validate_action(
         before_state=before_state,
         after_state=after_state,
-        expected_change="text entered"
+        expected_change="text entered",
     )
 
     print(f"\nResult:")
@@ -229,10 +214,12 @@ async def test_synthesis_strategies():
     print("Strategy: FIRST_SUCCESS")
     print("-" * 40)
 
-    team1 = TestTeam(TeamConfig(
-        name="first_success_team",
-        synthesis_strategy=SynthesisStrategy.FIRST_SUCCESS
-    ))
+    team1 = TestTeam(
+        TeamConfig(
+            name="first_success_team",
+            synthesis_strategy=SynthesisStrategy.FIRST_SUCCESS,
+        )
+    )
     team1.add_member(SimpleAgent("agent1", "result_A"), weight=1.0)
     team1.add_member(SimpleAgent("agent2", "result_B"), weight=1.0)
     await team1.start()
@@ -247,10 +234,11 @@ async def test_synthesis_strategies():
     print("Strategy: MAJORITY_VOTE")
     print("-" * 40)
 
-    team2 = TestTeam(TeamConfig(
-        name="majority_team",
-        synthesis_strategy=SynthesisStrategy.MAJORITY_VOTE
-    ))
+    team2 = TestTeam(
+        TeamConfig(
+            name="majority_team", synthesis_strategy=SynthesisStrategy.MAJORITY_VOTE
+        )
+    )
     team2.add_member(SimpleAgent("agent1", "A"), weight=1.0)
     team2.add_member(SimpleAgent("agent2", "A"), weight=1.0)
     team2.add_member(SimpleAgent("agent3", "B"), weight=1.0)
@@ -266,10 +254,11 @@ async def test_synthesis_strategies():
     print("Strategy: WEIGHTED_VOTE")
     print("-" * 40)
 
-    team3 = TestTeam(TeamConfig(
-        name="weighted_team",
-        synthesis_strategy=SynthesisStrategy.WEIGHTED_VOTE
-    ))
+    team3 = TestTeam(
+        TeamConfig(
+            name="weighted_team", synthesis_strategy=SynthesisStrategy.WEIGHTED_VOTE
+        )
+    )
     team3.add_member(SimpleAgent("expert", "expert_answer"), weight=2.0)
     team3.add_member(SimpleAgent("novice1", "wrong"), weight=0.5)
     team3.add_member(SimpleAgent("novice2", "wrong"), weight=0.5)
@@ -288,18 +277,22 @@ async def test_synthesis_strategies():
 
 async def main():
     parser = argparse.ArgumentParser(description="Test Society of Mind Pattern")
-    parser.add_argument("--test-planning", action="store_true",
-                       help="Test PlanningTeam")
-    parser.add_argument("--test-validation", action="store_true",
-                       help="Test ValidationTeam")
-    parser.add_argument("--test-synthesis", action="store_true",
-                       help="Test synthesis strategies")
-    parser.add_argument("--test-all", action="store_true",
-                       help="Run all tests")
+    parser.add_argument(
+        "--test-planning", action="store_true", help="Test PlanningTeam"
+    )
+    parser.add_argument(
+        "--test-validation", action="store_true", help="Test ValidationTeam"
+    )
+    parser.add_argument(
+        "--test-synthesis", action="store_true", help="Test synthesis strategies"
+    )
+    parser.add_argument("--test-all", action="store_true", help="Run all tests")
 
     args = parser.parse_args()
 
-    if args.test_all or (not args.test_planning and not args.test_validation and not args.test_synthesis):
+    if args.test_all or (
+        not args.test_planning and not args.test_validation and not args.test_synthesis
+    ):
         await test_planning_team()
         await test_validation_team()
         await test_synthesis_strategies()

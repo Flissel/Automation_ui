@@ -16,6 +16,7 @@ sys.path.append(str(Path(__file__).parent))
 
 # Load .env from project root so os.getenv() works everywhere
 from dotenv import load_dotenv
+
 _env_path = Path(__file__).parent.parent / ".env"
 if _env_path.exists():
     load_dotenv(_env_path, override=False)

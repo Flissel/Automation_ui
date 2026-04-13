@@ -7,10 +7,10 @@ helping prevent keystrokes from going to the wrong application.
 Uses Windows API via ctypes (no additional dependencies).
 """
 
-import ctypes
 import asyncio
+import ctypes
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ async def get_active_window() -> Dict[str, Any]:
                 "hwnd": None,
                 "title": None,
                 "pid": None,
-                "error": "No foreground window found"
+                "error": "No foreground window found",
             }
 
         # Get window title
@@ -51,12 +51,7 @@ async def get_active_window() -> Dict[str, Any]:
         pid = ctypes.c_ulong()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
 
-        return {
-            "success": True,
-            "hwnd": hwnd,
-            "title": title,
-            "pid": pid.value
-        }
+        return {"success": True, "hwnd": hwnd, "title": title, "pid": pid.value}
 
     except Exception as e:
         logger.error(f"Error getting active window: {e}")
@@ -65,7 +60,7 @@ async def get_active_window() -> Dict[str, Any]:
             "hwnd": None,
             "title": None,
             "pid": None,
-            "error": str(e)
+            "error": str(e),
         }
 
 
@@ -124,10 +119,7 @@ def list_visible_windows() -> List[Dict[str, Any]]:
                 user32.GetWindowTextW(hwnd, buffer, length + 1)
                 title = buffer.value
                 if title.strip():  # Skip empty titles
-                    windows.append({
-                        "hwnd": hwnd,
-                        "title": title
-                    })
+                    windows.append({"hwnd": hwnd, "title": title})
         return True
 
     EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_int)
@@ -164,9 +156,7 @@ async def focus_window(hwnd: int) -> bool:
 
 
 async def verify_window_focus(
-    target_title: str,
-    timeout: float = 3.0,
-    auto_focus: bool = True
+    target_title: str, timeout: float = 3.0, auto_focus: bool = True
 ) -> Dict[str, Any]:
     """
     Verify that the target window is focused, optionally trying to focus it.
@@ -198,14 +188,16 @@ async def verify_window_focus(
                     "is_focused": True,
                     "recovered": False,
                     "hwnd": active["hwnd"],
-                    "title": active["title"]
+                    "title": active["title"],
                 }
 
         # If auto_focus is enabled and we haven't found the window focused, try to focus it
         if auto_focus:
             hwnd = find_window_by_title(target_title)
             if hwnd:
-                logger.info(f"Window '{target_title}' not focused, attempting to focus...")
+                logger.info(
+                    f"Window '{target_title}' not focused, attempting to focus..."
+                )
                 focused = await focus_window(hwnd)
 
                 if focused:
@@ -220,7 +212,7 @@ async def verify_window_focus(
                                 "is_focused": True,
                                 "recovered": True,  # We had to focus it
                                 "hwnd": active["hwnd"],
-                                "title": active["title"]
+                                "title": active["title"],
                             }
 
         # Wait before next check
@@ -233,5 +225,5 @@ async def verify_window_focus(
         "recovered": False,
         "hwnd": None,
         "title": None,
-        "error": f"Could not verify focus on window '{target_title}' within {timeout}s"
+        "error": f"Could not verify focus on window '{target_title}' within {timeout}s",
     }

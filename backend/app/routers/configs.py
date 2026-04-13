@@ -8,14 +8,13 @@ Replaces Supabase REST API with local PostgreSQL backend.
 from typing import List, Optional
 from uuid import UUID
 
+from app.database import get_db
+from app.logger_config import get_logger
+from app.models.db_models import LiveDesktopConfig
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.database import get_db
-from app.logger_config import get_logger
-from app.models.db_models import LiveDesktopConfig
 
 logger = get_logger("configs_router")
 
@@ -25,6 +24,7 @@ router = APIRouter()
 # Pydantic schemas for request/response
 class ConfigCreate(BaseModel):
     """Schema for creating a new configuration"""
+
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     category: Optional[str] = Field(None, max_length=100)
@@ -36,6 +36,7 @@ class ConfigCreate(BaseModel):
 
 class ConfigUpdate(BaseModel):
     """Schema for updating a configuration"""
+
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     category: Optional[str] = Field(None, max_length=100)
@@ -46,6 +47,7 @@ class ConfigUpdate(BaseModel):
 
 class ConfigResponse(BaseModel):
     """Schema for configuration response"""
+
     id: str
     name: str
     description: Optional[str]
@@ -65,7 +67,7 @@ class ConfigResponse(BaseModel):
 async def list_configs(
     category: Optional[str] = None,
     is_active: Optional[bool] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     List all configurations with optional filtering.
@@ -89,7 +91,7 @@ async def list_configs(
         logger.error(f"Failed to list configs: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list configurations: {str(e)}"
+            detail=f"Failed to list configurations: {str(e)}",
         )
 
 
@@ -108,7 +110,7 @@ async def list_active_configs(db: AsyncSession = Depends(get_db)):
         logger.error(f"Failed to list active configs: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list active configurations: {str(e)}"
+            detail=f"Failed to list active configurations: {str(e)}",
         )
 
 
@@ -124,7 +126,7 @@ async def get_config(config_id: UUID, db: AsyncSession = Depends(get_db)):
         if not config:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Configuration with ID {config_id} not found"
+                detail=f"Configuration with ID {config_id} not found",
             )
 
         return ConfigResponse(**config.to_dict())
@@ -134,7 +136,7 @@ async def get_config(config_id: UUID, db: AsyncSession = Depends(get_db)):
         logger.error(f"Failed to get config {config_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get configuration: {str(e)}"
+            detail=f"Failed to get configuration: {str(e)}",
         )
 
 
@@ -149,7 +151,7 @@ async def create_config(config: ConfigCreate, db: AsyncSession = Depends(get_db)
             configuration=config.configuration,
             is_active=config.is_active,
             tags=config.tags,
-            created_by=config.created_by
+            created_by=config.created_by,
         )
 
         db.add(db_config)
@@ -163,15 +165,13 @@ async def create_config(config: ConfigCreate, db: AsyncSession = Depends(get_db)
         logger.error(f"Failed to create config: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create configuration: {str(e)}"
+            detail=f"Failed to create configuration: {str(e)}",
         )
 
 
 @router.put("/{config_id}", response_model=ConfigResponse)
 async def update_config(
-    config_id: UUID,
-    config: ConfigUpdate,
-    db: AsyncSession = Depends(get_db)
+    config_id: UUID, config: ConfigUpdate, db: AsyncSession = Depends(get_db)
 ):
     """Update an existing configuration"""
     try:
@@ -184,7 +184,7 @@ async def update_config(
         if not existing:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Configuration with ID {config_id} not found"
+                detail=f"Configuration with ID {config_id} not found",
             )
 
         # Update only provided fields
@@ -209,7 +209,7 @@ async def update_config(
         logger.error(f"Failed to update config {config_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update configuration: {str(e)}"
+            detail=f"Failed to update configuration: {str(e)}",
         )
 
 
@@ -226,7 +226,7 @@ async def delete_config(config_id: UUID, db: AsyncSession = Depends(get_db)):
         if not existing:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Configuration with ID {config_id} not found"
+                detail=f"Configuration with ID {config_id} not found",
             )
 
         await db.execute(
@@ -243,11 +243,15 @@ async def delete_config(config_id: UUID, db: AsyncSession = Depends(get_db)):
         logger.error(f"Failed to delete config {config_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete configuration: {str(e)}"
+            detail=f"Failed to delete configuration: {str(e)}",
         )
 
 
-@router.post("/{config_id}/duplicate", response_model=ConfigResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{config_id}/duplicate",
+    response_model=ConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def duplicate_config(config_id: UUID, db: AsyncSession = Depends(get_db)):
     """Duplicate an existing configuration"""
     try:
@@ -260,7 +264,7 @@ async def duplicate_config(config_id: UUID, db: AsyncSession = Depends(get_db)):
         if not original:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Configuration with ID {config_id} not found"
+                detail=f"Configuration with ID {config_id} not found",
             )
 
         # Create duplicate
@@ -271,7 +275,7 @@ async def duplicate_config(config_id: UUID, db: AsyncSession = Depends(get_db)):
             configuration=original.configuration,
             is_active=False,  # Duplicates start as inactive
             tags=original.tags,
-            created_by=original.created_by
+            created_by=original.created_by,
         )
 
         db.add(duplicate)
@@ -287,5 +291,5 @@ async def duplicate_config(config_id: UUID, db: AsyncSession = Depends(get_db)):
         logger.error(f"Failed to duplicate config {config_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to duplicate configuration: {str(e)}"
+            detail=f"Failed to duplicate configuration: {str(e)}",
         )

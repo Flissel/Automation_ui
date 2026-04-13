@@ -10,7 +10,8 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
+                                    create_async_engine)
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class Base(DeclarativeBase):
     """Base class for all ORM models"""
+
     pass
 
 
@@ -38,7 +40,7 @@ class DatabaseManager:
         pool_size: int = 5,
         max_overflow: int = 10,
         pool_timeout: int = 30,
-        echo: bool = False
+        echo: bool = False,
     ):
         """Initialize database engines and session factories"""
         if self._initialized:
@@ -70,25 +72,18 @@ class DatabaseManager:
                 pool_size=pool_size,
                 max_overflow=max_overflow,
                 pool_timeout=pool_timeout,
-                echo=echo
+                echo=echo,
             )
             async_url = database_url.replace(
                 "postgresql://", "postgresql+asyncpg://"
-            ).replace(
-                "postgres://", "postgresql+asyncpg://"
-            )
+            ).replace("postgres://", "postgresql+asyncpg://")
             self._async_engine = create_async_engine(
-                async_url,
-                pool_size=pool_size,
-                max_overflow=max_overflow,
-                echo=echo
+                async_url, pool_size=pool_size, max_overflow=max_overflow, echo=echo
             )
 
         # Session factories
         self._sync_session_factory = sessionmaker(
-            bind=self._sync_engine,
-            autocommit=False,
-            autoflush=False
+            bind=self._sync_engine, autocommit=False, autoflush=False
         )
 
         self._async_session_factory = async_sessionmaker(
@@ -96,7 +91,7 @@ class DatabaseManager:
             class_=AsyncSession,
             expire_on_commit=False,
             autocommit=False,
-            autoflush=False
+            autoflush=False,
         )
 
         self._initialized = True
@@ -175,7 +170,7 @@ def init_db(
     pool_size: int = 5,
     max_overflow: int = 10,
     pool_timeout: int = 30,
-    echo: bool = False
+    echo: bool = False,
 ):
     """Initialize the global database manager"""
     db.init(
@@ -183,7 +178,7 @@ def init_db(
         pool_size=pool_size,
         max_overflow=max_overflow,
         pool_timeout=pool_timeout,
-        echo=echo
+        echo=echo,
     )
 
 

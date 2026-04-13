@@ -12,33 +12,23 @@ Usage:
     python test_two_way_bridge.py --send "Your task"    # Send task and monitor
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
-import sys
 import os
+import sys
 
 # Add parent to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from agents.handoff import (
-    ClaudeDesktopBridge,
-    ClaudeDesktopReport,
-    ReportType,
-    ReportParser,
-    EventStream,
-    get_project_instructions,
-    AgentRuntime,
-    OrchestratorAgent,
-    ExecutionAgent,
-    VisionHandoffAgent,
-    RecoveryAgent,
-    UserTask
-)
+from agents.handoff import (AgentRuntime, ClaudeDesktopBridge,
+                            ClaudeDesktopReport, EventStream, ExecutionAgent,
+                            OrchestratorAgent, RecoveryAgent, ReportParser,
+                            ReportType, UserTask, VisionHandoffAgent,
+                            get_project_instructions)
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -48,7 +38,9 @@ def print_project_instructions():
     print("\n" + "=" * 70)
     print("CLAUDE DESKTOP PROJECT INSTRUCTIONS")
     print("=" * 70)
-    print("\nCopy the following into your Claude Desktop project's 'Instructions' section:\n")
+    print(
+        "\nCopy the following into your Claude Desktop project's 'Instructions' section:\n"
+    )
     print("-" * 70)
     print(get_project_instructions())
     print("-" * 70)
@@ -64,7 +56,7 @@ def test_report_parser():
     print("=" * 60)
 
     # Sample Claude Desktop response with automation-report blocks
-    sample_response = '''
+    sample_response = """
 I'll help you analyze the Docker containers. Let me start by checking their status.
 
 ```automation-report
@@ -91,10 +83,12 @@ The analysis is complete!
 ```automation-report
 {"type": "completion", "message": "Docker analysis complete", "data": {"total_containers": 5, "healthy": 5, "report_generated": true}}
 ```
-'''
+"""
 
     print(f"\nSample text ({len(sample_response)} chars):\n")
-    print(sample_response[:200] + "..." if len(sample_response) > 200 else sample_response)
+    print(
+        sample_response[:200] + "..." if len(sample_response) > 200 else sample_response
+    )
 
     print("\n" + "-" * 40)
     print("PARSED REPORTS:")
@@ -143,24 +137,30 @@ async def test_event_stream():
     # Emit some test reports
     print("\nEmitting test reports:\n")
 
-    await stream.emit(ClaudeDesktopReport(
-        report_type=ReportType.STATUS,
-        message="Processing task...",
-        data={"progress": 25}
-    ))
+    await stream.emit(
+        ClaudeDesktopReport(
+            report_type=ReportType.STATUS,
+            message="Processing task...",
+            data={"progress": 25},
+        )
+    )
 
-    await stream.emit(ClaudeDesktopReport(
-        report_type=ReportType.REQUEST,
-        message="Need to run command",
-        requested_action="run_command",
-        action_params={"cmd": "docker ps"}
-    ))
+    await stream.emit(
+        ClaudeDesktopReport(
+            report_type=ReportType.REQUEST,
+            message="Need to run command",
+            requested_action="run_command",
+            action_params={"cmd": "docker ps"},
+        )
+    )
 
-    await stream.emit(ClaudeDesktopReport(
-        report_type=ReportType.COMPLETION,
-        message="Task finished!",
-        data={"success": True}
-    ))
+    await stream.emit(
+        ClaudeDesktopReport(
+            report_type=ReportType.COMPLETION,
+            message="Task finished!",
+            data={"success": True},
+        )
+    )
 
     print(f"\nTotal reports in stream: {len(stream.get_reports())}")
     print("=" * 60 + "\n")
@@ -212,10 +212,7 @@ async def send_task_with_monitoring(task_message: str):
     # Create task
     task = UserTask(
         goal=f"Send to Claude Desktop: {task_message}",
-        context={
-            "workflow": "claude_desktop",
-            "message": task_message
-        }
+        context={"workflow": "claude_desktop", "message": task_message},
     )
 
     print("\nStarting in 3 seconds... (switch to desktop if needed)")
@@ -257,14 +254,20 @@ async def send_task_with_monitoring(task_message: str):
 
 async def main():
     parser = argparse.ArgumentParser(description="Test Two-Way Claude Desktop Bridge")
-    parser.add_argument("--print-instructions", action="store_true",
-                       help="Print project instructions to add to Claude Desktop")
-    parser.add_argument("--test-parser", action="store_true",
-                       help="Test the report parser")
-    parser.add_argument("--test-stream", action="store_true",
-                       help="Test the event stream")
-    parser.add_argument("--send", type=str, default=None,
-                       help="Send a task and monitor for reports")
+    parser.add_argument(
+        "--print-instructions",
+        action="store_true",
+        help="Print project instructions to add to Claude Desktop",
+    )
+    parser.add_argument(
+        "--test-parser", action="store_true", help="Test the report parser"
+    )
+    parser.add_argument(
+        "--test-stream", action="store_true", help="Test the event stream"
+    )
+    parser.add_argument(
+        "--send", type=str, default=None, help="Send a task and monitor for reports"
+    )
 
     args = parser.parse_args()
 

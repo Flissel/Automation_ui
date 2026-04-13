@@ -2,7 +2,7 @@
 Core Module - Event Queue System und Shared Utilities
 """
 
-from .event_queue import EventQueue, TaskEvent, ActionEvent
+from .event_queue import ActionEvent, EventQueue, TaskEvent
 from .openrouter_client import OpenRouterClient
 
-__all__ = ['EventQueue', 'TaskEvent', 'ActionEvent', 'OpenRouterClient']
+__all__ = ["EventQueue", "TaskEvent", "ActionEvent", "OpenRouterClient"]

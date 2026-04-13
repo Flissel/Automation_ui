@@ -45,6 +45,7 @@ async def _get_engine_settings() -> dict:
     """Fetch engine settings from API, cached for 60s."""
     global _engine_settings_cache, _engine_settings_ts
     import time
+
     now = time.time()
     if _engine_settings_cache and (now - _engine_settings_ts) < 60:
         return _engine_settings_cache
@@ -129,12 +130,16 @@ class DiscordAnalyzerListener:
         asyncio.create_task(self._status_loop())
 
         # Skip existing messages in both channels
-        for channel, attr in [(FIXES_CHANNEL, "last_seen_id"), (DEV_TASKS_CHANNEL, "last_cmd_id")]:
+        for channel, attr in [
+            (FIXES_CHANNEL, "last_seen_id"),
+            (DEV_TASKS_CHANNEL, "last_cmd_id"),
+        ]:
             try:
                 async with httpx.AsyncClient() as client:
                     resp = await client.get(
                         "%s/channels/%s/messages?limit=1" % (DISCORD_API, channel),
-                        headers=self.headers, timeout=10,
+                        headers=self.headers,
+                        timeout=10,
                     )
                     if resp.status_code == 200:
                         msgs = resp.json()
@@ -162,8 +167,8 @@ class DiscordAnalyzerListener:
         5. Auto-review PR → merge if OK
         """
         last_statuses = {}  # per-project status tracking: {project_key: "hash"}
-        was_running = {}    # per-project: {project_key: bool}
-        fix_rounds = {}     # per-project: {project_key: int}
+        was_running = {}  # per-project: {project_key: bool}
+        fix_rounds = {}  # per-project: {project_key: int}
 
         # Load settings from API
         await _get_engine_settings()
@@ -171,7 +176,11 @@ class DiscordAnalyzerListener:
         MAX_FIX_ROUNDS = _es("discord.auto_fix.max_rounds", 3)
         AUTO_FIX_ENABLED = _es("discord.auto_fix.enabled", True)
 
-        logger.info("_status_loop STARTED, interval=%ds, max_fix_rounds=%d", STATUS_INTERVAL, MAX_FIX_ROUNDS)
+        logger.info(
+            "_status_loop STARTED, interval=%ds, max_fix_rounds=%d",
+            STATUS_INTERVAL,
+            MAX_FIX_ROUNDS,
+        )
 
         while self.running:
             try:
@@ -190,7 +199,10 @@ class DiscordAnalyzerListener:
                     proj_name = proj_config.get("name", proj_key)
 
                     async with httpx.AsyncClient(timeout=15) as client:
-                        resp = await client.get("%s/api/v1/dashboard/status?projectId=%s" % (API_URL, project_id))
+                        resp = await client.get(
+                            "%s/api/v1/dashboard/status?projectId=%s"
+                            % (API_URL, project_id)
+                        )
                         if resp.status_code != 200:
                             continue
                         data = resp.json()
@@ -214,11 +226,22 @@ class DiscordAnalyzerListener:
                         new_status = "%d-%d-%d-%s" % (completed, failed, pending, phase)
                         if new_status != prev_status:
                             emoji = "🔄" if is_running else "📊"
-                            prefix = "**[%s]** " % proj_name if len(projects) > 1 else ""
+                            prefix = (
+                                "**[%s]** " % proj_name if len(projects) > 1 else ""
+                            )
                             status_msg = (
                                 "%s %s**Auto-Status** (%s%% | %s)\n"
                                 "✅ %d completed | ❌ %d failed | ⏳ %d pending | 📦 %d total"
-                                % (emoji, prefix, progress, phase, completed, failed, pending, total)
+                                % (
+                                    emoji,
+                                    prefix,
+                                    progress,
+                                    phase,
+                                    completed,
+                                    failed,
+                                    pending,
+                                    total,
+                                )
                             )
                             if last_activity and is_running:
                                 status_msg += "\n📝 `%s`" % last_activity
@@ -236,18 +259,27 @@ class DiscordAnalyzerListener:
                         was_running[proj_key] = False
                         prefix = "**[%s]** " % proj_name if len(projects) > 1 else ""
                         # #orchestrator: generation events
-                        gen_msg = "🏁 %s**Generation finished!** ✅ %d | ❌ %d | ⏳ %d" % (prefix, completed, failed, pending)
+                        gen_msg = (
+                            "🏁 %s**Generation finished!** ✅ %d | ❌ %d | ⏳ %d"
+                            % (prefix, completed, failed, pending)
+                        )
                         await self._post_to_channel(ORCHESTRATOR_CHANNEL, gen_msg)
 
                         if failed > 0 and proj_fix_rounds < MAX_FIX_ROUNDS:
                             fix_rounds[proj_key] = proj_fix_rounds + 1
-                            fix_msg = "🔧 %s**Auto-Fix Round %d/%d** — fixing %d failed tasks..." % (prefix, fix_rounds[proj_key], MAX_FIX_ROUNDS, failed)
+                            fix_msg = (
+                                "🔧 %s**Auto-Fix Round %d/%d** — fixing %d failed tasks..."
+                                % (prefix, fix_rounds[proj_key], MAX_FIX_ROUNDS, failed)
+                            )
                             await self._post_to_channel(FIXES_CHANNEL, fix_msg)
                             try:
                                 fix_result = await self._cmd_fixall(proj_key)
                                 await self._post_to_channel(FIXES_CHANNEL, fix_result)
                             except Exception as e:
-                                await self._post_to_channel(FIXES_CHANNEL, "❌ Auto-fix error: %s" % str(e)[:200])
+                                await self._post_to_channel(
+                                    FIXES_CHANNEL,
+                                    "❌ Auto-fix error: %s" % str(e)[:200],
+                                )
                             await asyncio.sleep(5)
                             continue
 
@@ -255,28 +287,44 @@ class DiscordAnalyzerListener:
                         last_statuses[proj_key] = "pipeline_done"
 
                         # #done: final summary
-                        await self._post_to_channel(DONE_CHANNEL,
-                            "✅ %s**Pipeline complete!** ✅ %d completed | 📦 %d total" % (prefix, completed, total))
+                        await self._post_to_channel(
+                            DONE_CHANNEL,
+                            "✅ %s**Pipeline complete!** ✅ %d completed | 📦 %d total"
+                            % (prefix, completed, total),
+                        )
 
                     # ── Idle with failed tasks → auto-fixall ──
-                    if AUTO_FIX_ENABLED and not is_running and not prev_running and failed > 0 and proj_fix_rounds < MAX_FIX_ROUNDS and prev_status != "pipeline_done":
+                    if (
+                        AUTO_FIX_ENABLED
+                        and not is_running
+                        and not prev_running
+                        and failed > 0
+                        and proj_fix_rounds < MAX_FIX_ROUNDS
+                        and prev_status != "pipeline_done"
+                    ):
                         fix_rounds[proj_key] = proj_fix_rounds + 1
                         prefix = "**[%s]** " % proj_name if len(projects) > 1 else ""
-                        fix_msg = "🔧 %s**Auto-Fix (idle)** Round %d/%d — %d failed tasks" % (prefix, fix_rounds[proj_key], MAX_FIX_ROUNDS, failed)
+                        fix_msg = (
+                            "🔧 %s**Auto-Fix (idle)** Round %d/%d — %d failed tasks"
+                            % (prefix, fix_rounds[proj_key], MAX_FIX_ROUNDS, failed)
+                        )
                         await self._post_to_channel(FIXES_CHANNEL, fix_msg)
                         try:
                             fix_result = await self._cmd_fixall(proj_key)
                             await self._post_to_channel(FIXES_CHANNEL, fix_result)
                         except Exception as e:
-                            await self._post_to_channel(FIXES_CHANNEL, "❌ Auto-fix error: %s" % str(e)[:200])
+                            await self._post_to_channel(
+                                FIXES_CHANNEL, "❌ Auto-fix error: %s" % str(e)[:200]
+                            )
 
             except Exception as e:
                 logger.error("Status loop error: %s", e)
 
     async def _auto_verify_and_pr(self):
         """Phase 3-5: Verify → PR → Review. Routes to appropriate channels."""
-        await self._post_to_channel(TESTING_CHANNEL,
-            "🔍 **Phase 3: Verification** — checking generated code...")
+        await self._post_to_channel(
+            TESTING_CHANNEL, "🔍 **Phase 3: Verification** — checking generated code..."
+        )
 
         # ── 3a. File existence check ──
         try:
@@ -305,7 +353,10 @@ class DiscordAnalyzerListener:
             async with httpx.AsyncClient(timeout=60) as client:
                 build_resp = await client.post(
                     "%s/api/v1/dashboard/sandbox/exec" % API_URL,
-                    json={"command": "cd %s && npm run build 2>&1 | tail -5" % self._project_output()},
+                    json={
+                        "command": "cd %s && npm run build 2>&1 | tail -5"
+                        % self._project_output()
+                    },
                     timeout=120,
                 )
                 if build_resp.status_code == 200:
@@ -328,11 +379,12 @@ class DiscordAnalyzerListener:
         # ── Phase 4: Create PR if build passes ──
         if build_ok:
             # #prs: PR events only
-            await self._post_to_channel(PRS_CHANNEL,
-                "📝 **Phase 4: Creating PR...**")
+            await self._post_to_channel(PRS_CHANNEL, "📝 **Phase 4: Creating PR...**")
             try:
                 proj = self._find_project()
-                pr_title = "Auto-generated %s" % (proj.get("name", "project") if proj else "project")
+                pr_title = "Auto-generated %s" % (
+                    proj.get("name", "project") if proj else "project"
+                )
                 pr_result = await self._cmd_create_pr(pr_title)
                 await self._post_to_channel(PRS_CHANNEL, pr_result)
 
@@ -344,21 +396,26 @@ class DiscordAnalyzerListener:
 
                 if pr_url:
                     await asyncio.sleep(10)
-                    await self._post_to_channel(PRS_CHANNEL,
-                        "🔎 **Phase 5: Auto-reviewing PR...**")
+                    await self._post_to_channel(
+                        PRS_CHANNEL, "🔎 **Phase 5: Auto-reviewing PR...**"
+                    )
                     try:
                         review_result = await self._cmd_review_pr(pr_url)
                         await self._post_to_channel(PRS_CHANNEL, review_result)
                     except Exception as e:
-                        await self._post_to_channel(PRS_CHANNEL,
-                            "❌ Auto-review failed: %s" % str(e)[:200])
+                        await self._post_to_channel(
+                            PRS_CHANNEL, "❌ Auto-review failed: %s" % str(e)[:200]
+                        )
 
             except Exception as e:
-                await self._post_to_channel(PRS_CHANNEL,
-                    "❌ PR creation failed: %s" % str(e)[:200])
+                await self._post_to_channel(
+                    PRS_CHANNEL, "❌ PR creation failed: %s" % str(e)[:200]
+                )
         else:
-            await self._post_to_channel(TESTING_CHANNEL,
-                "⏸️ **PR skipped** — build not passing. Run `!fixall` to fix remaining issues.")
+            await self._post_to_channel(
+                TESTING_CHANNEL,
+                "⏸️ **PR skipped** — build not passing. Run `!fixall` to fix remaining issues.",
+            )
 
     async def _gateway_loop(self):
         """Connect to Discord Gateway WebSocket to set bot presence to Online."""
@@ -379,7 +436,8 @@ class DiscordAnalyzerListener:
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 "%s/gateway/bot" % DISCORD_API,
-                headers=self.headers, timeout=10,
+                headers=self.headers,
+                timeout=10,
             )
             if resp.status_code != 200:
                 logger.error("Failed to get gateway URL: %s", resp.status_code)
@@ -467,8 +525,10 @@ class DiscordAnalyzerListener:
         """Check for new FIX_NEEDED messages in #fixes."""
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                "%s/channels/%s/messages?limit=5&after=%s" % (DISCORD_API, FIXES_CHANNEL, self.last_seen_id),
-                headers=self.headers, timeout=10,
+                "%s/channels/%s/messages?limit=5&after=%s"
+                % (DISCORD_API, FIXES_CHANNEL, self.last_seen_id),
+                headers=self.headers,
+                timeout=10,
             )
             if resp.status_code != 200:
                 return
@@ -483,7 +543,7 @@ class DiscordAnalyzerListener:
             if "FIX_NEEDED" not in content:
                 continue
 
-            match = re.search(r'\|\|`(\{[^`]+\})`\|\|', content)
+            match = re.search(r"\|\|`(\{[^`]+\})`\|\|", content)
             if not match:
                 continue
             try:
@@ -535,16 +595,22 @@ class DiscordAnalyzerListener:
                 if resp.status_code == 200:
                     logger.info("Fix dispatched: %s", task_id)
                 else:
-                    logger.warning("Fix dispatch failed: %s %s", resp.status_code, resp.text[:200])
-                    await self._reply("Fix dispatch failed for `%s`: %s" % (task_id, resp.text[:100]))
+                    logger.warning(
+                        "Fix dispatch failed: %s %s", resp.status_code, resp.text[:200]
+                    )
+                    await self._reply(
+                        "Fix dispatch failed for `%s`: %s" % (task_id, resp.text[:100])
+                    )
         except Exception as e:
             logger.error("Fix dispatch error: %s", e)
-            await self._reply("Fix dispatch error for `%s`: %s" % (task_id, str(e)[:100]))
+            await self._reply(
+                "Fix dispatch error for `%s`: %s" % (task_id, str(e)[:100])
+            )
 
     def _extract_error_from_message(self, content: str) -> str:
         """Extract error text from a FIX_NEEDED Discord message."""
         # Error is usually in a code block
-        code_match = re.search(r'```\n?(.*?)\n?```', content, re.DOTALL)
+        code_match = re.search(r"```\n?(.*?)\n?```", content, re.DOTALL)
         if code_match:
             return code_match.group(1).strip()
         # Fallback: everything after "Name:" line
@@ -574,12 +640,14 @@ class DiscordAnalyzerListener:
         task_context = await self._fetch_task_context(epic_id, task_id)
 
         # 2. Fetch source code of related files
-        source_code = await self._fetch_source_files(task_context.get("output_files", []))
+        source_code = await self._fetch_source_files(
+            task_context.get("output_files", [])
+        )
 
         # 3. Build enriched prompt
         prompt_parts = [
             "You are a senior developer fixing a failing task in a code generation pipeline.",
-            "Respond with ONLY a JSON object: {\"file\": \"path/to/file.ts\", \"fix\": \"corrected code\", \"explanation\": \"one-line why\"}",
+            'Respond with ONLY a JSON object: {"file": "path/to/file.ts", "fix": "corrected code", "explanation": "one-line why"}',
             "",
             "## Task",
             "ID: %s" % task_id,
@@ -613,7 +681,11 @@ class DiscordAnalyzerListener:
                     await asyncio.sleep(15)
                     return '{"error": "Rate limited, retry later"}'
                 data = resp.json()
-                return data.get("choices", [{}])[0].get("message", {}).get("content", '{"error": "No fix"}')
+                return (
+                    data.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", '{"error": "No fix"}')
+                )
         except Exception as e:
             return '{"error": "Analysis error: %s"}' % str(e)[:100]
 
@@ -630,7 +702,8 @@ class DiscordAnalyzerListener:
                     return resp.json()
                 # Fallback: get all tasks and filter
                 resp = await client.get(
-                    "%s/api/v1/dashboard/db/projects/%d/tasks" % (API_URL, self._project_db_id())
+                    "%s/api/v1/dashboard/db/projects/%d/tasks"
+                    % (API_URL, self._project_db_id())
                 )
                 if resp.status_code == 200:
                     data = resp.json()
@@ -699,11 +772,19 @@ class DiscordAnalyzerListener:
                 "**Action:** `RETEST`\n"
                 "||`%s`||"
             ) % (
-                scope, task_id,
+                scope,
+                task_id,
                 fix_data.get("file", "?"),
                 fix_data.get("explanation", "")[:200],
                 str(fix_data.get("fix", ""))[:1200],
-                json.dumps({"type": "FIX_SUGGESTED", "task": task_id, "file": fix_data.get("file", ""), "action": "RETEST"}),
+                json.dumps(
+                    {
+                        "type": "FIX_SUGGESTED",
+                        "task": task_id,
+                        "file": fix_data.get("file", ""),
+                        "action": "RETEST",
+                    }
+                ),
             )
         else:
             # Fallback: raw text fix
@@ -714,9 +795,12 @@ class DiscordAnalyzerListener:
                 "**Action:** `RETEST`\n"
                 "||`%s`||"
             ) % (
-                scope, task_id,
+                scope,
+                task_id,
                 fix[:1200],
-                json.dumps({"type": "FIX_SUGGESTED", "task": task_id, "action": "RETEST"}),
+                json.dumps(
+                    {"type": "FIX_SUGGESTED", "task": task_id, "action": "RETEST"}
+                ),
             )
 
         try:
@@ -737,8 +821,10 @@ class DiscordAnalyzerListener:
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    "%s/channels/%s/messages?limit=5&after=%s" % (DISCORD_API, DEV_TASKS_CHANNEL, self.last_cmd_id),
-                    headers=self.headers, timeout=10,
+                    "%s/channels/%s/messages?limit=5&after=%s"
+                    % (DISCORD_API, DEV_TASKS_CHANNEL, self.last_cmd_id),
+                    headers=self.headers,
+                    timeout=10,
                 )
                 if resp.status_code != 200:
                     return
@@ -793,7 +879,8 @@ class DiscordAnalyzerListener:
                 await self._reply("Error: %s" % str(e)[:200])
         elif cmd.startswith("!"):
             await self._reply(
-                "Unknown command: `%s`\nAvailable: `!status` `!backends` `!logs` `!generate` `!pr` `!review` `!help`" % cmd
+                "Unknown command: `%s`\nAvailable: `!status` `!backends` `!logs` `!generate` `!pr` `!review` `!help`"
+                % cmd
             )
 
     async def _reply(self, message: str):
@@ -822,7 +909,9 @@ class DiscordAnalyzerListener:
                 if resp.status_code != 200:
                     return "No projects found"
                 data = resp.json()
-                projects = data.get("projects", data) if isinstance(data, dict) else data
+                projects = (
+                    data.get("projects", data) if isinstance(data, dict) else data
+                )
                 if not projects or not isinstance(projects, list):
                     return "No projects. Start generation first."
                 project = projects[0]
@@ -833,7 +922,10 @@ class DiscordAnalyzerListener:
                 # Step 1: Count files
                 r = await client.post(
                     "%s/api/v1/dashboard/sandbox/exec" % API_URL,
-                    json={"command": "find /workspace/app -type f | wc -l", "container": "coding-engine-sandbox"},
+                    json={
+                        "command": "find /workspace/app -type f | wc -l",
+                        "container": "coding-engine-sandbox",
+                    },
                     timeout=15,
                 )
                 if r.status_code == 200:
@@ -844,17 +936,25 @@ class DiscordAnalyzerListener:
                 # Step 2: Check if package.json exists
                 r = await client.post(
                     "%s/api/v1/dashboard/sandbox/exec" % API_URL,
-                    json={"command": "cat /workspace/app/package.json 2>/dev/null | head -3 || echo 'NO_PACKAGE_JSON'", "container": "coding-engine-sandbox"},
+                    json={
+                        "command": "cat /workspace/app/package.json 2>/dev/null | head -3 || echo 'NO_PACKAGE_JSON'",
+                        "container": "coding-engine-sandbox",
+                    },
                     timeout=10,
                 )
-                has_pkg = r.status_code == 200 and "NO_PACKAGE_JSON" not in (r.json().get("stdout") or "")
+                has_pkg = r.status_code == 200 and "NO_PACKAGE_JSON" not in (
+                    r.json().get("stdout") or ""
+                )
 
                 if has_pkg:
                     # Step 3: npm install
                     lines.append("📦 Running npm install...")
                     r = await client.post(
                         "%s/api/v1/dashboard/sandbox/exec" % API_URL,
-                        json={"command": "cd /workspace/app && npm install --legacy-peer-deps 2>&1 | tail -3", "container": "coding-engine-sandbox"},
+                        json={
+                            "command": "cd /workspace/app && npm install --legacy-peer-deps 2>&1 | tail -3",
+                            "container": "coding-engine-sandbox",
+                        },
                         timeout=60,
                     )
                     if r.status_code == 200:
@@ -865,7 +965,10 @@ class DiscordAnalyzerListener:
                     lines.append("🔍 TypeScript check...")
                     r = await client.post(
                         "%s/api/v1/dashboard/sandbox/exec" % API_URL,
-                        json={"command": "cd /workspace/app && npx tsc --noEmit 2>&1 | tail -5", "container": "coding-engine-sandbox"},
+                        json={
+                            "command": "cd /workspace/app && npx tsc --noEmit 2>&1 | tail -5",
+                            "container": "coding-engine-sandbox",
+                        },
                         timeout=30,
                     )
                     if r.status_code == 200:
@@ -879,7 +982,10 @@ class DiscordAnalyzerListener:
                     lines.append("🏗️ Build check...")
                     r = await client.post(
                         "%s/api/v1/dashboard/sandbox/exec" % API_URL,
-                        json={"command": "cd /workspace/app && npm run build 2>&1 | tail -5", "container": "coding-engine-sandbox"},
+                        json={
+                            "command": "cd /workspace/app && npm run build 2>&1 | tail -5",
+                            "container": "coding-engine-sandbox",
+                        },
                         timeout=60,
                     )
                     if r.status_code == 200:
@@ -908,9 +1014,14 @@ class DiscordAnalyzerListener:
                     timeout=10,
                 )
                 if r.status_code == 200:
-                    out = (r.json().get("stdout") or r.json().get("output") or "No files").strip()
+                    out = (
+                        r.json().get("stdout") or r.json().get("output") or "No files"
+                    ).strip()
                     count = len([l for l in out.split("\n") if l.strip()])
-                    return "**Generated Files** (%d shown)\n```\n%s\n```" % (count, out[:1500])
+                    return "**Generated Files** (%d shown)\n```\n%s\n```" % (
+                        count,
+                        out[:1500],
+                    )
                 return "Could not list files (status %d)" % r.status_code
         except Exception as e:
             return "Error: %s" % str(e)[:200]
@@ -918,7 +1029,9 @@ class DiscordAnalyzerListener:
     async def _cmd_preview(self, args: str) -> str:
         """Take screenshot of sandbox preview and analyze with Vision."""
         sandbox_url = os.environ.get("SANDBOX_APP_URL", "http://sandbox:3100")
-        vision_model = os.environ.get("VISION_MODEL", "nvidia/nemotron-nano-12b-v2-vl:free")
+        vision_model = os.environ.get(
+            "VISION_MODEL", "nvidia/nemotron-nano-12b-v2-vl:free"
+        )
 
         try:
             # 1. Check if sandbox is reachable
@@ -926,14 +1039,20 @@ class DiscordAnalyzerListener:
                 try:
                     resp = await client.get(sandbox_url)
                     if resp.status_code != 200:
-                        return "Sandbox not reachable at %s (status %d)" % (sandbox_url, resp.status_code)
+                        return "Sandbox not reachable at %s (status %d)" % (
+                            sandbox_url,
+                            resp.status_code,
+                        )
                     page_content = resp.text[:500]
                 except Exception as e:
                     return "Sandbox not reachable: %s" % str(e)[:100]
 
             # 2. Analyze page content with LLM
             if not OPENROUTER_KEY:
-                return "Preview reachable but no API key for analysis.\nPage content:\n```\n%s\n```" % page_content[:300]
+                return (
+                    "Preview reachable but no API key for analysis.\nPage content:\n```\n%s\n```"
+                    % page_content[:300]
+                )
 
             prompt = (
                 "Analyze this web page HTML from a generated app preview. "
@@ -953,10 +1072,21 @@ class DiscordAnalyzerListener:
                     },
                 )
                 if resp.status_code == 200:
-                    analysis = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "No analysis")
-                    return "**Preview Analysis** (%s)\n%s" % (sandbox_url, analysis[:1500])
+                    analysis = (
+                        resp.json()
+                        .get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content", "No analysis")
+                    )
+                    return "**Preview Analysis** (%s)\n%s" % (
+                        sandbox_url,
+                        analysis[:1500],
+                    )
                 else:
-                    return "Preview reachable but analysis failed (%d)\nRaw HTML:\n```\n%s\n```" % (resp.status_code, page_content[:500])
+                    return (
+                        "Preview reachable but analysis failed (%d)\nRaw HTML:\n```\n%s\n```"
+                        % (resp.status_code, page_content[:500])
+                    )
 
         except Exception as e:
             return "Preview error: %s" % str(e)[:200]
@@ -999,11 +1129,14 @@ class DiscordAnalyzerListener:
                     data = resp.json()
                     action = data.get("action", "unknown")
                     if data.get("success"):
-                        return "**PR Merged** | `%s`\nBuild + TypeCheck passing" % pr_url
+                        return (
+                            "**PR Merged** | `%s`\nBuild + TypeCheck passing" % pr_url
+                        )
                     else:
                         error = data.get("error", "")[:300]
-                        return "**PR Review Failed** | `%s`\nAction: `%s`\n```\n%s\n```" % (
-                            pr_url, action, error
+                        return (
+                            "**PR Review Failed** | `%s`\nAction: `%s`\n```\n%s\n```"
+                            % (pr_url, action, error)
                         )
                 return "API error: %d" % resp.status_code
         except Exception as e:
@@ -1044,7 +1177,10 @@ class DiscordAnalyzerListener:
                     proj_name = proj.get("name", project_name)
 
                     # Get live status
-                    status_resp = await client.get("%s/api/v1/dashboard/status?projectId=%s" % (API_URL, project_id))
+                    status_resp = await client.get(
+                        "%s/api/v1/dashboard/status?projectId=%s"
+                        % (API_URL, project_id)
+                    )
                     phase = "idle"
                     progress = 0
                     if status_resp.status_code == 200:
@@ -1053,19 +1189,39 @@ class DiscordAnalyzerListener:
                         progress = sd.get("progress_pct", 0)
 
                     # Get task stats
-                    tresp = await client.get("%s/api/v1/dashboard/db/projects/%d/tasks" % (API_URL, job_id))
+                    tresp = await client.get(
+                        "%s/api/v1/dashboard/db/projects/%d/tasks" % (API_URL, job_id)
+                    )
                     if tresp.status_code == 200:
                         tasks = tresp.json()
                         if isinstance(tasks, dict):
                             tasks = tasks.get("tasks", [])
                         total = len(tasks)
-                        completed = sum(1 for t in tasks if t.get("status") in ("completed", "COMPLETED"))
-                        failed = sum(1 for t in tasks if t.get("status") in ("failed", "FAILED"))
-                        pending = sum(1 for t in tasks if t.get("status") in ("pending", "PENDING"))
+                        completed = sum(
+                            1
+                            for t in tasks
+                            if t.get("status") in ("completed", "COMPLETED")
+                        )
+                        failed = sum(
+                            1 for t in tasks if t.get("status") in ("failed", "FAILED")
+                        )
+                        pending = sum(
+                            1
+                            for t in tasks
+                            if t.get("status") in ("pending", "PENDING")
+                        )
                         return (
                             "**%s** (%s%% | %s)\n"
                             "✅ %d completed | ❌ %d failed | ⏳ %d pending | 📦 %d total"
-                            % (proj_name, progress, phase, completed, failed, pending, total)
+                            % (
+                                proj_name,
+                                progress,
+                                phase,
+                                completed,
+                                failed,
+                                pending,
+                                total,
+                            )
                         )
                     return "**%s** — %s (%s%%)" % (proj_name, phase, progress)
                 else:
@@ -1076,15 +1232,29 @@ class DiscordAnalyzerListener:
                     lines = ["**Engine Status**"]
                     for key, p in projects.items():
                         job_id = p.get("db_job_id", 24)
-                        tresp = await client.get("%s/api/v1/dashboard/db/projects/%d/tasks" % (API_URL, job_id))
+                        tresp = await client.get(
+                            "%s/api/v1/dashboard/db/projects/%d/tasks"
+                            % (API_URL, job_id)
+                        )
                         if tresp.status_code == 200:
                             tasks = tresp.json()
                             if isinstance(tasks, dict):
                                 tasks = tasks.get("tasks", [])
                             total = len(tasks)
-                            completed = sum(1 for t in tasks if t.get("status") in ("completed", "COMPLETED"))
-                            failed = sum(1 for t in tasks if t.get("status") in ("failed", "FAILED"))
-                            lines.append("`%s` — ✅ %d | ❌ %d | 📦 %d" % (p.get("name", key), completed, failed, total))
+                            completed = sum(
+                                1
+                                for t in tasks
+                                if t.get("status") in ("completed", "COMPLETED")
+                            )
+                            failed = sum(
+                                1
+                                for t in tasks
+                                if t.get("status") in ("failed", "FAILED")
+                            )
+                            lines.append(
+                                "`%s` — ✅ %d | ❌ %d | 📦 %d"
+                                % (p.get("name", key), completed, failed, total)
+                            )
                         else:
                             lines.append("`%s` — no data" % p.get("name", key))
                     return "\n".join(lines)
@@ -1095,7 +1265,9 @@ class DiscordAnalyzerListener:
         """Get backend auth status from API."""
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get("%s/api/v1/dashboard/pipeline/backend" % API_URL)
+                resp = await client.get(
+                    "%s/api/v1/dashboard/pipeline/backend" % API_URL
+                )
                 if resp.status_code != 200:
                     return "API not reachable"
 
@@ -1154,7 +1326,9 @@ class DiscordAnalyzerListener:
             # Show active generations
             try:
                 async with httpx.AsyncClient(timeout=5) as c:
-                    ag_resp = await c.get("%s/api/v1/dashboard/active-generations" % API_URL)
+                    ag_resp = await c.get(
+                        "%s/api/v1/dashboard/active-generations" % API_URL
+                    )
                     if ag_resp.status_code == 200:
                         gens = ag_resp.json().get("generations", {})
                         if gens:
@@ -1162,7 +1336,9 @@ class DiscordAnalyzerListener:
                             for pid, info in gens.items():
                                 status = info.get("status", "?")
                                 elapsed = int(info.get("elapsed_seconds", 0))
-                                lines.append("🔄 `%s` — %s (%ds)" % (pid, status, elapsed))
+                                lines.append(
+                                    "🔄 `%s` — %s (%ds)" % (pid, status, elapsed)
+                                )
             except Exception:
                 pass
 
@@ -1183,22 +1359,38 @@ class DiscordAnalyzerListener:
                     },
                 )
                 if resp.status_code == 200:
-                    data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                    data = (
+                        resp.json()
+                        if resp.headers.get("content-type", "").startswith(
+                            "application/json"
+                        )
+                        else {}
+                    )
                     if data.get("success"):
                         db_schema = proj.get("db_schema", "auto")
                         ports = "Port %s" % proj.get("app_port", 3100)
-                        gen_started_msg = "🚀 **Generation started** for `%s`\n📦 DB: `%s` | %s" % (proj.get("name", project_name), db_schema, ports)
-                        await self._post_to_channel(ORCHESTRATOR_CHANNEL, gen_started_msg)
+                        gen_started_msg = (
+                            "🚀 **Generation started** for `%s`\n📦 DB: `%s` | %s"
+                            % (proj.get("name", project_name), db_schema, ports)
+                        )
+                        await self._post_to_channel(
+                            ORCHESTRATOR_CHANNEL, gen_started_msg
+                        )
                         return gen_started_msg
                     else:
                         return "⚠️ %s" % data.get("error", "Unknown error")
                 else:
-                    data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                    data = (
+                        resp.json()
+                        if resp.headers.get("content-type", "").startswith(
+                            "application/json"
+                        )
+                        else {}
+                    )
                     error = data.get("error", resp.text[:200])
                     return "Generation failed: %s" % error
         except Exception as e:
             return "Error: %s" % str(e)[:150]
-
 
     async def _cmd_fixall(self, args: str) -> str:
         """Smart fix ALL failed tasks. Usage: !fixall [project-name]"""
@@ -1206,12 +1398,20 @@ class DiscordAnalyzerListener:
         project_name = args.strip()
         proj = self._find_project(project_name)
         job_id = proj.get("db_project_id", 2) if proj else self._project_db_id()
-        output_dir = proj.get("output_dir", self._project_output()) if proj else self._project_output()
+        output_dir = (
+            proj.get("output_dir", self._project_output())
+            if proj
+            else self._project_output()
+        )
 
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(timeout=300, connect=10)) as client:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(timeout=300, connect=10)
+            ) as client:
                 # Get failed tasks from DB
-                resp = await client.get("%s/api/v1/dashboard/db/projects/%d/tasks" % (API_URL, job_id))
+                resp = await client.get(
+                    "%s/api/v1/dashboard/db/projects/%d/tasks" % (API_URL, job_id)
+                )
                 if resp.status_code != 200:
                     return "Could not fetch tasks"
                 data = resp.json()
@@ -1223,13 +1423,25 @@ class DiscordAnalyzerListener:
 
                 # Categorize by task type
                 migrations = [t for t in failed if "-migration" in t.get("task_id", "")]
-                lint_tasks = [t for t in failed if "VERIFY-lint" in t.get("task_id", "")]
-                build_tasks = [t for t in failed if "VERIFY-build" in t.get("task_id", "")]
-                code_tasks = [t for t in failed if t not in migrations and t not in lint_tasks and t not in build_tasks]
+                lint_tasks = [
+                    t for t in failed if "VERIFY-lint" in t.get("task_id", "")
+                ]
+                build_tasks = [
+                    t for t in failed if "VERIFY-build" in t.get("task_id", "")
+                ]
+                code_tasks = [
+                    t
+                    for t in failed
+                    if t not in migrations
+                    and t not in lint_tasks
+                    and t not in build_tasks
+                ]
 
                 summary = []
                 if migrations:
-                    summary.append("🗄️ %d migrations → `prisma db push`" % len(migrations))
+                    summary.append(
+                        "🗄️ %d migrations → `prisma db push`" % len(migrations)
+                    )
                 if lint_tasks:
                     summary.append("🧹 %d lint → `eslint --fix`" % len(lint_tasks))
                 if build_tasks:
@@ -1239,11 +1451,14 @@ class DiscordAnalyzerListener:
 
                 # Post summary to #dev-tasks (where command was sent)
                 await self._reply(
-                    "🔧 **Smart Fix: %d failed tasks** — details in #fixes" % len(failed)
+                    "🔧 **Smart Fix: %d failed tasks** — details in #fixes"
+                    % len(failed)
                 )
                 # Post details to #fixes channel
-                await self._post_to_channel(FIXES_CHANNEL,
-                    "🔧 **Smart Fix: %d failed tasks**\n%s" % (len(failed), "\n".join(summary))
+                await self._post_to_channel(
+                    FIXES_CHANNEL,
+                    "🔧 **Smart Fix: %d failed tasks**\n%s"
+                    % (len(failed), "\n".join(summary)),
                 )
 
                 fixed = 0
@@ -1251,7 +1466,11 @@ class DiscordAnalyzerListener:
 
                 # ── Phase 1: Prisma migrations → API /fix-prisma-schema (autonomous GPT fix loop) ──
                 if migrations:
-                    await self._post_to_channel(FIXES_CHANNEL, "**Phase 1/4:** Fixing %d migrations via `/fix-prisma-schema` (GPT auto-fix loop, max 5 attempts)..." % len(migrations))
+                    await self._post_to_channel(
+                        FIXES_CHANNEL,
+                        "**Phase 1/4:** Fixing %d migrations via `/fix-prisma-schema` (GPT auto-fix loop, max 5 attempts)..."
+                        % len(migrations),
+                    )
                     try:
                         fix_resp = await client.post(
                             "%s/api/v1/dashboard/fix-prisma-schema" % API_URL,
@@ -1268,10 +1487,18 @@ class DiscordAnalyzerListener:
 
                         if push_ok:
                             # Bulk update all migration tasks via direct DB call
-                            task_ids = [t.get("task_id", "") for t in migrations if t.get("task_id")]
+                            task_ids = [
+                                t.get("task_id", "")
+                                for t in migrations
+                                if t.get("task_id")
+                            ]
                             bulk_resp = await client.post(
                                 "%s/api/v1/dashboard/bulk-update-task-status" % API_URL,
-                                json={"task_ids": task_ids, "status": "COMPLETED", "status_message": "Fixed by smart-fix (prisma db push)"},
+                                json={
+                                    "task_ids": task_ids,
+                                    "status": "COMPLETED",
+                                    "status_message": "Fixed by smart-fix (prisma db push)",
+                                },
                                 timeout=30,
                             )
                             if bulk_resp.status_code == 200:
@@ -1280,9 +1507,14 @@ class DiscordAnalyzerListener:
                             else:
                                 # Fallback: mark individually
                                 for t in migrations:
-                                    await self._mark_task_completed(client, t.get("task_id", ""))
+                                    await self._mark_task_completed(
+                                        client, t.get("task_id", "")
+                                    )
                                     fixed += 1
-                            await self._reply("✅ All %d migrations fixed (attempt %s): %s" % (len(migrations), attempt, msg))
+                            await self._reply(
+                                "✅ All %d migrations fixed (attempt %s): %s"
+                                % (len(migrations), attempt, msg)
+                            )
                         else:
                             errors += len(migrations)
                             await self._reply("❌ Prisma fix failed: %s" % msg[:200])
@@ -1292,11 +1524,18 @@ class DiscordAnalyzerListener:
 
                 # ── Phase 2: ESLint fix (1 command fixes all) ──
                 if lint_tasks:
-                    await self._post_to_channel(FIXES_CHANNEL, "**Phase 2/4:** Running `eslint --fix` for %d lint tasks..." % len(lint_tasks))
+                    await self._post_to_channel(
+                        FIXES_CHANNEL,
+                        "**Phase 2/4:** Running `eslint --fix` for %d lint tasks..."
+                        % len(lint_tasks),
+                    )
                     try:
                         lint_resp = await client.post(
                             "%s/api/v1/dashboard/sandbox/exec" % API_URL,
-                            json={"command": "cd %s && npx eslint --fix 'src/**/*.{ts,tsx}' 2>&1 || true" % output_dir},
+                            json={
+                                "command": "cd %s && npx eslint --fix 'src/**/*.{ts,tsx}' 2>&1 || true"
+                                % output_dir
+                            },
                             timeout=120,
                         )
                         # ESLint --fix always "succeeds" (exit 0 or 1 with remaining issues)
@@ -1304,45 +1543,65 @@ class DiscordAnalyzerListener:
                             tid = t.get("task_id", "")
                             await self._mark_task_completed(client, tid)
                             fixed += 1
-                        await self._reply("✅ ESLint --fix applied for %d tasks" % len(lint_tasks))
+                        await self._reply(
+                            "✅ ESLint --fix applied for %d tasks" % len(lint_tasks)
+                        )
                     except Exception as e:
                         errors += len(lint_tasks)
                         await self._reply("❌ ESLint fix error: %s" % str(e)[:150])
 
                 # ── Phase 3: Build check ──
                 if build_tasks:
-                    await self._post_to_channel(FIXES_CHANNEL, "**Phase 3/4:** Running build for %d build tasks..." % len(build_tasks))
+                    await self._post_to_channel(
+                        FIXES_CHANNEL,
+                        "**Phase 3/4:** Running build for %d build tasks..."
+                        % len(build_tasks),
+                    )
                     try:
                         build_resp = await client.post(
                             "%s/api/v1/dashboard/sandbox/exec" % API_URL,
-                            json={"command": "cd %s && npm run build 2>&1 || npx tsc --noEmit 2>&1" % output_dir},
+                            json={
+                                "command": "cd %s && npm run build 2>&1 || npx tsc --noEmit 2>&1"
+                                % output_dir
+                            },
                             timeout=180,
                         )
                         build_ok = False
                         if build_resp.status_code == 200:
                             output = build_resp.json().get("output", "")
-                            build_ok = "error" not in output.lower() or "0 errors" in output.lower()
+                            build_ok = (
+                                "error" not in output.lower()
+                                or "0 errors" in output.lower()
+                            )
 
                         if build_ok:
                             for t in build_tasks:
                                 tid = t.get("task_id", "")
                                 await self._mark_task_completed(client, tid)
                                 fixed += 1
-                            await self._reply("✅ Build passed for %d tasks" % len(build_tasks))
+                            await self._reply(
+                                "✅ Build passed for %d tasks" % len(build_tasks)
+                            )
                         else:
                             # Build failed — dispatch to GPT fix
                             for t in build_tasks:
                                 tid = t.get("task_id", "")
                                 await self._dispatch_gpt_fix(client, t)
                             errors += len(build_tasks)
-                            await self._reply("⚠️ Build still failing — dispatched to GPT fix")
+                            await self._reply(
+                                "⚠️ Build still failing — dispatched to GPT fix"
+                            )
                     except Exception as e:
                         errors += len(build_tasks)
                         await self._reply("❌ Build fix error: %s" % str(e)[:150])
 
                 # ── Phase 4: GPT-4.1 for remaining code tasks ──
                 if code_tasks:
-                    await self._post_to_channel(FIXES_CHANNEL, "**Phase 4/4:** Dispatching %d code tasks to GPT fix..." % len(code_tasks))
+                    await self._post_to_channel(
+                        FIXES_CHANNEL,
+                        "**Phase 4/4:** Dispatching %d code tasks to GPT fix..."
+                        % len(code_tasks),
+                    )
                     for i, t in enumerate(code_tasks):
                         try:
                             result = await self._dispatch_gpt_fix(client, t)
@@ -1352,58 +1611,107 @@ class DiscordAnalyzerListener:
                                 errors += 1
                         except Exception as e:
                             errors += 1
-                            logger.warning("GPT fix failed for %s: %s", t.get("task_id"), e)
+                            logger.warning(
+                                "GPT fix failed for %s: %s", t.get("task_id"), e
+                            )
 
                         if (i + 1) % 5 == 0:
-                            await self._reply("GPT Progress: %d/%d" % (i + 1, len(code_tasks)))
+                            await self._reply(
+                                "GPT Progress: %d/%d" % (i + 1, len(code_tasks))
+                            )
                         await asyncio.sleep(3)
 
                 # Final sync — bulk update ALL task IDs to COMPLETED
-                all_fixed_ids = [t.get("task_id", "") for t in migrations + lint_tasks + build_tasks + code_tasks]
+                all_fixed_ids = [
+                    t.get("task_id", "")
+                    for t in migrations + lint_tasks + build_tasks + code_tasks
+                ]
                 all_fixed_ids = [tid for tid in all_fixed_ids if tid]
                 await self._reply("🔄 Syncing %d tasks to DB..." % len(all_fixed_ids))
 
                 if all_fixed_ids:
                     try:
-                        sync_url = "%s/api/v1/dashboard/bulk-update-task-status" % API_URL
-                        sync_payload = {"task_ids": all_fixed_ids, "status": "COMPLETED", "status_message": "Fixed by smart-fix bot"}
-                        logger.info("Bulk sync: POST %s with %d task_ids", sync_url, len(all_fixed_ids))
-                        bulk_resp = await client.post(sync_url, json=sync_payload, timeout=30)
-                        logger.info("Bulk sync response: %d %s", bulk_resp.status_code, bulk_resp.text[:200])
+                        sync_url = (
+                            "%s/api/v1/dashboard/bulk-update-task-status" % API_URL
+                        )
+                        sync_payload = {
+                            "task_ids": all_fixed_ids,
+                            "status": "COMPLETED",
+                            "status_message": "Fixed by smart-fix bot",
+                        }
+                        logger.info(
+                            "Bulk sync: POST %s with %d task_ids",
+                            sync_url,
+                            len(all_fixed_ids),
+                        )
+                        bulk_resp = await client.post(
+                            sync_url, json=sync_payload, timeout=30
+                        )
+                        logger.info(
+                            "Bulk sync response: %d %s",
+                            bulk_resp.status_code,
+                            bulk_resp.text[:200],
+                        )
 
                         if bulk_resp.status_code == 200:
                             bd = bulk_resp.json()
                             updated = bd.get("updated", 0)
-                            await self._reply("✅ DB synced: %d/%d tasks marked COMPLETED" % (updated, len(all_fixed_ids)))
+                            await self._reply(
+                                "✅ DB synced: %d/%d tasks marked COMPLETED"
+                                % (updated, len(all_fixed_ids))
+                            )
                         else:
-                            await self._reply("⚠️ DB sync failed: HTTP %d — %s" % (bulk_resp.status_code, bulk_resp.text[:100]))
+                            await self._reply(
+                                "⚠️ DB sync failed: HTTP %d — %s"
+                                % (bulk_resp.status_code, bulk_resp.text[:100])
+                            )
                     except Exception as e:
                         logger.error("Bulk sync exception: %s", e, exc_info=True)
                         await self._reply("❌ DB sync error: %s" % str(e)[:150])
 
-                result_msg = "**✅ Smart Fix complete:** %d/%d fixed, %d errors\n🗄️ Migrations: %d | 🧹 Lint: %d | 🏗️ Build: %d | 🤖 Code: %d" % (
-                    fixed, len(failed), errors,
-                    len(migrations), len(lint_tasks), len(build_tasks), len(code_tasks)
+                result_msg = (
+                    "**✅ Smart Fix complete:** %d/%d fixed, %d errors\n🗄️ Migrations: %d | 🧹 Lint: %d | 🏗️ Build: %d | 🤖 Code: %d"
+                    % (
+                        fixed,
+                        len(failed),
+                        errors,
+                        len(migrations),
+                        len(lint_tasks),
+                        len(build_tasks),
+                        len(code_tasks),
+                    )
                 )
                 # Post detailed result to #fixes
                 await self._post_to_channel(FIXES_CHANNEL, result_msg)
                 # Post summary to #done if all fixed
                 if errors == 0 and fixed == len(failed):
-                    await self._post_to_channel(DONE_CHANNEL,
-                        "🎉 **All %d failed tasks fixed!** Pipeline can continue." % fixed)
+                    await self._post_to_channel(
+                        DONE_CHANNEL,
+                        "🎉 **All %d failed tasks fixed!** Pipeline can continue."
+                        % fixed,
+                    )
                 return result_msg
 
         except Exception as e:
             return "Fixall error: %s" % str(e)[:200]
 
-    async def _gpt_fix_prisma_schema(self, client: httpx.AsyncClient, project_dir: str, error_output: str, db_url: str) -> bool:
+    async def _gpt_fix_prisma_schema(
+        self,
+        client: httpx.AsyncClient,
+        project_dir: str,
+        error_output: str,
+        db_url: str,
+    ) -> bool:
         """Use GPT to fix Prisma schema validation errors, then write it back."""
         import os as _os
+
         openai_key = _os.environ.get("OPENAI_API_KEY", "")
         if not openai_key:
             # Try getting from API container
             try:
-                resp = await client.get("%s/api/v1/dashboard/env/OPENAI_API_KEY" % API_URL, timeout=5)
+                resp = await client.get(
+                    "%s/api/v1/dashboard/env/OPENAI_API_KEY" % API_URL, timeout=5
+                )
                 if resp.status_code == 200:
                     openai_key = resp.json().get("value", "")
             except Exception:
@@ -1416,10 +1724,17 @@ class DiscordAnalyzerListener:
         try:
             read_resp = await client.post(
                 "%s/api/v1/dashboard/sandbox/exec" % API_URL,
-                json={"command": "cat %s/prisma/schema.prisma 2>/dev/null || cat %s/schema.prisma 2>/dev/null" % (project_dir, project_dir)},
+                json={
+                    "command": "cat %s/prisma/schema.prisma 2>/dev/null || cat %s/schema.prisma 2>/dev/null"
+                    % (project_dir, project_dir)
+                },
                 timeout=15,
             )
-            current_schema = read_resp.json().get("output", read_resp.json().get("stdout", "")) if read_resp.status_code == 200 else ""
+            current_schema = (
+                read_resp.json().get("output", read_resp.json().get("stdout", ""))
+                if read_resp.status_code == 200
+                else ""
+            )
         except Exception:
             current_schema = ""
 
@@ -1449,7 +1764,10 @@ class DiscordAnalyzerListener:
                     json={
                         "model": "gpt-4.1",
                         "messages": [
-                            {"role": "system", "content": "You are a Prisma schema expert. Fix ALL errors. Output ONLY valid Prisma schema code, no markdown fences."},
+                            {
+                                "role": "system",
+                                "content": "You are a Prisma schema expert. Fix ALL errors. Output ONLY valid Prisma schema code, no markdown fences.",
+                            },
                             {"role": "user", "content": prompt},
                         ],
                         "max_tokens": 10000,
@@ -1475,14 +1793,20 @@ class DiscordAnalyzerListener:
 
             # Write fixed schema back via API
             import base64 as _b64
+
             encoded = _b64.b64encode(content.encode()).decode()
             write_resp = await client.post(
                 "%s/api/v1/dashboard/sandbox/exec" % API_URL,
-                json={"command": "echo '%s' | base64 -d > %s/prisma/schema.prisma && cp %s/prisma/schema.prisma %s/schema.prisma && echo SCHEMA_WRITTEN" % (encoded, project_dir, project_dir, project_dir)},
+                json={
+                    "command": "echo '%s' | base64 -d > %s/prisma/schema.prisma && cp %s/prisma/schema.prisma %s/schema.prisma && echo SCHEMA_WRITTEN"
+                    % (encoded, project_dir, project_dir, project_dir)
+                },
                 timeout=15,
             )
             if write_resp.status_code == 200:
-                out = write_resp.json().get("output", write_resp.json().get("stdout", ""))
+                out = write_resp.json().get(
+                    "output", write_resp.json().get("stdout", "")
+                )
                 if "SCHEMA_WRITTEN" in out:
                     logger.info("GPT fixed prisma schema successfully")
                     return True
@@ -1497,7 +1821,11 @@ class DiscordAnalyzerListener:
         try:
             await client.post(
                 "%s/api/v1/dashboard/update-task-status" % API_URL,
-                json={"task_id": task_id, "status": "COMPLETED", "status_message": "Fixed by smart-fix"},
+                json={
+                    "task_id": task_id,
+                    "status": "COMPLETED",
+                    "status_message": "Fixed by smart-fix",
+                },
                 timeout=10,
             )
         except Exception as e:
@@ -1507,7 +1835,9 @@ class DiscordAnalyzerListener:
         """Dispatch a single task to GPT-4.1 /fix-task endpoint."""
         task_id = task.get("task_id", "")
         epic_id = self._extract_epic(task_id)
-        error_msg = task.get("status_message") or task.get("error_message") or "Task failed"
+        error_msg = (
+            task.get("status_message") or task.get("error_message") or "Task failed"
+        )
         try:
             fix_resp = await client.post(
                 "%s/api/v1/dashboard/fix-task" % API_URL,
@@ -1536,7 +1866,10 @@ class DiscordAnalyzerListener:
                 if resp.status_code == 200:
                     data = resp.json()
                     if data.get("success"):
-                        return "🔄 **DB Synced:** %d/%d tasks updated" % (data.get("updated", 0), data.get("total", 0))
+                        return "🔄 **DB Synced:** %d/%d tasks updated" % (
+                            data.get("updated", 0),
+                            data.get("total", 0),
+                        )
                     return "Sync failed: %s" % data.get("error", "unknown")
                 return "API error: %d" % resp.status_code
         except Exception as e:

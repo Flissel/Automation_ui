@@ -3,6 +3,7 @@ Keyboard-Only Test - Focus input using Tab key navigation
 """
 
 import asyncio
+
 import pyautogui
 import pyperclip
 

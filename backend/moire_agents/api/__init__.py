@@ -8,7 +8,4 @@ Provides:
 
 from .conversation_interface import ConversationInterface, quick_automate
 
-__all__ = [
-    "ConversationInterface",
-    "quick_automate"
-]
+__all__ = ["ConversationInterface", "quick_automate"]

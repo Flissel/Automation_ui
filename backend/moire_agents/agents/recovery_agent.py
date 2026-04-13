@@ -17,12 +17,12 @@ Usage:
 
 import asyncio
 import logging
+import os
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-import sys
-import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 logger = logging.getLogger(__name__)
@@ -30,16 +30,18 @@ logger = logging.getLogger(__name__)
 
 class RecoveryStrategy(Enum):
     """Strategy for recovering from failures."""
-    RETRY_SAME = "retry_same"           # Same action, different timing
-    RETRY_ALTERNATIVE = "retry_alt"     # Different approach
-    SKIP_AND_CONTINUE = "skip"          # Non-critical, move on
-    ABORT_AND_REPORT = "abort"          # Critical failure, stop
-    REPLAN = "replan"                   # Generate new plan from current state
+
+    RETRY_SAME = "retry_same"  # Same action, different timing
+    RETRY_ALTERNATIVE = "retry_alt"  # Different approach
+    SKIP_AND_CONTINUE = "skip"  # Non-critical, move on
+    ABORT_AND_REPORT = "abort"  # Critical failure, stop
+    REPLAN = "replan"  # Generate new plan from current state
 
 
 @dataclass
 class FailureContext:
     """Context about a failed action."""
+
     action_type: str
     action_params: Dict[str, Any]
     error_message: str
@@ -52,6 +54,7 @@ class FailureContext:
 @dataclass
 class RecoveryResult:
     """Result of a recovery attempt."""
+
     strategy: RecoveryStrategy
     success: bool
     new_action: Optional[Dict] = None
@@ -86,14 +89,14 @@ class RecoveryAgent:
     ALTERNATIVES = {
         "click": ["hotkey", "press"],  # If click fails, try keyboard
         "hotkey": ["write", "press"],  # If hotkey fails, try typing
-        "scroll": ["press"],            # If scroll fails, try arrow keys
+        "scroll": ["press"],  # If scroll fails, try arrow keys
     }
 
     def __init__(
         self,
         max_retries: int = 2,
         retry_delay: float = 0.5,
-        use_llm_replan: bool = True
+        use_llm_replan: bool = True,
     ):
         """
         Initialize the RecoveryAgent.
@@ -113,13 +116,10 @@ class RecoveryAgent:
             "alternatives": 0,
             "skips": 0,
             "aborts": 0,
-            "replans": 0
+            "replans": 0,
         }
 
-    async def handle_failure(
-        self,
-        context: FailureContext
-    ) -> RecoveryResult:
+    async def handle_failure(self, context: FailureContext) -> RecoveryResult:
         """
         Analyze failure and determine recovery strategy.
 
@@ -130,7 +130,9 @@ class RecoveryAgent:
             RecoveryResult with strategy and modified action
         """
         logger.info(f"Handling failure: {context.error_message}")
-        logger.debug(f"Action: {context.action_type}, Attempts: {context.attempt_count}")
+        logger.debug(
+            f"Action: {context.action_type}, Attempts: {context.attempt_count}"
+        )
 
         # Determine best strategy
         strategy = self._select_strategy(context)
@@ -216,7 +218,7 @@ class RecoveryAgent:
             success=True,  # Indicates strategy was selected, not that action succeeded
             new_action=modified_action,
             message=f"Retrying with adjusted timing (attempt {context.attempt_count + 1})",
-            should_continue=True
+            should_continue=True,
         )
 
     async def _retry_alternative(self, context: FailureContext) -> RecoveryResult:
@@ -244,7 +246,7 @@ class RecoveryAgent:
             strategy=RecoveryStrategy.RETRY_ALTERNATIVE,
             success=True,
             message=f"Try alternative approach: {alt_type} instead of {context.action_type}",
-            should_continue=True
+            should_continue=True,
         )
 
     def _skip_action(self, context: FailureContext) -> RecoveryResult:
@@ -257,7 +259,7 @@ class RecoveryAgent:
             strategy=RecoveryStrategy.SKIP_AND_CONTINUE,
             success=True,
             message=f"Skipped non-critical action: {context.action_type}",
-            should_continue=True
+            should_continue=True,
         )
 
     def _abort_execution(self, context: FailureContext) -> RecoveryResult:
@@ -270,7 +272,7 @@ class RecoveryAgent:
             strategy=RecoveryStrategy.ABORT_AND_REPORT,
             success=False,
             message=f"Critical failure: {context.error_message}",
-            should_continue=False
+            should_continue=False,
         )
 
     async def _replan_from_state(self, context: FailureContext) -> RecoveryResult:
@@ -293,9 +295,7 @@ class RecoveryAgent:
             # This would call the LLM to generate new plan
             # For now, return a placeholder
             new_plan = await self._generate_new_plan(
-                context.screen_state,
-                context.goal,
-                context.remaining_subtasks
+                context.screen_state, context.goal, context.remaining_subtasks
             )
 
             if new_plan:
@@ -304,7 +304,7 @@ class RecoveryAgent:
                     success=True,
                     new_plan=new_plan,
                     message="Generated new plan from current state",
-                    should_continue=True
+                    should_continue=True,
                 )
             else:
                 return self._abort_execution(context)
@@ -314,10 +314,7 @@ class RecoveryAgent:
             return self._abort_execution(context)
 
     async def _generate_new_plan(
-        self,
-        screen_state: Any,
-        goal: str,
-        remaining_subtasks: List
+        self, screen_state: Any, goal: str, remaining_subtasks: List
     ) -> Optional[List]:
         """
         Generate new plan using LLM.
@@ -344,7 +341,7 @@ class RecoveryAgent:
             "alternatives": 0,
             "skips": 0,
             "aborts": 0,
-            "replans": 0
+            "replans": 0,
         }
 
 
@@ -354,7 +351,7 @@ async def attempt_recovery(
     action_params: Dict,
     error_message: str,
     attempt_count: int = 1,
-    goal: str = ""
+    goal: str = "",
 ) -> RecoveryResult:
     """
     Convenience function to attempt recovery.
@@ -374,7 +371,7 @@ async def attempt_recovery(
         action_params=action_params,
         error_message=error_message,
         attempt_count=attempt_count,
-        goal=goal
+        goal=goal,
     )
 
     agent = RecoveryAgent()

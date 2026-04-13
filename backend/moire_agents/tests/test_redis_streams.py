@@ -17,8 +17,7 @@ import sys
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -27,9 +26,9 @@ async def test_redis_connection():
     """Test basic Redis connection."""
     from core.redis_streams import RedisStreamClient
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 1: Redis Connection")
-    print("="*60)
+    print("=" * 60)
 
     client = RedisStreamClient(host="localhost", port=6379)
 
@@ -61,9 +60,9 @@ async def test_publish_subscribe():
     """Test publish and subscribe functionality."""
     from core.redis_streams import RedisStreamClient
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 2: Publish/Subscribe")
-    print("="*60)
+    print("=" * 60)
 
     client = RedisStreamClient(host="localhost", port=6379)
     await client.connect()
@@ -93,11 +92,12 @@ async def test_publish_subscribe():
 async def test_tool_call_pattern():
     """Test the tool call request/response pattern."""
     from core.redis_streams import RedisStreamClient
-    from core.subagent_runner import SubagentRunner, SubagentType, SubagentTask, SubagentResult
+    from core.subagent_runner import (SubagentResult, SubagentRunner,
+                                      SubagentTask, SubagentType)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 3: Tool Call Pattern")
-    print("="*60)
+    print("=" * 60)
 
     # Create a simple test runner
     class TestRunner(SubagentRunner):
@@ -106,22 +106,18 @@ async def test_tool_call_pattern():
             return SubagentResult(
                 success=True,
                 result={"echo": task.params, "message": "Hello from test runner!"},
-                confidence=0.99
+                confidence=0.99,
             )
 
     # Create client for orchestrator
     orchestrator_client = RedisStreamClient(
-        host="localhost",
-        port=6379,
-        consumer_name="orchestrator"
+        host="localhost", port=6379, consumer_name="orchestrator"
     )
     await orchestrator_client.connect()
 
     # Create client for runner
     runner_client = RedisStreamClient(
-        host="localhost",
-        port=6379,
-        consumer_name="test_worker"
+        host="localhost", port=6379, consumer_name="test_worker"
     )
     await runner_client.connect()
 
@@ -140,7 +136,7 @@ async def test_tool_call_pattern():
         result = await orchestrator_client.call_tool(
             tool_name="planning",
             params={"goal": "Open Word", "approach": "keyboard"},
-            timeout=5.0
+            timeout=5.0,
         )
 
         if result.success:
@@ -168,12 +164,13 @@ async def test_tool_call_pattern():
 async def test_subagent_manager():
     """Test the SubagentManager interface."""
     from core.redis_streams import RedisStreamClient
-    from core.subagent_manager import SubagentManager, SubagentConfig
-    from core.subagent_runner import SubagentRunner, SubagentType, SubagentTask, SubagentResult
+    from core.subagent_manager import SubagentConfig, SubagentManager
+    from core.subagent_runner import (SubagentResult, SubagentRunner,
+                                      SubagentTask, SubagentType)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 4: SubagentManager")
-    print("="*60)
+    print("=" * 60)
 
     # Create a test planning runner
     class TestPlanningRunner(SubagentRunner):
@@ -182,11 +179,7 @@ async def test_subagent_manager():
             goal = task.params.get("goal", "")
 
             # Simulate different approaches with different confidences
-            confidence_map = {
-                "keyboard": 0.95,
-                "mouse": 0.75,
-                "hybrid": 0.85
-            }
+            confidence_map = {"keyboard": 0.95, "mouse": 0.75, "hybrid": 0.85}
 
             return SubagentResult(
                 success=True,
@@ -194,26 +187,22 @@ async def test_subagent_manager():
                     "actions": [
                         {"action": "press_key", "key": "win"},
                         {"action": "type", "text": goal.split()[-1]},
-                        {"action": "press_key", "key": "enter"}
+                        {"action": "press_key", "key": "enter"},
                     ],
                     "confidence": confidence_map.get(approach, 0.5),
-                    "reasoning": f"Using {approach} approach for: {goal}"
+                    "reasoning": f"Using {approach} approach for: {goal}",
                 },
-                confidence=confidence_map.get(approach, 0.5)
+                confidence=confidence_map.get(approach, 0.5),
             )
 
     # Create clients
     manager_client = RedisStreamClient(
-        host="localhost",
-        port=6379,
-        consumer_name="manager"
+        host="localhost", port=6379, consumer_name="manager"
     )
     await manager_client.connect()
 
     runner_client = RedisStreamClient(
-        host="localhost",
-        port=6379,
-        consumer_name="planning_worker"
+        host="localhost", port=6379, consumer_name="planning_worker"
     )
     await runner_client.connect()
 
@@ -226,9 +215,7 @@ async def test_subagent_manager():
     runner_tasks = []
     for i in range(3):
         client = RedisStreamClient(
-            host="localhost",
-            port=6379,
-            consumer_name=f"planning_worker_{i}"
+            host="localhost", port=6379, consumer_name=f"planning_worker_{i}"
         )
         await client.connect()
         runner = TestPlanningRunner(client, SubagentType.PLANNING, f"worker_{i}")
@@ -241,8 +228,7 @@ async def test_subagent_manager():
         # Test parallel planners
         print("Spawning parallel planners...")
         best_plan = await manager.spawn_parallel_planners(
-            goal="Open Word",
-            approaches=["keyboard", "mouse", "hybrid"]
+            goal="Open Word", approaches=["keyboard", "mouse", "hybrid"]
         )
 
         if best_plan and best_plan.success:
@@ -275,22 +261,18 @@ async def test_subagent_manager():
 
 async def test_planning_subagents():
     """Test the actual planning subagents with different approaches."""
+    from agents.subagents.planning_subagent import (PlanningApproach,
+                                                    PlanningSubagentRunner)
     from core.redis_streams import RedisStreamClient
-    from core.subagent_manager import SubagentManager, SubagentConfig
-    from agents.subagents.planning_subagent import (
-        PlanningSubagentRunner,
-        PlanningApproach
-    )
+    from core.subagent_manager import SubagentConfig, SubagentManager
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 5: Planning Subagents")
-    print("="*60)
+    print("=" * 60)
 
     # Create clients
     manager_client = RedisStreamClient(
-        host="localhost",
-        port=6379,
-        consumer_name="manager"
+        host="localhost", port=6379, consumer_name="manager"
     )
     await manager_client.connect()
 
@@ -303,15 +285,10 @@ async def test_planning_subagents():
     runner_tasks = []
     for approach in PlanningApproach:
         client = RedisStreamClient(
-            host="localhost",
-            port=6379,
-            consumer_name=f"planning_{approach.value}"
+            host="localhost", port=6379, consumer_name=f"planning_{approach.value}"
         )
         await client.connect()
-        runner = PlanningSubagentRunner(
-            redis_client=client,
-            approach=approach
-        )
+        runner = PlanningSubagentRunner(redis_client=client, approach=approach)
         runners.append((client, runner))
         runner_tasks.append(asyncio.create_task(runner.run_forever()))
 
@@ -321,8 +298,7 @@ async def test_planning_subagents():
         # Test: Open Word
         print("\nTest goal: 'Open Word'")
         best_plan = await manager.spawn_parallel_planners(
-            goal="Open Word",
-            approaches=["keyboard", "mouse", "hybrid"]
+            goal="Open Word", approaches=["keyboard", "mouse", "hybrid"]
         )
 
         if best_plan and best_plan.success:
@@ -331,7 +307,7 @@ async def test_planning_subagents():
             print(f"   Confidence: {best_plan.confidence:.2f}")
             print(f"   Actions:")
             for i, action in enumerate(best_plan.actions[:5]):
-                desc = action.get('description', action.get('action', ''))
+                desc = action.get("description", action.get("action", ""))
                 print(f"      {i+1}. {desc}")
 
             # Keyboard should have highest confidence for pattern match
@@ -363,16 +339,15 @@ async def test_planning_subagents():
 
 async def test_vision_subagents():
     """Test the vision subagents with different screen regions."""
+    from agents.subagents.vision_subagent import (ScreenRegion,
+                                                  VisionSubagentRunner)
     from core.redis_streams import RedisStreamClient
-    from core.subagent_runner import SubagentRunner, SubagentType, SubagentTask, SubagentResult
-    from agents.subagents.vision_subagent import (
-        VisionSubagentRunner,
-        ScreenRegion
-    )
+    from core.subagent_runner import (SubagentResult, SubagentRunner,
+                                      SubagentTask, SubagentType)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 6: Vision Subagents")
-    print("="*60)
+    print("=" * 60)
 
     # Create a mock vision runner for testing (without real screenshot)
     class MockVisionRunner(SubagentRunner):
@@ -380,7 +355,7 @@ async def test_vision_subagents():
             super().__init__(
                 redis_client=redis_client,
                 agent_type=SubagentType.VISION,
-                worker_id=f"vision_{region.value}"
+                worker_id=f"vision_{region.value}",
             )
             self.region = region
 
@@ -389,16 +364,16 @@ async def test_vision_subagents():
             elements_map = {
                 ScreenRegion.TASKBAR: [
                     {"type": "icon", "label": "Chrome", "clickable": True},
-                    {"type": "button", "label": "Start", "clickable": True}
+                    {"type": "button", "label": "Start", "clickable": True},
                 ],
                 ScreenRegion.TITLE_BAR: [
                     {"type": "button", "label": "minimize", "clickable": True},
-                    {"type": "button", "label": "close", "clickable": True}
+                    {"type": "button", "label": "close", "clickable": True},
                 ],
                 ScreenRegion.MAIN_CONTENT: [
                     {"type": "text", "label": "Document content"},
-                    {"type": "button", "label": "Save", "clickable": True}
-                ]
+                    {"type": "button", "label": "Save", "clickable": True},
+                ],
             }
 
             elements = elements_map.get(self.region, [])
@@ -408,29 +383,29 @@ async def test_vision_subagents():
                     "region": self.region.value,
                     "elements": elements,
                     "element_count": len(elements),
-                    "confidence": 0.85
+                    "confidence": 0.85,
                 },
-                confidence=0.85
+                confidence=0.85,
             )
 
     # Create clients
     manager_client = RedisStreamClient(
-        host="localhost",
-        port=6379,
-        consumer_name="manager"
+        host="localhost", port=6379, consumer_name="manager"
     )
     await manager_client.connect()
 
     # Create vision runners for each region
     runners = []
     runner_tasks = []
-    test_regions = [ScreenRegion.TASKBAR, ScreenRegion.TITLE_BAR, ScreenRegion.MAIN_CONTENT]
+    test_regions = [
+        ScreenRegion.TASKBAR,
+        ScreenRegion.TITLE_BAR,
+        ScreenRegion.MAIN_CONTENT,
+    ]
 
     for region in test_regions:
         client = RedisStreamClient(
-            host="localhost",
-            port=6379,
-            consumer_name=f"vision_{region.value}"
+            host="localhost", port=6379, consumer_name=f"vision_{region.value}"
         )
         await client.connect()
         runner = MockVisionRunner(client, region)
@@ -450,7 +425,7 @@ async def test_vision_subagents():
                 manager_client.call_tool(
                     tool_name="vision",
                     params={"region": region.value, "prompt": "Analyze this region"},
-                    timeout=5.0
+                    timeout=5.0,
                 )
             )
 
@@ -489,31 +464,26 @@ async def test_vision_subagents():
 
 async def test_background_subagents():
     """Test the background subagents with condition checks."""
-    from core.redis_streams import RedisStreamClient
-    from agents.subagents.background_subagent import (
-        BackgroundSubagentRunner,
-        MonitorCondition
-    )
     import os
     import tempfile
 
-    print("\n" + "="*60)
+    from agents.subagents.background_subagent import (BackgroundSubagentRunner,
+                                                      MonitorCondition)
+    from core.redis_streams import RedisStreamClient
+
+    print("\n" + "=" * 60)
     print("TEST 8: Background Subagents")
-    print("="*60)
+    print("=" * 60)
 
     # Create clients
     manager_client = RedisStreamClient(
-        host="localhost",
-        port=6379,
-        consumer_name="manager"
+        host="localhost", port=6379, consumer_name="manager"
     )
     await manager_client.connect()
 
     # Create background runner
     runner_client = RedisStreamClient(
-        host="localhost",
-        port=6379,
-        consumer_name="background_worker"
+        host="localhost", port=6379, consumer_name="background_worker"
     )
     await runner_client.connect()
 
@@ -525,17 +495,14 @@ async def test_background_subagents():
 
         # Test 1: Check if a file exists (create temp file)
         print("\nTest: Check FILE_EXISTS condition")
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as f:
             temp_file = f.name
             f.write(b"test content")
 
         result = await manager_client.call_tool(
             tool_name="background",
-            params={
-                "check_type": "file_exists",
-                "target": temp_file
-            },
-            timeout=5.0
+            params={"check_type": "file_exists", "target": temp_file},
+            timeout=5.0,
         )
 
         if result.success:
@@ -561,11 +528,8 @@ async def test_background_subagents():
         print("\nTest: Check FILE_EXISTS (should be False now)")
         result2 = await manager_client.call_tool(
             tool_name="background",
-            params={
-                "check_type": "file_exists",
-                "target": temp_file
-            },
-            timeout=5.0
+            params={"check_type": "file_exists", "target": temp_file},
+            timeout=5.0,
         )
 
         if result2.success:
@@ -584,11 +548,8 @@ async def test_background_subagents():
         print("\nTest: Check PROCESS_STARTS condition (python)")
         result3 = await manager_client.call_tool(
             tool_name="background",
-            params={
-                "check_type": "process_starts",
-                "target": "python"
-            },
-            timeout=5.0
+            params={"check_type": "process_starts", "target": "python"},
+            timeout=5.0,
         )
 
         if result3.success:
@@ -618,34 +579,32 @@ async def test_background_subagents():
 
 async def test_specialist_subagents():
     """Test the specialist subagents with domain queries."""
+    from agents.subagents.specialist_subagent import (SpecialistDomain,
+                                                      SpecialistSubagentRunner)
     from core.redis_streams import RedisStreamClient
-    from agents.subagents.specialist_subagent import (
-        SpecialistSubagentRunner,
-        SpecialistDomain
-    )
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 7: Specialist Subagents")
-    print("="*60)
+    print("=" * 60)
 
     # Create clients
     manager_client = RedisStreamClient(
-        host="localhost",
-        port=6379,
-        consumer_name="manager"
+        host="localhost", port=6379, consumer_name="manager"
     )
     await manager_client.connect()
 
     # Create specialist runners for each domain
     runners = []
     runner_tasks = []
-    test_domains = [SpecialistDomain.OFFICE, SpecialistDomain.BROWSER, SpecialistDomain.DEVELOPMENT]
+    test_domains = [
+        SpecialistDomain.OFFICE,
+        SpecialistDomain.BROWSER,
+        SpecialistDomain.DEVELOPMENT,
+    ]
 
     for domain in test_domains:
         client = RedisStreamClient(
-            host="localhost",
-            port=6379,
-            consumer_name=f"specialist_{domain.value}"
+            host="localhost", port=6379, consumer_name=f"specialist_{domain.value}"
         )
         await client.connect()
         runner = SpecialistSubagentRunner(client, domain)
@@ -662,9 +621,9 @@ async def test_specialist_subagents():
             params={
                 "domain": "office",
                 "query": "shortcut for bold",
-                "query_type": "shortcut"
+                "query_type": "shortcut",
             },
-            timeout=5.0
+            timeout=5.0,
         )
 
         if result.success:
@@ -681,11 +640,8 @@ async def test_specialist_subagents():
         print("\nTest: Query Browser specialist for 'new tab' workflow")
         result2 = await manager_client.call_tool(
             tool_name="specialist",
-            params={
-                "domain": "browser",
-                "query": "keyboard shortcut for new tab"
-            },
-            timeout=5.0
+            params={"domain": "browser", "query": "keyboard shortcut for new tab"},
+            timeout=5.0,
         )
 
         if result2.success:
@@ -702,9 +658,9 @@ async def test_specialist_subagents():
             tool_name="specialist",
             params={
                 "domain": "development",
-                "query": "VS Code command palette shortcut"
+                "query": "VS Code command palette shortcut",
             },
-            timeout=5.0
+            timeout=5.0,
         )
 
         if result3.success:
@@ -734,9 +690,9 @@ async def test_specialist_subagents():
 
 async def main():
     """Run all tests."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Redis Streams Infrastructure Tests")
-    print("="*60)
+    print("=" * 60)
 
     results = []
 
@@ -764,6 +720,7 @@ async def main():
     except Exception as e:
         print(f"[FAIL] Test failed with exception: {e}")
         import traceback
+
         traceback.print_exc()
         results.append(("Tool Call Pattern", False))
 
@@ -773,6 +730,7 @@ async def main():
     except Exception as e:
         print(f"[FAIL] Test failed with exception: {e}")
         import traceback
+
         traceback.print_exc()
         results.append(("SubagentManager", False))
 
@@ -782,6 +740,7 @@ async def main():
     except Exception as e:
         print(f"[FAIL] Test failed with exception: {e}")
         import traceback
+
         traceback.print_exc()
         results.append(("Planning Subagents", False))
 
@@ -791,6 +750,7 @@ async def main():
     except Exception as e:
         print(f"[FAIL] Test failed with exception: {e}")
         import traceback
+
         traceback.print_exc()
         results.append(("Vision Subagents", False))
 
@@ -800,6 +760,7 @@ async def main():
     except Exception as e:
         print(f"[FAIL] Test failed with exception: {e}")
         import traceback
+
         traceback.print_exc()
         results.append(("Specialist Subagents", False))
 
@@ -809,6 +770,7 @@ async def main():
     except Exception as e:
         print(f"[FAIL] Test failed with exception: {e}")
         import traceback
+
         traceback.print_exc()
         results.append(("Background Subagents", False))
 
@@ -817,9 +779,9 @@ async def main():
 
 def print_summary(results):
     """Print test summary."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST SUMMARY")
-    print("="*60)
+    print("=" * 60)
 
     passed = sum(1 for _, success in results if success)
     total = len(results)
@@ -828,7 +790,7 @@ def print_summary(results):
         status = "[PASS]" if success else "[FAIL]"
         print(f"  {status}: {name}")
 
-    print("-"*60)
+    print("-" * 60)
     print(f"  Total: {passed}/{total} tests passed")
 
     if passed == total:
@@ -840,6 +802,7 @@ def print_summary(results):
 if __name__ == "__main__":
     # Add the current directory to path for imports
     import os
+
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
     asyncio.run(main())

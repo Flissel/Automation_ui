@@ -14,35 +14,30 @@ Usage:
     python test_handoff_workflow.py --dry-run
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
-import sys
 import os
+import sys
 
 # Add parent to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from agents.handoff import (
-    AgentRuntime,
-    UserTask,
-    OrchestratorAgent,
-    ExecutionAgent,
-    VisionHandoffAgent,
-    RecoveryAgent,
-    ProgressUpdate
-)
+from agents.handoff import (AgentRuntime, ExecutionAgent, OrchestratorAgent,
+                            ProgressUpdate, RecoveryAgent, UserTask,
+                            VisionHandoffAgent)
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
 def on_progress(update: ProgressUpdate):
     """Progress callback."""
-    print(f"  [{update.agent_name}] {update.progress_percentage:.0f}% - {update.current_action}")
+    print(
+        f"  [{update.agent_name}] {update.progress_percentage:.0f}% - {update.current_action}"
+    )
     if update.blockers:
         print(f"    Blockers: {update.blockers}")
 
@@ -64,11 +59,7 @@ async def test_handoff_workflow(task_message: str, dry_run: bool = False):
     # Create runtime with progress callback
     # Each action needs ~2 handoffs (orchestrator → agent → orchestrator)
     # So 6 actions need ~15-20 handoffs
-    runtime = AgentRuntime(
-        max_handoffs=25,
-        task_timeout=120.0,
-        on_progress=on_progress
-    )
+    runtime = AgentRuntime(max_handoffs=25, task_timeout=120.0, on_progress=on_progress)
 
     # Create agents
     orchestrator = OrchestratorAgent()
@@ -90,8 +81,8 @@ async def test_handoff_workflow(task_message: str, dry_run: bool = False):
         context={
             "workflow": "claude_desktop",
             "message": task_message,
-            "vision_fallback": True  # Use fallback if vision fails
-        }
+            "vision_fallback": True,  # Use fallback if vision fails
+        },
     )
 
     print("\nStarting in 3 seconds... (switch to desktop if needed)")
@@ -137,12 +128,15 @@ async def test_handoff_workflow(task_message: str, dry_run: bool = False):
         for agent_name in runtime.list_agents():
             agent = runtime.get_agent(agent_name)
             agent_stats = agent.get_stats()
-            print(f"  {agent_name}: {agent_stats['tasks_processed']} tasks, "
-                  f"{agent_stats['handoffs_made']} handoffs")
+            print(
+                f"  {agent_name}: {agent_stats['tasks_processed']} tasks, "
+                f"{agent_stats['handoffs_made']} handoffs"
+            )
 
     except Exception as e:
         logger.error(f"Workflow failed: {e}")
         import traceback
+
         traceback.print_exc()
 
     print("\n" + "=" * 60)
@@ -152,12 +146,15 @@ async def test_handoff_workflow(task_message: str, dry_run: bool = False):
 
 async def main():
     parser = argparse.ArgumentParser(description="Test handoff workflow")
-    parser.add_argument("--docker-debug", action="store_true",
-                       help="Send Docker debug task")
-    parser.add_argument("--dry-run", action="store_true",
-                       help="Just print what would happen")
-    parser.add_argument("--message", type=str, default=None,
-                       help="Custom message to send")
+    parser.add_argument(
+        "--docker-debug", action="store_true", help="Send Docker debug task"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Just print what would happen"
+    )
+    parser.add_argument(
+        "--message", type=str, default=None, help="Custom message to send"
+    )
 
     args = parser.parse_args()
 

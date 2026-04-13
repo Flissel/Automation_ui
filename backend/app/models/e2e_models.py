@@ -3,6 +3,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -38,12 +39,13 @@ class TestStatus(str, Enum):
 
 class TestStep(BaseModel):
     """Single step in a test case."""
+
     type: StepType
-    target: Optional[str] = None          # element ref or selector
-    value: Optional[str] = None           # text to type, URL to navigate
-    expected: Optional[str] = None        # expected text/URL
-    path: Optional[str] = None            # URL path for navigate
-    label: Optional[str] = None           # screenshot label
+    target: Optional[str] = None  # element ref or selector
+    value: Optional[str] = None  # text to type, URL to navigate
+    expected: Optional[str] = None  # expected text/URL
+    path: Optional[str] = None  # URL path for navigate
+    label: Optional[str] = None  # screenshot label
     timeout_ms: int = 10000
     status: StepStatus = StepStatus.PENDING
     error: Optional[str] = None
@@ -53,6 +55,7 @@ class TestStep(BaseModel):
 
 class TestCase(BaseModel):
     """Test case generated from a User Story."""
+
     story_id: str
     name: str
     description: Optional[str] = None
@@ -65,6 +68,7 @@ class TestCase(BaseModel):
 
 class TestResult(BaseModel):
     """Result of executing one test case."""
+
     test_case: TestCase
     passed: bool
     assertions_total: int = 0
@@ -78,6 +82,7 @@ class TestResult(BaseModel):
 
 class TestReport(BaseModel):
     """Full E2E test report."""
+
     project_name: str
     app_url: str
     total_tests: int = 0
@@ -93,6 +98,7 @@ class TestReport(BaseModel):
 
 class UserStory(BaseModel):
     """Parsed user story from project spec."""
+
     id: str
     title: str
     description: Optional[str] = None
@@ -102,14 +108,18 @@ class UserStory(BaseModel):
 
 class E2ERunRequest(BaseModel):
     """Request to start an E2E test run."""
-    project_path: str = "/app/Data/all_services/whatsapp-messaging-service_20260211_025459"
+
+    project_path: str = (
+        "/app/Data/all_services/whatsapp-messaging-service_20260211_025459"
+    )
     app_url: str = "http://localhost:3100"
     max_tests: int = 20
-    stories: Optional[List[str]] = None   # specific story IDs, or None for all
+    stories: Optional[List[str]] = None  # specific story IDs, or None for all
 
 
 class E2ERunStatus(BaseModel):
     """Current status of an E2E test run."""
+
     running: bool = False
     progress_pct: float = 0.0
     current_test: Optional[str] = None

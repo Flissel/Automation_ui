@@ -28,14 +28,16 @@ logger = logging.getLogger(__name__)
 
 class ChangeIntensity(Enum):
     """Intensity level of a detected change."""
-    LOW = "low"        # < 30% pixels changed in region
+
+    LOW = "low"  # < 30% pixels changed in region
     MEDIUM = "medium"  # 30-60% pixels changed
-    HIGH = "high"      # > 60% pixels changed
+    HIGH = "high"  # > 60% pixels changed
 
 
 @dataclass
 class ChangeRegion:
     """Precise bounding box of a changed area."""
+
     id: int
     bounds: Dict[str, int]  # {x, y, width, height}
     centroid: Dict[str, int]  # {x, y}
@@ -75,13 +77,14 @@ class ChangeRegion:
             "pixel_count": self.pixel_count,
             "changed_pixels": self.changed_pixels,
             "intensity": self.intensity.value,
-            "area": self.area
+            "area": self.area,
         }
 
 
 @dataclass
 class ChangeDetectionResult:
     """Result of change detection between two screenshots."""
+
     changed: bool
     total_change_percentage: float
     regions: List[ChangeRegion] = field(default_factory=list)
@@ -107,10 +110,7 @@ class ChangeDetector:
     """
 
     def __init__(
-        self,
-        threshold: int = 30,
-        min_region_size: int = 100,
-        merge_distance: int = 20
+        self, threshold: int = 30, min_region_size: int = 100, merge_distance: int = 20
     ):
         """
         Initialize the ChangeDetector.
@@ -127,6 +127,7 @@ class ChangeDetector:
         # Try to import scipy for connected components
         try:
             from scipy import ndimage
+
             self._label_func = ndimage.label
             self._find_objects = ndimage.find_objects
             self._has_scipy = True
@@ -136,10 +137,7 @@ class ChangeDetector:
             logger.debug("scipy not available, using fallback implementation")
 
     def detect_changes(
-        self,
-        before: bytes,
-        after: bytes,
-        return_diff_image: bool = False
+        self, before: bytes, after: bytes, return_diff_image: bool = False
     ) -> ChangeDetectionResult:
         """
         Detect precise change regions between two screenshots.
@@ -159,11 +157,13 @@ class ChangeDetector:
 
             # Ensure same size
             if before_img.size != after_img.size:
-                logger.warning(f"Image size mismatch: {before_img.size} vs {after_img.size}")
+                logger.warning(
+                    f"Image size mismatch: {before_img.size} vs {after_img.size}"
+                )
                 # Resize to smaller
                 min_size = (
                     min(before_img.size[0], after_img.size[0]),
-                    min(before_img.size[1], after_img.size[1])
+                    min(before_img.size[1], after_img.size[1]),
                 )
                 before_img = before_img.resize(min_size)
                 after_img = after_img.resize(min_size)
@@ -189,9 +189,7 @@ class ChangeDetector:
             # If no significant change, return early
             if changed_pixels < self.min_region_size:
                 return ChangeDetectionResult(
-                    changed=False,
-                    total_change_percentage=total_change_pct,
-                    regions=[]
+                    changed=False, total_change_percentage=total_change_pct, regions=[]
                 )
 
             # Find connected components
@@ -206,21 +204,17 @@ class ChangeDetector:
                 changed=len(regions) > 0,
                 total_change_percentage=total_change_pct,
                 regions=regions,
-                diff_image=diff_image
+                diff_image=diff_image,
             )
 
         except Exception as e:
             logger.error(f"Error detecting changes: {e}")
             return ChangeDetectionResult(
-                changed=False,
-                total_change_percentage=0,
-                regions=[]
+                changed=False, total_change_percentage=0, regions=[]
             )
 
     def _find_regions(
-        self,
-        binary_mask: np.ndarray,
-        intensity_map: np.ndarray
+        self, binary_mask: np.ndarray, intensity_map: np.ndarray
     ) -> List[ChangeRegion]:
         """
         Find connected components and create ChangeRegion objects.
@@ -238,9 +232,7 @@ class ChangeDetector:
             return self._find_regions_fallback(binary_mask, intensity_map)
 
     def _find_regions_scipy(
-        self,
-        binary_mask: np.ndarray,
-        intensity_map: np.ndarray
+        self, binary_mask: np.ndarray, intensity_map: np.ndarray
     ) -> List[ChangeRegion]:
         """Find regions using scipy connected components."""
         from scipy import ndimage
@@ -263,7 +255,7 @@ class ChangeDetector:
             region_id = i + 1
 
             # Extract region mask
-            region_mask = (labeled[slc] == region_id)
+            region_mask = labeled[slc] == region_id
             changed_pixels = np.sum(region_mask)
 
             # Skip small regions
@@ -295,15 +287,17 @@ class ChangeDetector:
             else:
                 intensity = ChangeIntensity.LOW
 
-            regions.append(ChangeRegion(
-                id=region_id,
-                bounds={"x": x, "y": y, "width": width, "height": height},
-                centroid={"x": centroid_x, "y": centroid_y},
-                change_percentage=change_pct,
-                pixel_count=width * height,
-                changed_pixels=int(changed_pixels),
-                intensity=intensity
-            ))
+            regions.append(
+                ChangeRegion(
+                    id=region_id,
+                    bounds={"x": x, "y": y, "width": width, "height": height},
+                    centroid={"x": centroid_x, "y": centroid_y},
+                    change_percentage=change_pct,
+                    pixel_count=width * height,
+                    changed_pixels=int(changed_pixels),
+                    intensity=intensity,
+                )
+            )
 
         # Sort by area (largest first)
         regions.sort(key=lambda r: r.area, reverse=True)
@@ -311,9 +305,7 @@ class ChangeDetector:
         return regions
 
     def _find_regions_fallback(
-        self,
-        binary_mask: np.ndarray,
-        intensity_map: np.ndarray
+        self, binary_mask: np.ndarray, intensity_map: np.ndarray
     ) -> List[ChangeRegion]:
         """
         Fallback region detection without scipy.
@@ -360,25 +352,24 @@ class ChangeDetector:
                 else:
                     intensity = ChangeIntensity.LOW
 
-                regions.append(ChangeRegion(
-                    id=region_id,
-                    bounds={"x": x, "y": y, "width": w, "height": h},
-                    centroid={"x": x + w // 2, "y": y + h // 2},
-                    change_percentage=change_pct,
-                    pixel_count=w * h,
-                    changed_pixels=int(changed_pixels),
-                    intensity=intensity
-                ))
+                regions.append(
+                    ChangeRegion(
+                        id=region_id,
+                        bounds={"x": x, "y": y, "width": w, "height": h},
+                        centroid={"x": x + w // 2, "y": y + h // 2},
+                        change_percentage=change_pct,
+                        pixel_count=w * h,
+                        changed_pixels=int(changed_pixels),
+                        intensity=intensity,
+                    )
+                )
 
         # Sort by area
         regions.sort(key=lambda r: r.area, reverse=True)
 
         return regions
 
-    def _find_contiguous_blocks(
-        self,
-        arr: np.ndarray
-    ) -> List[Tuple[int, int]]:
+    def _find_contiguous_blocks(self, arr: np.ndarray) -> List[Tuple[int, int]]:
         """Find contiguous blocks of True values in a 1D array."""
         blocks = []
         in_block = False
@@ -408,10 +399,7 @@ class ChangeDetector:
         return buffer.getvalue()
 
     def annotate_screenshot(
-        self,
-        screenshot: bytes,
-        regions: List[ChangeRegion],
-        style: str = "boxes"
+        self, screenshot: bytes, regions: List[ChangeRegion], style: str = "boxes"
     ) -> bytes:
         """
         Draw bounding boxes on screenshot for visual feedback.
@@ -430,9 +418,9 @@ class ChangeDetector:
 
             # Color map based on intensity
             colors = {
-                ChangeIntensity.HIGH: (255, 0, 0, 180),     # Red
-                ChangeIntensity.MEDIUM: (255, 165, 0, 150), # Orange
-                ChangeIntensity.LOW: (255, 255, 0, 120),    # Yellow
+                ChangeIntensity.HIGH: (255, 0, 0, 180),  # Red
+                ChangeIntensity.MEDIUM: (255, 165, 0, 150),  # Orange
+                ChangeIntensity.LOW: (255, 255, 0, 120),  # Yellow
             }
 
             for region in regions:
@@ -451,7 +439,9 @@ class ChangeDetector:
                     # Semi-transparent fill with solid outline
                     fill_color = color[:3] + (60,)  # Light fill
                     outline_color = color[:3] + (255,)  # Solid outline
-                    draw.rectangle([x, y, x2, y2], fill=fill_color, outline=outline_color, width=2)
+                    draw.rectangle(
+                        [x, y, x2, y2], fill=fill_color, outline=outline_color, width=2
+                    )
 
                 # Add region label
                 label = f"R{region.id}: {region.change_percentage:.0f}%"
@@ -467,10 +457,7 @@ class ChangeDetector:
             return screenshot  # Return original on error
 
     def generate_diff_overlay(
-        self,
-        before: bytes,
-        after: bytes,
-        regions: List[ChangeRegion]
+        self, before: bytes, after: bytes, regions: List[ChangeRegion]
     ) -> bytes:
         """
         Generate visual overlay showing change intensity.
@@ -488,18 +475,32 @@ class ChangeDetector:
 
             # Create difference heatmap
             before_arr = np.array(before_img, dtype=np.int16)
-            after_arr = np.array(Image.open(io.BytesIO(after)).convert("RGB"), dtype=np.int16)
+            after_arr = np.array(
+                Image.open(io.BytesIO(after)).convert("RGB"), dtype=np.int16
+            )
 
             diff = np.abs(after_arr - before_arr)
             max_diff = np.max(diff, axis=2)
 
             # Create heatmap overlay
-            heatmap = np.zeros((max_diff.shape[0], max_diff.shape[1], 4), dtype=np.uint8)
+            heatmap = np.zeros(
+                (max_diff.shape[0], max_diff.shape[1], 4), dtype=np.uint8
+            )
 
             # Color based on intensity
-            heatmap[max_diff > 150] = [255, 0, 0, 150]      # High = Red
-            heatmap[(max_diff > 50) & (max_diff <= 150)] = [255, 165, 0, 120]  # Medium = Orange
-            heatmap[(max_diff > self.threshold) & (max_diff <= 50)] = [255, 255, 0, 80]  # Low = Yellow
+            heatmap[max_diff > 150] = [255, 0, 0, 150]  # High = Red
+            heatmap[(max_diff > 50) & (max_diff <= 150)] = [
+                255,
+                165,
+                0,
+                120,
+            ]  # Medium = Orange
+            heatmap[(max_diff > self.threshold) & (max_diff <= 50)] = [
+                255,
+                255,
+                0,
+                80,
+            ]  # Low = Yellow
 
             # Create overlay image
             overlay = Image.fromarray(heatmap, mode="RGBA")
@@ -519,10 +520,7 @@ class ChangeDetector:
 
 # Convenience function
 def detect_changes(
-    before: bytes,
-    after: bytes,
-    threshold: int = 30,
-    min_region_size: int = 100
+    before: bytes, after: bytes, threshold: int = 30, min_region_size: int = 100
 ) -> ChangeDetectionResult:
     """
     Convenience function to detect changes between screenshots.

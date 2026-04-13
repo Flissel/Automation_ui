@@ -20,25 +20,27 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .base_agent import BaseHandoffAgent, AgentConfig
-from .messages import UserTask, AgentResponse
+from .base_agent import AgentConfig, BaseHandoffAgent
+from .messages import AgentResponse, UserTask
 
 logger = logging.getLogger(__name__)
 
 
 class SynthesisStrategy(Enum):
     """Strategies for combining sub-agent results."""
-    FIRST_SUCCESS = "first_success"      # Return first successful result
-    MAJORITY_VOTE = "majority_vote"      # Most common result wins
-    WEIGHTED_VOTE = "weighted_vote"      # Agents have different weights
-    CONSENSUS = "consensus"              # All must agree
-    DEBATE = "debate"                    # Agents discuss until agreement
-    CUSTOM = "custom"                    # Use custom synthesizer function
+
+    FIRST_SUCCESS = "first_success"  # Return first successful result
+    MAJORITY_VOTE = "majority_vote"  # Most common result wins
+    WEIGHTED_VOTE = "weighted_vote"  # Agents have different weights
+    CONSENSUS = "consensus"  # All must agree
+    DEBATE = "debate"  # Agents discuss until agreement
+    CUSTOM = "custom"  # Use custom synthesizer function
 
 
 @dataclass
 class SubAgentResult:
     """Result from a sub-agent execution."""
+
     agent_name: str
     response: AgentResponse
     weight: float = 1.0
@@ -49,6 +51,7 @@ class SubAgentResult:
 @dataclass
 class TeamConfig(AgentConfig):
     """Configuration for team-based agents."""
+
     synthesis_strategy: SynthesisStrategy = SynthesisStrategy.FIRST_SUCCESS
     max_debate_rounds: int = 3
     parallel_execution: bool = True
@@ -108,7 +111,7 @@ class TeamAgent(BaseHandoffAgent):
         self.register_delegate_tool(
             name="return_to_orchestrator",
             target_agent="orchestrator",
-            description="Return team result to orchestrator"
+            description="Return team result to orchestrator",
         )
 
     async def start(self):
@@ -134,8 +137,7 @@ class TeamAgent(BaseHandoffAgent):
             return {"success": False, "error": "Team has no members"}
 
         await self.report_progress(
-            task, 10.0,
-            f"Team {self.name}: Starting {len(self._members)} members"
+            task, 10.0, f"Team {self.name}: Starting {len(self._members)} members"
         )
 
         # Run sub-agents
@@ -145,8 +147,7 @@ class TeamAgent(BaseHandoffAgent):
             results = await self._run_sequential(task)
 
         await self.report_progress(
-            task, 70.0,
-            f"Team {self.name}: Synthesizing {len(results)} results"
+            task, 70.0, f"Team {self.name}: Synthesizing {len(results)} results"
         )
 
         # Synthesize results
@@ -157,14 +158,14 @@ class TeamAgent(BaseHandoffAgent):
         # Return to orchestrator with synthesized result
         task.context["team_result"] = final_result
         task.context["team_member_results"] = [
-            {"agent": r.agent_name, "success": r.response.success}
-            for r in results
+            {"agent": r.agent_name, "success": r.response.success} for r in results
         ]
 
         return final_result
 
     async def _run_parallel(self, task: UserTask) -> List[SubAgentResult]:
         """Run all sub-agents in parallel."""
+
         async def run_member(agent: BaseHandoffAgent, weight: float) -> SubAgentResult:
             start_time = asyncio.get_event_loop().time()
             try:
@@ -173,19 +174,19 @@ class TeamAgent(BaseHandoffAgent):
                     goal=task.goal,
                     context=task.context.copy(),
                     history=task.history.copy(),
-                    session_id=task.session_id
+                    session_id=task.session_id,
                 )
 
                 response = await asyncio.wait_for(
                     agent.handle_task(member_task),
-                    timeout=self.team_config.timeout_per_agent
+                    timeout=self.team_config.timeout_per_agent,
                 )
 
                 return SubAgentResult(
                     agent_name=agent.name,
                     response=response,
                     weight=weight,
-                    execution_time=asyncio.get_event_loop().time() - start_time
+                    execution_time=asyncio.get_event_loop().time() - start_time,
                 )
 
             except asyncio.TimeoutError:
@@ -193,17 +194,17 @@ class TeamAgent(BaseHandoffAgent):
                     agent_name=agent.name,
                     response=AgentResponse(
                         success=False,
-                        error=f"Timeout after {self.team_config.timeout_per_agent}s"
+                        error=f"Timeout after {self.team_config.timeout_per_agent}s",
                     ),
                     weight=weight,
-                    execution_time=self.team_config.timeout_per_agent
+                    execution_time=self.team_config.timeout_per_agent,
                 )
             except Exception as e:
                 return SubAgentResult(
                     agent_name=agent.name,
                     response=AgentResponse(success=False, error=str(e)),
                     weight=weight,
-                    execution_time=asyncio.get_event_loop().time() - start_time
+                    execution_time=asyncio.get_event_loop().time() - start_time,
                 )
 
         # Run all members in parallel
@@ -226,37 +227,37 @@ class TeamAgent(BaseHandoffAgent):
 
             # Add previous results to context for debate
             task.context["previous_results"] = [
-                {"agent": r.agent_name, "result": r.response.result}
-                for r in results
+                {"agent": r.agent_name, "result": r.response.result} for r in results
             ]
 
             try:
                 response = await asyncio.wait_for(
-                    agent.handle_task(task),
-                    timeout=self.team_config.timeout_per_agent
+                    agent.handle_task(task), timeout=self.team_config.timeout_per_agent
                 )
 
-                results.append(SubAgentResult(
-                    agent_name=agent.name,
-                    response=response,
-                    weight=weight,
-                    execution_time=asyncio.get_event_loop().time() - start_time
-                ))
+                results.append(
+                    SubAgentResult(
+                        agent_name=agent.name,
+                        response=response,
+                        weight=weight,
+                        execution_time=asyncio.get_event_loop().time() - start_time,
+                    )
+                )
 
             except Exception as e:
-                results.append(SubAgentResult(
-                    agent_name=agent.name,
-                    response=AgentResponse(success=False, error=str(e)),
-                    weight=weight,
-                    execution_time=asyncio.get_event_loop().time() - start_time
-                ))
+                results.append(
+                    SubAgentResult(
+                        agent_name=agent.name,
+                        response=AgentResponse(success=False, error=str(e)),
+                        weight=weight,
+                        execution_time=asyncio.get_event_loop().time() - start_time,
+                    )
+                )
 
         return results
 
     async def _apply_synthesis(
-        self,
-        results: List[SubAgentResult],
-        task: UserTask
+        self, results: List[SubAgentResult], task: UserTask
     ) -> Dict[str, Any]:
         """Apply the configured synthesis strategy."""
         strategy = self.team_config.synthesis_strategy
@@ -284,7 +285,9 @@ class TeamAgent(BaseHandoffAgent):
         else:
             return self._synthesize_first_success(results)
 
-    def _synthesize_first_success(self, results: List[SubAgentResult]) -> Dict[str, Any]:
+    def _synthesize_first_success(
+        self, results: List[SubAgentResult]
+    ) -> Dict[str, Any]:
         """Return the first successful result."""
         for result in results:
             if result.response.success:
@@ -292,7 +295,7 @@ class TeamAgent(BaseHandoffAgent):
                     "success": True,
                     "result": result.response.result,
                     "source_agent": result.agent_name,
-                    "strategy": "first_success"
+                    "strategy": "first_success",
                 }
 
         # All failed - return aggregated errors
@@ -301,7 +304,7 @@ class TeamAgent(BaseHandoffAgent):
             "success": False,
             "error": f"All {len(results)} agents failed",
             "details": errors,
-            "strategy": "first_success"
+            "strategy": "first_success",
         }
 
     def _synthesize_majority(self, results: List[SubAgentResult]) -> Dict[str, Any]:
@@ -329,7 +332,7 @@ class TeamAgent(BaseHandoffAgent):
             "votes": len(winner_results),
             "total_voters": len(results),
             "source_agents": [r.agent_name for r in winner_results],
-            "strategy": "majority_vote"
+            "strategy": "majority_vote",
         }
 
     def _synthesize_weighted(self, results: List[SubAgentResult]) -> Dict[str, Any]:
@@ -355,7 +358,7 @@ class TeamAgent(BaseHandoffAgent):
             "result": result_map[winner_key].response.result,
             "weighted_score": votes[winner_key],
             "source_agent": result_map[winner_key].agent_name,
-            "strategy": "weighted_vote"
+            "strategy": "weighted_vote",
         }
 
     def _synthesize_consensus(self, results: List[SubAgentResult]) -> Dict[str, Any]:
@@ -367,7 +370,7 @@ class TeamAgent(BaseHandoffAgent):
             return {
                 "success": False,
                 "error": f"Consensus failed: {failed} did not succeed",
-                "strategy": "consensus"
+                "strategy": "consensus",
             }
 
         # Check if all results match
@@ -380,7 +383,7 @@ class TeamAgent(BaseHandoffAgent):
                 "result": successful[0].response.result,
                 "consensus": True,
                 "agreeing_agents": [r.agent_name for r in successful],
-                "strategy": "consensus"
+                "strategy": "consensus",
             }
         else:
             return {
@@ -390,13 +393,11 @@ class TeamAgent(BaseHandoffAgent):
                     {"agent": r.agent_name, "result": r.response.result}
                     for r in successful
                 ],
-                "strategy": "consensus"
+                "strategy": "consensus",
             }
 
     async def _synthesize_debate(
-        self,
-        results: List[SubAgentResult],
-        task: UserTask
+        self, results: List[SubAgentResult], task: UserTask
     ) -> Dict[str, Any]:
         """
         Run debate rounds until consensus or max rounds.
@@ -420,7 +421,8 @@ class TeamAgent(BaseHandoffAgent):
             task.context["debate_round"] = current_round
             task.context["current_positions"] = [
                 {"agent": r.agent_name, "position": r.response.result}
-                for r in results if r.response.success
+                for r in results
+                if r.response.success
             ]
 
             # Re-run agents with debate context

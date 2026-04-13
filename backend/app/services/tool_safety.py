@@ -31,7 +31,6 @@ TOOL_RISK_MAP: Dict[str, ToolRisk] = {
     "get_contact_info": ToolRisk.SAFE,
     "vision_analyze": ToolRisk.SAFE,
     "plan_task": ToolRisk.SAFE,
-
     # DELEGATED - send to desktop client, wait for ACK
     "action_click": ToolRisk.DELEGATED,
     "action_type": ToolRisk.DELEGATED,
@@ -47,7 +46,6 @@ TOOL_RISK_MAP: Dict[str, ToolRisk] = {
     "browser_read_page": ToolRisk.DELEGATED,
     "execute_plan": ToolRisk.DELEGATED,
     "full_task": ToolRisk.DELEGATED,
-
     # APPROVAL - user must confirm before execution
     "shell_exec": ToolRisk.APPROVAL,
     "send_message": ToolRisk.APPROVAL,

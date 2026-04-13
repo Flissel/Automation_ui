@@ -9,21 +9,22 @@ Usage:
     python test_claude_workflow.py --dry-run
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
-import sys
 import os
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from workflows.claude_desktop import ClaudeDesktopWorkflow, send_to_claude
 from agents.progress_agent import ProgressAgent, get_progress_agent
+from workflows.claude_desktop import ClaudeDesktopWorkflow, send_to_claude
 
 # Optional imports
 try:
     from bridge.websocket_client import MoireWebSocketClient
+
     HAS_MOIRE = True
 except ImportError:
     HAS_MOIRE = False
@@ -31,23 +32,23 @@ except ImportError:
 
 try:
     from agents.steering_agent import SteeringAgent
+
     HAS_STEERING = True
 except ImportError:
     HAS_STEERING = False
     SteeringAgent = None
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
 async def test_workflow_dry_run():
     """Test workflow definition without execution."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("DRY RUN: Testing workflow step definitions")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     workflow = ClaudeDesktopWorkflow()
 
@@ -64,16 +65,16 @@ async def test_workflow_dry_run():
         print(f"         Timeout: {step.timeout}s")
         print()
 
-    print("="*60)
+    print("=" * 60)
     print("DRY RUN COMPLETE - No actions were executed")
-    print("="*60)
+    print("=" * 60)
 
 
 async def test_progress_agent_basic():
     """Test Progress Agent basic functionality."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing Progress Agent (basic)")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     from core.event_queue import ActionEvent, ActionStatus
 
@@ -87,29 +88,27 @@ async def test_progress_agent_basic():
             task_id="test_task",
             action_type="wait",
             params={"duration": 0.5},
-            description="Test wait 1"
+            description="Test wait 1",
         ),
         ActionEvent(
             id="test_2",
             task_id="test_task",
             action_type="press_key",
             params={"key": "win"},
-            description="Test key press"
+            description="Test key press",
         ),
         ActionEvent(
             id="test_3",
             task_id="test_task",
             action_type="type",
             params={"text": "hello"},
-            description="Test typing"
+            description="Test typing",
         ),
     ]
 
     # Start monitoring
     await progress_agent.start_monitoring(
-        task_id="test_task",
-        goal="Test the progress agent",
-        actions=actions
+        task_id="test_task", goal="Test the progress agent", actions=actions
     )
 
     print(f"Started monitoring with {len(actions)} actions")
@@ -126,21 +125,23 @@ async def test_progress_agent_basic():
     final_progress = await progress_agent.stop_monitoring()
 
     print(f"\nFinal Progress:")
-    print(f"  Completed: {final_progress.completed_actions}/{final_progress.total_actions}")
+    print(
+        f"  Completed: {final_progress.completed_actions}/{final_progress.total_actions}"
+    )
     print(f"  Percentage: {final_progress.progress_percentage:.0f}%")
     print(f"  Goal achieved: {final_progress.goal_achieved}")
     print(f"  Blockers: {final_progress.blockers}")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("PROGRESS AGENT TEST COMPLETE")
-    print("="*60)
+    print("=" * 60)
 
 
 async def test_claude_workflow_execute(task: str, wait_for_response: bool = False):
     """Execute the Claude Desktop workflow."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("EXECUTING Claude Desktop Workflow")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     print(f"Task: {task}\n")
     print("Starting in 3 seconds... (switch to desktop if needed)\n")
@@ -167,7 +168,7 @@ async def test_claude_workflow_execute(task: str, wait_for_response: bool = Fals
 
     workflow = ClaudeDesktopWorkflow(
         steering_agent=steering_agent,  # None = direct pyautogui execution
-        progress_agent=progress_agent
+        progress_agent=progress_agent,
     )
 
     # Set up callbacks
@@ -192,7 +193,7 @@ async def test_claude_workflow_execute(task: str, wait_for_response: bool = Fals
     try:
         result = await workflow.send_task(task, wait_for_response=wait_for_response)
 
-        print(f"\n" + "-"*40)
+        print(f"\n" + "-" * 40)
         print(f"Result: {'SUCCESS' if result.success else 'FAILED'}")
         print(f"Steps: {result.steps_completed}/{result.steps_total}")
         print(f"Duration: {result.duration:.1f}s")
@@ -217,16 +218,16 @@ async def test_claude_workflow_execute(task: str, wait_for_response: bool = Fals
             except:
                 pass
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("WORKFLOW EXECUTION COMPLETE")
-    print("="*60)
+    print("=" * 60)
 
 
 async def test_docker_debug():
     """Run the Docker debug workflow."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Docker Debug Report Workflow")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     task = ClaudeDesktopWorkflow.TASK_TEMPLATES["docker_debug"]
     await test_claude_workflow_execute(task, wait_for_response=True)
@@ -235,9 +236,15 @@ async def test_docker_debug():
 async def main():
     parser = argparse.ArgumentParser(description="Test Claude Desktop Workflow")
     parser.add_argument("--task", type=str, help="Custom task to send to Claude")
-    parser.add_argument("--docker-debug", action="store_true", help="Run Docker debug report")
-    parser.add_argument("--dry-run", action="store_true", help="Show steps without execution")
-    parser.add_argument("--test-progress", action="store_true", help="Test progress agent only")
+    parser.add_argument(
+        "--docker-debug", action="store_true", help="Run Docker debug report"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show steps without execution"
+    )
+    parser.add_argument(
+        "--test-progress", action="store_true", help="Test progress agent only"
+    )
     parser.add_argument("--wait", action="store_true", help="Wait for Claude response")
 
     args = parser.parse_args()
@@ -255,11 +262,11 @@ async def main():
         await test_workflow_dry_run()
         await test_progress_agent_basic()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("To execute the workflow, run:")
         print("  python test_claude_workflow.py --task 'Your task here'")
         print("  python test_claude_workflow.py --docker-debug")
-        print("="*60)
+        print("=" * 60)
 
 
 if __name__ == "__main__":

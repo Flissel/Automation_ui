@@ -20,7 +20,7 @@ Example:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Optional
+from typing import Dict, List, Optional, Set
 
 from .task_decomposer import Subtask
 
@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExecutionPhase:
     """A phase of subtasks that can be executed together."""
+
     phase_id: int
     subtasks: List[Subtask]
     can_parallel: bool = False
@@ -52,6 +53,7 @@ class ExecutionPhase:
 @dataclass
 class ExecutionPlan:
     """Complete execution plan with ordered phases."""
+
     phases: List[ExecutionPhase]
     total_subtasks: int
     estimated_duration: float = 0.0
@@ -86,11 +88,7 @@ class TaskScheduler:
     4. Sets timeouts for each phase
     """
 
-    def __init__(
-        self,
-        default_timeout: float = 60.0,
-        max_parallel_per_phase: int = 5
-    ):
+    def __init__(self, default_timeout: float = 60.0, max_parallel_per_phase: int = 5):
         """
         Initialize the scheduler.
 
@@ -131,19 +129,14 @@ class TaskScheduler:
             total_subtasks=len(subtasks),
             estimated_duration=estimated_duration,
             metadata={
-                "dependency_graph": {
-                    s.id: list(s.dependencies) for s in subtasks
-                }
-            }
+                "dependency_graph": {s.id: list(s.dependencies) for s in subtasks}
+            },
         )
 
         logger.info(f"Created execution plan: {plan}")
         return plan
 
-    def _build_dependency_graph(
-        self,
-        subtasks: List[Subtask]
-    ) -> Dict[str, Set[str]]:
+    def _build_dependency_graph(self, subtasks: List[Subtask]) -> Dict[str, Set[str]]:
         """Build a dependency graph from subtasks."""
         graph = {}
         subtask_ids = {s.id for s in subtasks}
@@ -156,9 +149,7 @@ class TaskScheduler:
         return graph
 
     def _topological_levels(
-        self,
-        subtasks: List[Subtask],
-        dep_graph: Dict[str, Set[str]]
+        self, subtasks: List[Subtask], dep_graph: Dict[str, Set[str]]
     ) -> List[List[Subtask]]:
         """
         Group subtasks into dependency levels using topological sorting.
@@ -195,9 +186,7 @@ class TaskScheduler:
                 logger.warning("Dependency cycle detected, breaking remaining tasks")
                 # Add remaining tasks to final level
                 remaining = [
-                    id_to_subtask[sid]
-                    for sid in id_to_subtask
-                    if sid not in completed
+                    id_to_subtask[sid] for sid in id_to_subtask if sid not in completed
                 ]
                 if remaining:
                     levels.append(remaining)
@@ -213,10 +202,7 @@ class TaskScheduler:
 
         return levels
 
-    def _create_phases(
-        self,
-        levels: List[List[Subtask]]
-    ) -> List[ExecutionPhase]:
+    def _create_phases(self, levels: List[List[Subtask]]) -> List[ExecutionPhase]:
         """Create execution phases from dependency levels."""
         phases = []
 
@@ -234,25 +220,29 @@ class TaskScheduler:
                     0, len(level_subtasks), self.max_parallel_per_phase
                 ):
                     chunk = level_subtasks[
-                        chunk_start:chunk_start + self.max_parallel_per_phase
+                        chunk_start : chunk_start + self.max_parallel_per_phase
                     ]
                     timeout = self._calculate_phase_timeout(chunk, can_parallel)
 
-                    phases.append(ExecutionPhase(
-                        phase_id=len(phases) + 1,
-                        subtasks=chunk,
-                        can_parallel=True,
-                        timeout=timeout
-                    ))
+                    phases.append(
+                        ExecutionPhase(
+                            phase_id=len(phases) + 1,
+                            subtasks=chunk,
+                            can_parallel=True,
+                            timeout=timeout,
+                        )
+                    )
             else:
                 timeout = self._calculate_phase_timeout(level_subtasks, can_parallel)
 
-                phases.append(ExecutionPhase(
-                    phase_id=len(phases) + 1,
-                    subtasks=level_subtasks,
-                    can_parallel=can_parallel,
-                    timeout=timeout
-                ))
+                phases.append(
+                    ExecutionPhase(
+                        phase_id=len(phases) + 1,
+                        subtasks=level_subtasks,
+                        can_parallel=can_parallel,
+                        timeout=timeout,
+                    )
+                )
 
         return phases
 
@@ -286,9 +276,7 @@ class TaskScheduler:
         return any_parallel or exclusive_count == 0
 
     def _calculate_phase_timeout(
-        self,
-        subtasks: List[Subtask],
-        can_parallel: bool
+        self, subtasks: List[Subtask], can_parallel: bool
     ) -> float:
         """Calculate timeout for a phase."""
         timeouts = [s.timeout or self.default_timeout for s in subtasks]
@@ -304,7 +292,7 @@ class TaskScheduler:
         self,
         original_plan: ExecutionPlan,
         completed_subtasks: Set[str],
-        failed_subtasks: Set[str]
+        failed_subtasks: Set[str],
     ) -> ExecutionPlan:
         """
         Create a new plan based on execution results.
@@ -326,8 +314,7 @@ class TaskScheduler:
                 if subtask.id not in completed_subtasks:
                     # Update dependencies to remove completed ones
                     subtask.dependencies = [
-                        d for d in subtask.dependencies
-                        if d not in completed_subtasks
+                        d for d in subtask.dependencies if d not in completed_subtasks
                     ]
                     remaining.append(subtask)
 

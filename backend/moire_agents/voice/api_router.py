@@ -17,41 +17,47 @@ Integration:
   - Learning System (pattern store)
 """
 
-import os
-import sys
 import asyncio
-import logging
 import base64
 import json
-from typing import Optional, List, Dict, Any
+import logging
+import os
+import sys
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 # FastAPI imports
-from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Add moire_tracker to path for interactive_mcp
-MOIRE_TRACKER_PATH = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), "..", "..", "..", "moire_tracker", "python"
-))
+MOIRE_TRACKER_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "moire_tracker", "python")
+)
 if MOIRE_TRACKER_PATH not in sys.path:
     sys.path.insert(0, MOIRE_TRACKER_PATH)
 
 # Handle both module and standalone imports
 try:
-    from .speech_to_text import SpeechToText, STTBackend, RealtimeSpeechToText
-    from .intent_parser import IntentParser, QuickIntentParser, ParsedIntent, ActionType
-    from .command_executor import CommandExecutor, VoiceAutomationPipeline, ExecutionReport
-    from .text_to_speech import TextToSpeech, TTSConfig, TTSBackend, VoiceFeedback
+    from .command_executor import (CommandExecutor, ExecutionReport,
+                                   VoiceAutomationPipeline)
+    from .intent_parser import (ActionType, IntentParser, ParsedIntent,
+                                QuickIntentParser)
+    from .speech_to_text import RealtimeSpeechToText, SpeechToText, STTBackend
+    from .text_to_speech import (TextToSpeech, TTSBackend, TTSConfig,
+                                 VoiceFeedback)
 except ImportError:
-    from speech_to_text import SpeechToText, STTBackend, RealtimeSpeechToText
-    from intent_parser import IntentParser, QuickIntentParser, ParsedIntent, ActionType
-    from command_executor import CommandExecutor, VoiceAutomationPipeline, ExecutionReport
-    from text_to_speech import TextToSpeech, TTSConfig, TTSBackend, VoiceFeedback
+    from command_executor import (CommandExecutor, ExecutionReport,
+                                  VoiceAutomationPipeline)
+    from intent_parser import (ActionType, IntentParser, ParsedIntent,
+                               QuickIntentParser)
+    from speech_to_text import RealtimeSpeechToText, SpeechToText, STTBackend
+    from text_to_speech import (TextToSpeech, TTSBackend, TTSConfig,
+                                VoiceFeedback)
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +67,10 @@ router = APIRouter(prefix="/api/voice", tags=["Voice Control"])
 
 # === Pydantic Models ===
 
+
 class TextCommandRequest(BaseModel):
     """Request for text command processing."""
+
     text: str = Field(..., description="Text command to process")
     use_quick_parser: bool = Field(True, description="Use quick pattern matching first")
     execute: bool = Field(True, description="Execute the parsed actions")
@@ -71,6 +79,7 @@ class TextCommandRequest(BaseModel):
 
 class TextCommandResponse(BaseModel):
     """Response from text command processing."""
+
     success: bool
     original_text: str
     parsed_context: Optional[str] = None
@@ -82,6 +91,7 @@ class TextCommandResponse(BaseModel):
 
 class MCPCommandResponse(BaseModel):
     """Response from MCP-based command processing."""
+
     success: bool
     task_id: str
     original_text: str
@@ -97,6 +107,7 @@ class MCPCommandResponse(BaseModel):
 
 class AudioCommandRequest(BaseModel):
     """Request for audio command processing."""
+
     audio_base64: str = Field(..., description="Base64-encoded audio data")
     format: str = Field("wav", description="Audio format (wav, mp3)")
     sample_rate: int = Field(16000, description="Audio sample rate")
@@ -106,6 +117,7 @@ class AudioCommandRequest(BaseModel):
 
 class ListeningStatus(BaseModel):
     """Real-time listening status."""
+
     is_listening: bool
     wake_word: Optional[str] = None
     started_at: Optional[str] = None
@@ -114,12 +126,14 @@ class ListeningStatus(BaseModel):
 
 class StartListeningRequest(BaseModel):
     """Request to start real-time listening."""
+
     wake_word: Optional[str] = Field(None, description="Wake word (e.g., 'Hey Moire')")
     voice_feedback: bool = Field(True, description="Enable voice feedback")
 
 
 class MicrophoneInfo(BaseModel):
     """Microphone information."""
+
     index: int
     name: str
     channels: int
@@ -127,6 +141,7 @@ class MicrophoneInfo(BaseModel):
 
 
 # === Global State ===
+
 
 class VoiceServiceState:
     """Global state for voice service."""
@@ -159,13 +174,15 @@ class VoiceServiceState:
 
     def add_to_history(self, text: str, result: ExecutionReport):
         """Add command to history."""
-        self.history.append({
-            "timestamp": datetime.now().isoformat(),
-            "text": text,
-            "success": result.success,
-            "context": result.intent.context,
-            "feedback": result.feedback_message
-        })
+        self.history.append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "text": text,
+                "success": result.success,
+                "context": result.intent.context,
+                "feedback": result.feedback_message,
+            }
+        )
         # Keep only last 100 commands
         if len(self.history) > 100:
             self.history = self.history[-100:]
@@ -186,19 +203,21 @@ def get_state() -> VoiceServiceState:
 
 _redis_pubsub = None
 
+
 async def get_redis_pubsub():
     """Get Redis PubSub instance for task events."""
     global _redis_pubsub
     if _redis_pubsub is None:
         try:
             # Add backend path for redis_pubsub import
-            backend_path = os.path.abspath(os.path.join(
-                os.path.dirname(__file__), "..", ".."
-            ))
+            backend_path = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "..")
+            )
             if backend_path not in sys.path:
                 sys.path.insert(0, backend_path)
 
             from app.services.redis_pubsub import redis_pubsub
+
             if not redis_pubsub.is_connected:
                 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
                 await redis_pubsub.connect(redis_url)
@@ -211,6 +230,7 @@ async def get_redis_pubsub():
 
 
 # === MCPAutomation Handler ===
+
 
 class MCPAutomationHandler:
     """Handler for MCPAutomation integration.
@@ -232,6 +252,7 @@ class MCPAutomationHandler:
         if cls._mcp is None:
             try:
                 from interactive_mcp import MCPAutomation
+
                 cls._mcp = MCPAutomation()
                 logger.info("MCPAutomation instance created")
             except ImportError as e:
@@ -241,7 +262,9 @@ class MCPAutomationHandler:
         return cls._mcp
 
     @classmethod
-    async def execute_task(cls, task: str, task_id: str, source: str = "voice") -> Dict[str, Any]:
+    async def execute_task(
+        cls, task: str, task_id: str, source: str = "voice"
+    ) -> Dict[str, Any]:
         """Execute task via MCPAutomation with Redis event publishing.
 
         Args:
@@ -253,6 +276,7 @@ class MCPAutomationHandler:
             Dict with execution results, validation, and learning info
         """
         import time
+
         start_time = time.time()
 
         mcp = cls.get_mcp()
@@ -266,7 +290,7 @@ class MCPAutomationHandler:
             "validation": None,
             "learned": False,
             "pattern_confidence": None,
-            "error": None
+            "error": None,
         }
 
         try:
@@ -297,7 +321,11 @@ class MCPAutomationHandler:
                         result["route"] = "LEARNED_PATTERN"
                         if "conf=" in log_line:
                             try:
-                                conf_str = log_line.split("conf=")[1].split(")")[0].replace("%", "")
+                                conf_str = (
+                                    log_line.split("conf=")[1]
+                                    .split(")")[0]
+                                    .replace("%", "")
+                                )
                                 result["pattern_confidence"] = float(conf_str) / 100
                             except:
                                 pass
@@ -326,12 +354,13 @@ class MCPAutomationHandler:
                         confidence=result["validation"].get("confidence", 0),
                         method=result["validation"].get("method", "unknown"),
                         reason=result["validation"].get("reason", ""),
-                        observed_changes=result["validation"].get("observed_changes")
+                        observed_changes=result["validation"].get("observed_changes"),
                     )
             else:
                 # Fallback: parse from logs if no result returned
-                result["execution_success"] = not any("Error" in log or "failed" in log.lower()
-                                                       for log in original_log)
+                result["execution_success"] = not any(
+                    "Error" in log or "failed" in log.lower() for log in original_log
+                )
                 result["success"] = result["execution_success"]
 
             # Check memory collector for learning
@@ -346,7 +375,7 @@ class MCPAutomationHandler:
                         pattern_id=f"pattern_{task_id[:8]}",
                         task_text=task,
                         confidence=result["pattern_confidence"] or 0.8,
-                        actions=[]  # Would need to capture from MCP
+                        actions=[],  # Would need to capture from MCP
                     )
 
             result["duration_ms"] = (time.time() - start_time) * 1000
@@ -359,7 +388,7 @@ class MCPAutomationHandler:
                     route=result["route"],
                     duration_ms=result["duration_ms"],
                     validation=result["validation"],
-                    learned=result["learned"]
+                    learned=result["learned"],
                 )
 
         except Exception as e:
@@ -374,13 +403,14 @@ class MCPAutomationHandler:
                     task_id=task_id,
                     error=str(e),
                     route=result["route"],
-                    duration_ms=result["duration_ms"]
+                    duration_ms=result["duration_ms"],
                 )
 
         return result
 
 
 # === API Endpoints ===
+
 
 @router.post("/command", response_model=MCPCommandResponse)
 async def process_text_command_mcp(request: TextCommandRequest) -> MCPCommandResponse:
@@ -402,6 +432,7 @@ async def process_text_command_mcp(request: TextCommandRequest) -> MCPCommandRes
         - learned: Whether a new pattern was learned
     """
     import time
+
     start_time = time.time()
 
     task_id = str(uuid4())
@@ -420,9 +451,13 @@ async def process_text_command_mcp(request: TextCommandRequest) -> MCPCommandRes
                 validation=result.get("validation"),
                 learned=result.get("learned", False),
                 pattern_confidence=result.get("pattern_confidence"),
-                feedback_message=f"Ausgeführt via {result['route']}" if result["success"] else f"Fehler: {result.get('error', 'Unbekannt')}",
+                feedback_message=(
+                    f"Ausgeführt via {result['route']}"
+                    if result["success"]
+                    else f"Fehler: {result.get('error', 'Unbekannt')}"
+                ),
                 duration_ms=result["duration_ms"],
-                error=result.get("error")
+                error=result.get("error"),
             )
         else:
             # Just parse, don't execute
@@ -433,7 +468,7 @@ async def process_text_command_mcp(request: TextCommandRequest) -> MCPCommandRes
                 route="NOT_EXECUTED",
                 execution_success=False,
                 feedback_message="Befehl nicht ausgeführt (execute=false)",
-                duration_ms=(time.time() - start_time) * 1000
+                duration_ms=(time.time() - start_time) * 1000,
             )
 
         # Voice feedback
@@ -454,12 +489,14 @@ async def process_text_command_mcp(request: TextCommandRequest) -> MCPCommandRes
             execution_success=False,
             feedback_message=f"Fehler: {str(e)}",
             duration_ms=(time.time() - start_time) * 1000,
-            error=str(e)
+            error=str(e),
         )
 
 
 @router.post("/command-legacy", response_model=TextCommandResponse)
-async def process_text_command_legacy(request: TextCommandRequest) -> TextCommandResponse:
+async def process_text_command_legacy(
+    request: TextCommandRequest,
+) -> TextCommandResponse:
     """Process a text command (legacy executor).
 
     Uses the original QuickIntentParser and CommandExecutor.
@@ -470,6 +507,7 @@ async def process_text_command_legacy(request: TextCommandRequest) -> TextComman
         {"text": "Öffne Anthropic Careers", "execute": true}
     """
     import time
+
     start_time = time.time()
 
     state = get_state()
@@ -490,10 +528,10 @@ async def process_text_command_legacy(request: TextCommandRequest) -> TextComman
                 {
                     "type": action.type.value,
                     "params": action.params,
-                    "description": action.description
+                    "description": action.description,
                 }
                 for action in intent.actions
-            ]
+            ],
         )
 
         # Execute if requested
@@ -506,7 +544,7 @@ async def process_text_command_legacy(request: TextCommandRequest) -> TextComman
                     "action": r.action.description,
                     "success": r.success,
                     "error": r.error,
-                    "duration_ms": r.duration_ms
+                    "duration_ms": r.duration_ms,
                 }
                 for r in report.results
             ]
@@ -529,9 +567,7 @@ async def process_text_command_legacy(request: TextCommandRequest) -> TextComman
 
 @router.post("/audio")
 async def process_audio_command(
-    file: UploadFile = File(...),
-    execute: bool = True,
-    voice_feedback: bool = False
+    file: UploadFile = File(...), execute: bool = True, voice_feedback: bool = False
 ) -> MCPCommandResponse:
     """Process an audio file command via MCPAutomation.
 
@@ -543,6 +579,7 @@ async def process_audio_command(
         file: [audio file]
     """
     import time
+
     start_time = time.time()
 
     state = get_state()
@@ -559,9 +596,7 @@ async def process_audio_command(
 
         # Process as text command via MCP
         request = TextCommandRequest(
-            text=transcription.text,
-            execute=execute,
-            voice_feedback=voice_feedback
+            text=transcription.text, execute=execute, voice_feedback=voice_feedback
         )
 
         response = await process_text_command_mcp(request)
@@ -582,6 +617,7 @@ async def process_audio_base64(request: AudioCommandRequest) -> MCPCommandRespon
     Alternative to file upload for audio processing.
     """
     import time
+
     start_time = time.time()
 
     state = get_state()
@@ -592,8 +628,7 @@ async def process_audio_base64(request: AudioCommandRequest) -> MCPCommandRespon
 
         # Transcribe
         transcription = await state.stt.transcribe_audio(
-            audio_data,
-            sample_rate=request.sample_rate
+            audio_data, sample_rate=request.sample_rate
         )
 
         if not transcription.text:
@@ -603,7 +638,7 @@ async def process_audio_base64(request: AudioCommandRequest) -> MCPCommandRespon
         text_request = TextCommandRequest(
             text=transcription.text,
             execute=request.execute,
-            voice_feedback=request.voice_feedback
+            voice_feedback=request.voice_feedback,
         )
 
         response = await process_text_command_mcp(text_request)
@@ -619,8 +654,7 @@ async def process_audio_base64(request: AudioCommandRequest) -> MCPCommandRespon
 
 @router.post("/start")
 async def start_listening(
-    request: StartListeningRequest,
-    background_tasks: BackgroundTasks
+    request: StartListeningRequest, background_tasks: BackgroundTasks
 ) -> Dict[str, Any]:
     """Start real-time voice listening.
 
@@ -638,7 +672,7 @@ async def start_listening(
                 stt=state.stt,
                 on_transcription=lambda text: asyncio.create_task(
                     _handle_realtime_transcription(text, request.voice_feedback)
-                )
+                ),
             )
 
         # Start listening in background
@@ -647,8 +681,7 @@ async def start_listening(
         state.wake_word = request.wake_word
 
         background_tasks.add_task(
-            state.realtime_stt.start_listening,
-            wake_word=request.wake_word
+            state.realtime_stt.start_listening, wake_word=request.wake_word
         )
 
         # Voice feedback
@@ -658,7 +691,7 @@ async def start_listening(
         return {
             "success": True,
             "message": "Listening started",
-            "wake_word": request.wake_word
+            "wake_word": request.wake_word,
         }
 
     except Exception as e:
@@ -678,12 +711,18 @@ async def _handle_realtime_transcription(text: str, voice_feedback: bool):
         result = await MCPAutomationHandler.execute_task(text, task_id)
         state.commands_processed += 1
 
-        feedback = f"Ausgeführt via {result['route']}" if result["success"] else f"Fehler: {result.get('error', 'Unbekannt')}"
+        feedback = (
+            f"Ausgeführt via {result['route']}"
+            if result["success"]
+            else f"Fehler: {result.get('error', 'Unbekannt')}"
+        )
 
         if voice_feedback and state.tts:
             await state.tts.speak_async(feedback)
 
-        logger.info(f"Real-time command result: success={result['success']}, route={result['route']}")
+        logger.info(
+            f"Real-time command result: success={result['success']}, route={result['route']}"
+        )
 
     except Exception as e:
         logger.error(f"Real-time command failed: {e}")
@@ -710,7 +749,7 @@ async def stop_listening() -> Dict[str, Any]:
         return {
             "success": True,
             "message": "Listening stopped",
-            "commands_processed": state.commands_processed
+            "commands_processed": state.commands_processed,
         }
 
     except Exception as e:
@@ -726,8 +765,12 @@ async def get_status() -> ListeningStatus:
     return ListeningStatus(
         is_listening=state.is_listening,
         wake_word=state.wake_word,
-        started_at=state.listening_started_at.isoformat() if state.listening_started_at else None,
-        commands_processed=state.commands_processed
+        started_at=(
+            state.listening_started_at.isoformat()
+            if state.listening_started_at
+            else None
+        ),
+        commands_processed=state.commands_processed,
     )
 
 
@@ -737,10 +780,10 @@ async def list_microphones() -> List[MicrophoneInfo]:
     mics = RealtimeSpeechToText.list_microphones()
     return [
         MicrophoneInfo(
-            index=m['index'],
-            name=m['name'],
-            channels=m['channels'],
-            sample_rate=m['sample_rate']
+            index=m["index"],
+            name=m["name"],
+            channels=m["channels"],
+            sample_rate=m["sample_rate"],
         )
         for m in mics
     ]
@@ -775,6 +818,7 @@ async def speak_text(text: str, voice_feedback: bool = True) -> Dict[str, Any]:
 
 # === Health Check ===
 
+
 @router.get("/health")
 async def health_check() -> Dict[str, Any]:
     """Check voice service health."""
@@ -785,11 +829,12 @@ async def health_check() -> Dict[str, Any]:
         "stt_backend": state.stt.backend.value if state.stt else None,
         "tts_backend": state.tts.config.backend.value if state.tts else None,
         "is_listening": state.is_listening,
-        "commands_processed": state.commands_processed
+        "commands_processed": state.commands_processed,
     }
 
 
 # === Integration Helper ===
+
 
 def include_voice_router(app):
     """Include voice router in FastAPI app.

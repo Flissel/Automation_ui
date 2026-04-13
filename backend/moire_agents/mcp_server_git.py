@@ -19,25 +19,24 @@ Add to .claude/.mcp.json:
 """
 
 import asyncio
-import subprocess
-import os
-import sys
 import json
 import logging
+import os
+import subprocess
+import sys
 from typing import Any, Dict, List, Optional
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger('GitMCP')
+logger = logging.getLogger("GitMCP")
 
 # MCP imports
 try:
     from mcp.server import Server
     from mcp.server.stdio import stdio_server
-    from mcp.types import Tool, TextContent
+    from mcp.types import TextContent, Tool
 except ImportError:
     print("MCP package not installed. Run: pip install mcp", file=sys.stderr)
     Server = None
@@ -53,20 +52,20 @@ async def run_command(cmd: List[str], cwd: Optional[str] = None) -> Dict[str, An
     """Execute a command and return the result."""
     try:
         # Use shell=True on Windows for proper command execution
-        if os.name == 'nt':
-            cmd_str = ' '.join(f'"{c}"' if ' ' in c else c for c in cmd)
+        if os.name == "nt":
+            cmd_str = " ".join(f'"{c}"' if " " in c else c for c in cmd)
             process = await asyncio.create_subprocess_shell(
                 cmd_str,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=cwd
+                cwd=cwd,
             )
         else:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=cwd
+                cwd=cwd,
             )
 
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
@@ -74,23 +73,18 @@ async def run_command(cmd: List[str], cwd: Optional[str] = None) -> Dict[str, An
         return {
             "success": process.returncode == 0,
             "returncode": process.returncode,
-            "stdout": stdout.decode('utf-8', errors='replace').strip(),
-            "stderr": stderr.decode('utf-8', errors='replace').strip()
+            "stdout": stdout.decode("utf-8", errors="replace").strip(),
+            "stderr": stderr.decode("utf-8", errors="replace").strip(),
         }
     except asyncio.TimeoutError:
         return {
             "success": False,
             "returncode": -1,
             "stdout": "",
-            "stderr": "Command timed out after 60 seconds"
+            "stderr": "Command timed out after 60 seconds",
         }
     except Exception as e:
-        return {
-            "success": False,
-            "returncode": -1,
-            "stdout": "",
-            "stderr": str(e)
-        }
+        return {"success": False, "returncode": -1, "stdout": "", "stderr": str(e)}
 
 
 def format_result(result: Dict[str, Any]) -> str:
@@ -101,13 +95,16 @@ def format_result(result: Dict[str, Any]) -> str:
     if result["stderr"] and not result["success"]:
         output.append(f"Error: {result['stderr']}")
     if not output:
-        output.append("Command completed successfully" if result["success"] else "Command failed")
+        output.append(
+            "Command completed successfully" if result["success"] else "Command failed"
+        )
     return "\n".join(output)
 
 
 # ============================================================================
 # Tool Definitions
 # ============================================================================
+
 
 @server.list_tools()
 async def list_tools() -> List[Tool]:
@@ -121,10 +118,10 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the Git repository (default: current directory)"
+                        "description": "Path to the Git repository (default: current directory)",
                     }
-                }
-            }
+                },
+            },
         ),
         Tool(
             name="git_init",
@@ -134,15 +131,15 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path where to initialize the repository"
+                        "description": "Path where to initialize the repository",
                     },
                     "initial_branch": {
                         "type": "string",
-                        "description": "Name of the initial branch (default: main)"
-                    }
+                        "description": "Name of the initial branch (default: main)",
+                    },
                 },
-                "required": ["path"]
-            }
+                "required": ["path"],
+            },
         ),
         Tool(
             name="git_add",
@@ -152,15 +149,15 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the Git repository"
+                        "description": "Path to the Git repository",
                     },
                     "files": {
                         "type": "string",
-                        "description": "Files to add (default: '.' for all)"
-                    }
+                        "description": "Files to add (default: '.' for all)",
+                    },
                 },
-                "required": ["path"]
-            }
+                "required": ["path"],
+            },
         ),
         Tool(
             name="git_commit",
@@ -170,15 +167,12 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the Git repository"
+                        "description": "Path to the Git repository",
                     },
-                    "message": {
-                        "type": "string",
-                        "description": "Commit message"
-                    }
+                    "message": {"type": "string", "description": "Commit message"},
                 },
-                "required": ["path", "message"]
-            }
+                "required": ["path", "message"],
+            },
         ),
         Tool(
             name="git_push",
@@ -188,23 +182,23 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the Git repository"
+                        "description": "Path to the Git repository",
                     },
                     "remote": {
                         "type": "string",
-                        "description": "Remote name (default: origin)"
+                        "description": "Remote name (default: origin)",
                     },
                     "branch": {
                         "type": "string",
-                        "description": "Branch name (default: current branch)"
+                        "description": "Branch name (default: current branch)",
                     },
                     "set_upstream": {
                         "type": "boolean",
-                        "description": "Set upstream tracking (default: false)"
-                    }
+                        "description": "Set upstream tracking (default: false)",
+                    },
                 },
-                "required": ["path"]
-            }
+                "required": ["path"],
+            },
         ),
         Tool(
             name="git_pull",
@@ -214,19 +208,19 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the Git repository"
+                        "description": "Path to the Git repository",
                     },
                     "remote": {
                         "type": "string",
-                        "description": "Remote name (default: origin)"
+                        "description": "Remote name (default: origin)",
                     },
                     "branch": {
                         "type": "string",
-                        "description": "Branch name (default: current branch)"
-                    }
+                        "description": "Branch name (default: current branch)",
+                    },
                 },
-                "required": ["path"]
-            }
+                "required": ["path"],
+            },
         ),
         Tool(
             name="git_log",
@@ -236,19 +230,19 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the Git repository"
+                        "description": "Path to the Git repository",
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "Number of commits to show (default: 10)"
+                        "description": "Number of commits to show (default: 10)",
                     },
                     "oneline": {
                         "type": "boolean",
-                        "description": "Show each commit on one line (default: true)"
-                    }
+                        "description": "Show each commit on one line (default: true)",
+                    },
                 },
-                "required": ["path"]
-            }
+                "required": ["path"],
+            },
         ),
         Tool(
             name="git_diff",
@@ -258,15 +252,15 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the Git repository"
+                        "description": "Path to the Git repository",
                     },
                     "staged": {
                         "type": "boolean",
-                        "description": "Show staged changes only (default: false)"
-                    }
+                        "description": "Show staged changes only (default: false)",
+                    },
                 },
-                "required": ["path"]
-            }
+                "required": ["path"],
+            },
         ),
         Tool(
             name="git_branch",
@@ -276,20 +270,20 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the Git repository"
+                        "description": "Path to the Git repository",
                     },
                     "name": {
                         "type": "string",
-                        "description": "Branch name (for create/delete/checkout)"
+                        "description": "Branch name (for create/delete/checkout)",
                     },
                     "action": {
                         "type": "string",
                         "enum": ["list", "create", "delete", "checkout"],
-                        "description": "Action to perform (default: list)"
-                    }
+                        "description": "Action to perform (default: list)",
+                    },
                 },
-                "required": ["path"]
-            }
+                "required": ["path"],
+            },
         ),
         Tool(
             name="git_remote",
@@ -299,24 +293,21 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the Git repository"
+                        "description": "Path to the Git repository",
                     },
                     "action": {
                         "type": "string",
                         "enum": ["list", "add", "remove"],
-                        "description": "Action to perform (default: list)"
+                        "description": "Action to perform (default: list)",
                     },
                     "name": {
                         "type": "string",
-                        "description": "Remote name (for add/remove)"
+                        "description": "Remote name (for add/remove)",
                     },
-                    "url": {
-                        "type": "string",
-                        "description": "Remote URL (for add)"
-                    }
+                    "url": {"type": "string", "description": "Remote URL (for add)"},
                 },
-                "required": ["path"]
-            }
+                "required": ["path"],
+            },
         ),
         Tool(
             name="gh_repo_create",
@@ -324,30 +315,27 @@ async def list_tools() -> List[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Repository name"
-                    },
+                    "name": {"type": "string", "description": "Repository name"},
                     "description": {
                         "type": "string",
-                        "description": "Repository description"
+                        "description": "Repository description",
                     },
                     "visibility": {
                         "type": "string",
                         "enum": ["public", "private"],
-                        "description": "Repository visibility (default: private)"
+                        "description": "Repository visibility (default: private)",
                     },
                     "clone": {
                         "type": "boolean",
-                        "description": "Clone the repository after creation (default: false)"
+                        "description": "Clone the repository after creation (default: false)",
                     },
                     "source": {
                         "type": "string",
-                        "description": "Path to local repository to push (creates remote from local)"
-                    }
+                        "description": "Path to local repository to push (creates remote from local)",
+                    },
                 },
-                "required": ["name"]
-            }
+                "required": ["name"],
+            },
         ),
         Tool(
             name="gh_repo_list",
@@ -357,30 +345,28 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "limit": {
                         "type": "integer",
-                        "description": "Maximum number of repositories to list (default: 30)"
+                        "description": "Maximum number of repositories to list (default: 30)",
                     },
                     "visibility": {
                         "type": "string",
                         "enum": ["public", "private", "all"],
-                        "description": "Filter by visibility (default: all)"
-                    }
-                }
-            }
+                        "description": "Filter by visibility (default: all)",
+                    },
+                },
+            },
         ),
         Tool(
             name="gh_auth_status",
             description="Check GitHub CLI authentication status",
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
-        )
+            inputSchema={"type": "object", "properties": {}},
+        ),
     ]
 
 
 # ============================================================================
 # Tool Handlers
 # ============================================================================
+
 
 @server.call_tool()
 async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
@@ -427,6 +413,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
 # ============================================================================
 # Git Handlers
 # ============================================================================
+
 
 async def handle_git_status(args: Dict[str, Any]) -> str:
     """Handle git status command."""
@@ -577,6 +564,7 @@ async def handle_git_remote(args: Dict[str, Any]) -> str:
 # GitHub CLI Handlers
 # ============================================================================
 
+
 async def handle_gh_repo_create(args: Dict[str, Any]) -> str:
     """Handle gh repo create command."""
     name = args["name"]
@@ -628,16 +616,13 @@ async def handle_gh_auth_status(args: Dict[str, Any]) -> str:
 # Main
 # ============================================================================
 
+
 async def main():
     """Main entry point for the MCP server."""
     logger.info("Starting Git MCP Server...")
 
     async with stdio_server() as (read, write):
-        await server.run(
-            read,
-            write,
-            server.create_initialization_options()
-        )
+        await server.run(read, write, server.create_initialization_options())
 
 
 if __name__ == "__main__":

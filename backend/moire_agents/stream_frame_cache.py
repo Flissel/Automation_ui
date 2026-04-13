@@ -22,12 +22,12 @@ Usage:
 """
 
 import base64
-import time
-import threading
-from dataclasses import dataclass, field
-from typing import Dict, Optional, Any
-from datetime import datetime
 import io
+import threading
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 try:
     from PIL import Image
@@ -38,6 +38,7 @@ except ImportError:
 @dataclass
 class FrameData:
     """Einzelner Frame mit Metadaten."""
+
     monitor_id: int
     data: str  # Base64-encoded image
     timestamp: float  # Unix timestamp when frame was received
@@ -118,7 +119,7 @@ class StreamFrameCache:
         cls,
         monitor_id: int,
         frame_base64: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Aktualisiert den Frame für einen Monitor.
@@ -133,7 +134,7 @@ class StreamFrameCache:
                 monitor_id=monitor_id,
                 data=frame_base64,
                 timestamp=time.time(),
-                metadata=metadata or {}
+                metadata=metadata or {},
             )
             cls._frames[monitor_id] = frame
             cls._stats["frames_received"] += 1
@@ -173,9 +174,7 @@ class StreamFrameCache:
 
     @classmethod
     def get_fresh_frame(
-        cls,
-        monitor_id: int = 0,
-        max_age_ms: float = 1000
+        cls, monitor_id: int = 0, max_age_ms: float = 1000
     ) -> Optional[FrameData]:
         """
         Gibt Frame zurück, nur wenn er frisch genug ist.
@@ -229,8 +228,7 @@ class StreamFrameCache:
             stats = dict(cls._stats)
             stats["cached_monitors"] = list(cls._frames.keys())
             stats["frame_ages_ms"] = {
-                mid: frame.age_ms
-                for mid, frame in cls._frames.items()
+                mid: frame.age_ms for mid, frame in cls._frames.items()
             }
             return stats
 
@@ -243,8 +241,8 @@ class StreamFrameCache:
                 "monitor_ids": list(cls._frames.keys()),
                 "frames_received": cls._stats["frames_received"],
                 "cache_hit_rate": (
-                    cls._stats["cache_hits"] /
-                    max(1, cls._stats["cache_hits"] + cls._stats["cache_misses"])
+                    cls._stats["cache_hits"]
+                    / max(1, cls._stats["cache_hits"] + cls._stats["cache_misses"])
                 ),
                 "listeners_count": len(cls._listeners),
                 "frames": {
@@ -255,7 +253,7 @@ class StreamFrameCache:
                         "height": frame.height,
                     }
                     for mid, frame in cls._frames.items()
-                }
+                },
             }
 
 
@@ -270,7 +268,9 @@ def get_frame(monitor_id: int = 0) -> Optional[FrameData]:
     return StreamFrameCache.get_latest_frame(monitor_id)
 
 
-def get_fresh_frame(monitor_id: int = 0, max_age_ms: float = 1000) -> Optional[FrameData]:
+def get_fresh_frame(
+    monitor_id: int = 0, max_age_ms: float = 1000
+) -> Optional[FrameData]:
     """Shortcut für StreamFrameCache.get_fresh_frame()."""
     return StreamFrameCache.get_fresh_frame(monitor_id, max_age_ms)
 
@@ -285,12 +285,14 @@ if __name__ == "__main__":
     StreamFrameCache.update_frame(
         monitor_id=0,
         frame_base64="dGVzdCBkYXRh",  # "test data" in base64
-        metadata={"width": 1920, "height": 1080, "format": "jpeg"}
+        metadata={"width": 1920, "height": 1080, "format": "jpeg"},
     )
 
     # Get frame
     frame = StreamFrameCache.get_latest_frame(0)
-    print(f"Frame: monitor={frame.monitor_id}, age={frame.age_ms:.1f}ms, fresh={frame.is_fresh}")
+    print(
+        f"Frame: monitor={frame.monitor_id}, age={frame.age_ms:.1f}ms, fresh={frame.is_fresh}"
+    )
 
     # Wait and check age
     time.sleep(0.5)

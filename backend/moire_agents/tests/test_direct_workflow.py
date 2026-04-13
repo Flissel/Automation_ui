@@ -3,6 +3,7 @@ Direct Test - Test Claude Desktop workflow WITHOUT SteeringAgent
 """
 
 import asyncio
+
 import pyautogui
 
 # Safety settings
@@ -16,10 +17,7 @@ async def test_direct():
     print("DIRECT Claude Desktop Test (no SteeringAgent)")
     print("=" * 60)
 
-    task = (
-        "Generate a simple Hello World message. "
-        "Just respond with a greeting."
-    )
+    task = "Generate a simple Hello World message. " "Just respond with a greeting."
 
     print(f"\nTask: {task}")
     print("\nStarting in 3 seconds...")

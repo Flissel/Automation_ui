@@ -12,9 +12,10 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
-from .base_agent import BaseHandoffAgent, AgentConfig
-from .messages import UserTask, AgentResponse
-from .team_agent import TeamAgent, TeamConfig, SubAgentResult, SynthesisStrategy
+from .base_agent import AgentConfig, BaseHandoffAgent
+from .messages import AgentResponse, UserTask
+from .team_agent import (SubAgentResult, SynthesisStrategy, TeamAgent,
+                         TeamConfig)
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class ElementFinderAgent(BaseHandoffAgent):
         config = AgentConfig(
             name="element_finder",
             description="Finds UI elements via text/OCR",
-            topic_type="validation"
+            topic_type="validation",
         )
         super().__init__(config)
 
@@ -68,7 +69,7 @@ class ElementFinderAgent(BaseHandoffAgent):
                     "found": False,
                     "confidence": 0.0,
                     "method": "error",
-                    "error": "MoireServer not available"
+                    "error": "MoireServer not available",
                 }
 
             try:
@@ -80,7 +81,7 @@ class ElementFinderAgent(BaseHandoffAgent):
                         "found": False,
                         "confidence": 0.0,
                         "method": "error",
-                        "error": "Screen capture failed"
+                        "error": "Screen capture failed",
                     }
 
                 # Search for element by text
@@ -94,7 +95,7 @@ class ElementFinderAgent(BaseHandoffAgent):
                         "y": y,
                         "confidence": element.confidence,
                         "method": "moire_ocr",
-                        "matched_text": element.text
+                        "matched_text": element.text,
                     }
 
                 # Element not found - be honest about it
@@ -102,7 +103,7 @@ class ElementFinderAgent(BaseHandoffAgent):
                     "found": False,
                     "confidence": 0.0,
                     "method": "not_found",
-                    "error": f"No element matching '{target}' found on screen"
+                    "error": f"No element matching '{target}' found on screen",
                 }
 
             finally:
@@ -114,7 +115,7 @@ class ElementFinderAgent(BaseHandoffAgent):
                 "found": False,
                 "confidence": 0.0,
                 "method": "error",
-                "error": str(e)
+                "error": str(e),
             }
 
 
@@ -129,7 +130,7 @@ class ScreenStateValidator(BaseHandoffAgent):
         config = AgentConfig(
             name="screen_validator",
             description="Validates screen state",
-            topic_type="validation"
+            topic_type="validation",
         )
         super().__init__(config)
 
@@ -150,9 +151,7 @@ class ScreenStateValidator(BaseHandoffAgent):
         return validation
 
     def _validate_state(
-        self,
-        expected: Dict[str, Any],
-        actual: Dict[str, Any]
+        self, expected: Dict[str, Any], actual: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Validate that actual screen state matches expected.
@@ -202,7 +201,7 @@ class ScreenStateValidator(BaseHandoffAgent):
             "matches": matches,
             "mismatches": mismatches,
             "checked_elements": len(expected_elements),
-            "checked_text": len(expected_text)
+            "checked_text": len(expected_text),
         }
 
     def _element_matches(self, expected: Dict, actual: Dict) -> bool:
@@ -210,7 +209,10 @@ class ScreenStateValidator(BaseHandoffAgent):
         # Simple matching - could be more sophisticated
         if expected.get("type") and expected["type"] != actual.get("type"):
             return False
-        if expected.get("text") and expected["text"].lower() not in actual.get("text", "").lower():
+        if (
+            expected.get("text")
+            and expected["text"].lower() not in actual.get("text", "").lower()
+        ):
             return False
         return True
 
@@ -226,7 +228,7 @@ class ChangeDetector(BaseHandoffAgent):
         config = AgentConfig(
             name="change_detector",
             description="Detects screen changes",
-            topic_type="validation"
+            topic_type="validation",
         )
         super().__init__(config)
 
@@ -248,10 +250,7 @@ class ChangeDetector(BaseHandoffAgent):
         return changes
 
     def _detect_changes(
-        self,
-        before: Dict[str, Any],
-        after: Dict[str, Any],
-        expected: str
+        self, before: Dict[str, Any], after: Dict[str, Any], expected: str
     ) -> Dict[str, Any]:
         """
         Detect what changed between before and after states.
@@ -307,7 +306,7 @@ class ChangeDetector(BaseHandoffAgent):
             "expected_change": expected,
             "expected_detected": expected_detected,
             "added_text_count": len(added_text),
-            "removed_text_count": len(removed_text)
+            "removed_text_count": len(removed_text),
         }
 
 
@@ -331,7 +330,7 @@ class ValidationTeam(TeamAgent):
             topic_type="validation",
             synthesis_strategy=SynthesisStrategy.CUSTOM,  # Use our custom _synthesize
             parallel_execution=True,  # Run validators in parallel
-            timeout_per_agent=15.0
+            timeout_per_agent=15.0,
         )
         super().__init__(config)
 
@@ -350,9 +349,7 @@ class ValidationTeam(TeamAgent):
         self.set_synthesizer(self._custom_validation_synthesize)
 
     async def _custom_validation_synthesize(
-        self,
-        results: List[SubAgentResult],
-        task: UserTask
+        self, results: List[SubAgentResult], task: UserTask
     ) -> Dict[str, Any]:
         """Custom synthesizer that wraps _synthesize."""
         return await self._synthesize(results)
@@ -366,7 +363,7 @@ class ValidationTeam(TeamAgent):
         findings = {
             "element_finder": None,
             "screen_validator": None,
-            "change_detector": None
+            "change_detector": None,
         }
 
         total_confidence = 0.0
@@ -382,7 +379,9 @@ class ValidationTeam(TeamAgent):
                 total_weight += result.weight
 
         # Calculate overall confidence
-        overall_confidence = total_confidence / total_weight if total_weight > 0 else 0.0
+        overall_confidence = (
+            total_confidence / total_weight if total_weight > 0 else 0.0
+        )
 
         # Determine validation success
         valid = overall_confidence >= self.confidence_threshold
@@ -397,13 +396,15 @@ class ValidationTeam(TeamAgent):
         if findings["element_finder"] and findings["element_finder"].get("found"):
             element_location = {
                 "x": findings["element_finder"]["x"],
-                "y": findings["element_finder"]["y"]
+                "y": findings["element_finder"]["y"],
             }
 
         # Check changes
         changes_detected = False
         if findings["change_detector"]:
-            changes_detected = findings["change_detector"].get("changes_detected", False)
+            changes_detected = findings["change_detector"].get(
+                "changes_detected", False
+            )
 
         return {
             "success": valid,
@@ -414,17 +415,14 @@ class ValidationTeam(TeamAgent):
             "changes_detected": changes_detected,
             "issues": issues,
             "detailed_results": {
-                name: findings[name]
-                for name in findings if findings[name]
+                name: findings[name] for name in findings if findings[name]
             },
             "validators_succeeded": sum(1 for r in results if r.response.success),
-            "validators_total": len(results)
+            "validators_total": len(results),
         }
 
     async def validate_element(
-        self,
-        target: str,
-        expected_state: Optional[Dict] = None
+        self, target: str, expected_state: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
         Convenience method to validate an element exists.
@@ -438,19 +436,13 @@ class ValidationTeam(TeamAgent):
         """
         task = UserTask(
             goal=f"Validate element: {target}",
-            context={
-                "find_target": target,
-                "expected_state": expected_state or {}
-            }
+            context={"find_target": target, "expected_state": expected_state or {}},
         )
 
         return await self._process_task(task)
 
     async def validate_action(
-        self,
-        before_state: Dict,
-        after_state: Dict,
-        expected_change: str
+        self, before_state: Dict, after_state: Dict, expected_change: str
     ) -> Dict[str, Any]:
         """
         Validate that an action had the expected effect.
@@ -468,8 +460,8 @@ class ValidationTeam(TeamAgent):
             context={
                 "state_before": before_state,
                 "state_after": after_state,
-                "expected_change": expected_change
-            }
+                "expected_change": expected_change,
+            },
         )
 
         return await self._process_task(task)

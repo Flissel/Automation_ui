@@ -13,8 +13,8 @@ Usage:
 """
 
 import asyncio
-import sys
 import os
+import sys
 
 # Add parent to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 async def test_task_decomposition():
     """Test 1: Task Decomposition"""
-    from core.task_decomposer import TaskDecomposer, Subtask
+    from core.task_decomposer import Subtask, TaskDecomposer
 
     print("\n" + "=" * 60)
     print("TEST 1: Task Decomposition")
@@ -35,7 +35,7 @@ async def test_task_decomposition():
         "Open Notepad and type Hello World",
         "Search for Python tutorials on Google",
         "Open Chrome, search for AI news, and read the headlines",
-        "Create a new Word document and save it as test.docx"
+        "Create a new Word document and save it as test.docx",
     ]
 
     for goal in test_goals:
@@ -46,7 +46,11 @@ async def test_task_decomposition():
 
         print(f"Decomposed into {len(subtasks)} subtasks:")
         for i, subtask in enumerate(subtasks, 1):
-            deps = f" (depends on: {len(subtask.dependencies)})" if subtask.dependencies else ""
+            deps = (
+                f" (depends on: {len(subtask.dependencies)})"
+                if subtask.dependencies
+                else ""
+            )
             print(f"  {i}. [{subtask.approach}] {subtask.description}{deps}")
 
     print("\n[PASS] Task decomposition working!")
@@ -71,7 +75,7 @@ async def test_task_scheduling():
         Subtask.create("Type URL", "keyboard", order=3),
         Subtask.create("Analyze page header", "vision", can_parallel=True, order=4),
         Subtask.create("Analyze page content", "vision", can_parallel=True, order=5),
-        Subtask.create("Click button", "mouse", order=6)
+        Subtask.create("Click button", "mouse", order=6),
     ]
 
     # Set up dependencies
@@ -79,12 +83,17 @@ async def test_task_scheduling():
     subtasks[2].dependencies = [subtasks[1].id]  # Type depends on Wait
     subtasks[3].dependencies = [subtasks[2].id]  # Analyze header depends on Type
     subtasks[4].dependencies = [subtasks[2].id]  # Analyze content depends on Type
-    subtasks[5].dependencies = [subtasks[3].id, subtasks[4].id]  # Click depends on both analyses
+    subtasks[5].dependencies = [
+        subtasks[3].id,
+        subtasks[4].id,
+    ]  # Click depends on both analyses
 
     # Create execution plan
     plan = scheduler.create_plan(subtasks)
 
-    print(f"\nExecution Plan: {plan.total_phases} phases, {plan.total_subtasks} subtasks")
+    print(
+        f"\nExecution Plan: {plan.total_phases} phases, {plan.total_subtasks} subtasks"
+    )
     print("-" * 40)
 
     for phase in plan.phases:
@@ -101,8 +110,8 @@ async def test_task_scheduling():
 
 async def test_progress_tracking():
     """Test 3: Progress Tracking"""
-    from core.task_decomposer import Subtask
     from core.progress_tracker import ProgressTracker
+    from core.task_decomposer import Subtask
 
     print("\n" + "=" * 60)
     print("TEST 3: Progress Tracking")
@@ -115,7 +124,7 @@ async def test_progress_tracking():
         Subtask.create("Step 1: Initialize", "keyboard"),
         Subtask.create("Step 2: Process", "vision"),
         Subtask.create("Step 3: Verify", "vision"),
-        Subtask.create("Step 4: Complete", "keyboard")
+        Subtask.create("Step 4: Complete", "keyboard"),
     ]
 
     # Start task
@@ -164,18 +173,31 @@ async def test_automation_engine():
     async def on_progress(status):
         state = status.get("state", "unknown")
         progress = status.get("progress", 0)
-        message = status.get("message", status.get("current_subtasks", [""])[0] if "current_subtasks" in status else "")
+        message = status.get(
+            "message",
+            (
+                status.get("current_subtasks", [""])[0]
+                if "current_subtasks" in status
+                else ""
+            ),
+        )
 
         if state == "decomposing":
             print(f"  [Decomposing] {message}")
         elif state == "scheduling":
             print(f"  [Scheduling] {message}")
         elif state == "executing":
-            print(f"  [Executing] Phase {status.get('phase', '?')}/{status.get('total_phases', '?')} - {progress:.0%}")
+            print(
+                f"  [Executing] Phase {status.get('phase', '?')}/{status.get('total_phases', '?')} - {progress:.0%}"
+            )
         elif state == "executing_subtask":
-            print(f"    > {status.get('subtask', 'unknown')} [{status.get('approach', '')}]")
+            print(
+                f"    > {status.get('subtask', 'unknown')} [{status.get('approach', '')}]"
+            )
         elif state == "completed":
-            print(f"  [Complete] Success: {status.get('success')}, Duration: {status.get('duration', 0):.1f}s")
+            print(
+                f"  [Complete] Success: {status.get('success')}, Duration: {status.get('duration', 0):.1f}s"
+            )
 
     # Test complex task
     goal = "Open Notepad, type Hello World, and save the file"
@@ -183,9 +205,7 @@ async def test_automation_engine():
     print("-" * 40)
 
     result = await engine.execute_complex_task(
-        goal=goal,
-        context={"os": "Windows"},
-        on_progress=on_progress
+        goal=goal, context={"os": "Windows"}, on_progress=on_progress
     )
 
     print(f"\nResult:")
@@ -200,8 +220,8 @@ async def test_automation_engine():
 
 async def test_conversation_interface():
     """Test 5: Conversation Interface"""
-    from core.automation_engine import AutomationEngine
     from api.conversation_interface import ConversationInterface
+    from core.automation_engine import AutomationEngine
 
     print("\n" + "=" * 60)
     print("TEST 5: Conversation Interface")
@@ -254,6 +274,7 @@ async def test_with_real_execution():
 
     try:
         import pyautogui
+
         pyautogui.FAILSAFE = True
         print("PyAutoGUI available - move mouse to corner to abort")
     except ImportError:
@@ -301,7 +322,9 @@ async def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Test Automation Engine")
-    parser.add_argument("--real", action="store_true", help="Run with real PyAutoGUI execution")
+    parser.add_argument(
+        "--real", action="store_true", help="Run with real PyAutoGUI execution"
+    )
     args = parser.parse_args()
 
     print("\n" + "=" * 60)
@@ -337,6 +360,7 @@ async def main():
     except Exception as e:
         print(f"[FAIL] Automation Engine: {e}")
         import traceback
+
         traceback.print_exc()
         results.append(("Automation Engine", False))
 
@@ -346,6 +370,7 @@ async def main():
     except Exception as e:
         print(f"[FAIL] Conversation Interface: {e}")
         import traceback
+
         traceback.print_exc()
         results.append(("Conversation Interface", False))
 

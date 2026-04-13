@@ -10,19 +10,20 @@ Provides:
 
 import asyncio
 import logging
-import time
-from typing import Optional, Dict, Any, List
-from dataclasses import dataclass
-
-from .base_workflow import BaseWorkflow, WorkflowStep, WorkflowResult
-
-import sys
 import os
+import sys
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+
+from .base_workflow import BaseWorkflow, WorkflowResult, WorkflowStep
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Optional imports
 try:
     from agents.progress_agent import ProgressAgent
+
     HAS_PROGRESS_AGENT = True
 except ImportError:
     HAS_PROGRESS_AGENT = False
@@ -30,6 +31,7 @@ except ImportError:
 
 try:
     from core.localization import L
+
     HAS_LOCALIZATION = True
 except ImportError:
     HAS_LOCALIZATION = False
@@ -42,6 +44,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ClaudeResponse:
     """Response from Claude Desktop."""
+
     success: bool
     content: Optional[str] = None
     error: Optional[str] = None
@@ -79,19 +82,19 @@ class ClaudeDesktopWorkflow(BaseWorkflow):
             "Analyze the current git repository and create a summary report: "
             "recent commits, branch status, uncommitted changes, "
             "and any merge conflicts. Output as Word document."
-        )
+        ),
     }
 
     def __init__(
         self,
         steering_agent=None,
         progress_agent: Optional[ProgressAgent] = None,
-        response_timeout: float = 120.0
+        response_timeout: float = 120.0,
     ):
         super().__init__(
             steering_agent=steering_agent,
             progress_agent=progress_agent,
-            name="ClaudeDesktop"
+            name="ClaudeDesktop",
         )
         self.response_timeout = response_timeout
 
@@ -100,7 +103,7 @@ class ClaudeDesktopWorkflow(BaseWorkflow):
         task: str = "",
         template: Optional[str] = None,
         wait_for_response: bool = True,
-        **kwargs
+        **kwargs,
     ) -> List[WorkflowStep]:
         """
         Define steps for Claude Desktop interaction.
@@ -123,11 +126,29 @@ class ClaudeDesktopWorkflow(BaseWorkflow):
 
         # Localized descriptions
         if HAS_LOCALIZATION and L:
-            desc_open = L.get('workflow_claude_open') if hasattr(L, 'get') else "Open Claude Desktop"
-            desc_wait_open = L.get('wait_for_app', app='Claude Desktop') if hasattr(L, 'get') else "Wait for Claude Desktop"
-            desc_click_input = L.get('click_on', target='chat input') if hasattr(L, 'get') else "Click chat input"
-            desc_type_task = L.get('workflow_claude_send') if hasattr(L, 'get') else "Send task to Claude"
-            desc_send = L.get('press_enter') if hasattr(L, 'get') else "Press Enter to send"
+            desc_open = (
+                L.get("workflow_claude_open")
+                if hasattr(L, "get")
+                else "Open Claude Desktop"
+            )
+            desc_wait_open = (
+                L.get("wait_for_app", app="Claude Desktop")
+                if hasattr(L, "get")
+                else "Wait for Claude Desktop"
+            )
+            desc_click_input = (
+                L.get("click_on", target="chat input")
+                if hasattr(L, "get")
+                else "Click chat input"
+            )
+            desc_type_task = (
+                L.get("workflow_claude_send")
+                if hasattr(L, "get")
+                else "Send task to Claude"
+            )
+            desc_send = (
+                L.get("press_enter") if hasattr(L, "get") else "Press Enter to send"
+            )
             desc_wait_response = "Wait for Claude response"
         else:
             desc_open = "Open Claude Desktop"
@@ -144,52 +165,47 @@ class ClaudeDesktopWorkflow(BaseWorkflow):
                 action_type="hotkey",
                 params={"keys": self.OPEN_HOTKEY},
                 description=desc_open,
-                timeout=5.0
+                timeout=5.0,
             ),
-
             # Step 2: Wait for window to appear
             WorkflowStep(
                 id="wait_open",
                 action_type="sleep",
                 params={"seconds": 2.0},
                 description=desc_wait_open,
-                timeout=10.0
+                timeout=10.0,
             ),
-
             # Step 3: Click on chat input field
             WorkflowStep(
                 id="click_input",
                 action_type="find_and_click",
                 params={"target": "chat input field", "fallback_click": True},
                 description=desc_click_input,
-                timeout=10.0
+                timeout=10.0,
             ),
-
             # Step 4: Small wait for focus
             WorkflowStep(
                 id="wait_focus",
                 action_type="sleep",
                 params={"seconds": 0.5},
                 description="Wait for input focus",
-                timeout=2.0
+                timeout=2.0,
             ),
-
             # Step 5: Type the task
             WorkflowStep(
                 id="type_task",
                 action_type="write",
                 params={"text": task, "interval": 0.01},
                 description=desc_type_task,
-                timeout=30.0
+                timeout=30.0,
             ),
-
             # Step 6: Press Enter to send
             WorkflowStep(
                 id="send_message",
                 action_type="press",
                 params={"key": "enter"},
                 description=desc_send,
-                timeout=5.0
+                timeout=5.0,
             ),
         ]
 
@@ -202,20 +218,17 @@ class ClaudeDesktopWorkflow(BaseWorkflow):
                     params={
                         "target": "response complete indicator",
                         "timeout": self.response_timeout,
-                        "poll_interval": 2.0
+                        "poll_interval": 2.0,
                     },
                     description=desc_wait_response,
-                    timeout=self.response_timeout + 10
+                    timeout=self.response_timeout + 10,
                 )
             )
 
         return steps
 
     async def send_task(
-        self,
-        task: str,
-        template: Optional[str] = None,
-        wait_for_response: bool = True
+        self, task: str, template: Optional[str] = None, wait_for_response: bool = True
     ) -> WorkflowResult:
         """
         Send a task to Claude Desktop.
@@ -231,9 +244,7 @@ class ClaudeDesktopWorkflow(BaseWorkflow):
             WorkflowResult with execution details
         """
         return await self.execute(
-            task=task,
-            template=template,
-            wait_for_response=wait_for_response
+            task=task, template=template, wait_for_response=wait_for_response
         )
 
     async def open_and_send(self, task: str) -> WorkflowResult:
@@ -359,7 +370,9 @@ class ClaudeDesktopWorkflow(BaseWorkflow):
 
                         if current_hash == last_screen_hash:
                             stable_count += 1
-                            logger.debug(f"Screen stable ({stable_count}/{required_stable})")
+                            logger.debug(
+                                f"Screen stable ({stable_count}/{required_stable})"
+                            )
 
                             if stable_count >= required_stable:
                                 # Response appears complete
@@ -369,7 +382,7 @@ class ClaudeDesktopWorkflow(BaseWorkflow):
                                     "success": True,
                                     "action": "wait_for_response",
                                     "duration": time.time() - start_time,
-                                    "stable_readings": stable_count
+                                    "stable_readings": stable_count,
                                 }
                         else:
                             stable_count = 0  # Reset counter
@@ -384,7 +397,7 @@ class ClaudeDesktopWorkflow(BaseWorkflow):
             return {
                 "success": False,
                 "error": "Timeout waiting for Claude response",
-                "duration": time.time() - start_time
+                "duration": time.time() - start_time,
             }
 
         except Exception as e:
@@ -394,7 +407,7 @@ class ClaudeDesktopWorkflow(BaseWorkflow):
             return {"success": False, "error": str(e)}
 
     @classmethod
-    def quick_task(cls, task: str) -> 'ClaudeDesktopWorkflow':
+    def quick_task(cls, task: str) -> "ClaudeDesktopWorkflow":
         """
         Create a workflow configured for a quick task.
 
@@ -410,7 +423,7 @@ class ClaudeDesktopWorkflow(BaseWorkflow):
 
     async def execute_quick(self) -> WorkflowResult:
         """Execute the quick task if configured."""
-        if hasattr(self, '_quick_task'):
+        if hasattr(self, "_quick_task"):
             return await self.send_task(self._quick_task, wait_for_response=False)
         raise ValueError("No quick task configured")
 

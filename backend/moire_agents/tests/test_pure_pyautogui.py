@@ -4,9 +4,10 @@ Tests the basic workflow using only pyautogui and pyperclip
 """
 
 import asyncio
+import time
+
 import pyautogui
 import pyperclip
-import time
 
 # Safety settings
 pyautogui.FAILSAFE = True

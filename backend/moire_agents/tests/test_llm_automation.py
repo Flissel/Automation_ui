@@ -23,22 +23,21 @@ Requirements:
     - pyautogui package installed
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
-import sys
 import os
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from core.task_decomposer import TaskDecomposer
 from core.action_executor import ActionExecutor
+from core.task_decomposer import TaskDecomposer
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -53,28 +52,26 @@ Examples:
     python test_llm_automation.py "Open Chrome and search for Python tutorials"
     python test_llm_automation.py "Open Word, write a poem, make title bold"
     python test_llm_automation.py --dry-run "Open Calculator"
-        """
+        """,
     )
     parser.add_argument(
         "goal",
         nargs="?",
         default="Open Notepad and type Hello World from AI",
-        help="Natural language description of the task to perform"
+        help="Natural language description of the task to perform",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Preview the plan without executing (no desktop actions)"
+        help="Preview the plan without executing (no desktop actions)",
     )
     parser.add_argument(
         "--no-countdown",
         action="store_true",
-        help="Skip the 3-second countdown before execution"
+        help="Skip the 3-second countdown before execution",
     )
     parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose logging"
+        "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )
 
     args = parser.parse_args()
@@ -127,7 +124,9 @@ Examples:
 
         # Countdown before execution
         if not args.no_countdown:
-            print("\n[WARNING] Executing in 3 seconds... (move mouse to corner to abort)")
+            print(
+                "\n[WARNING] Executing in 3 seconds... (move mouse to corner to abort)"
+            )
             for i in range(3, 0, -1):
                 print(f"  {i}...")
                 await asyncio.sleep(1)

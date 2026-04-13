@@ -11,14 +11,15 @@ Author: TRAE Development Team
 Version: 1.0.0
 """
 
-from typing import Dict, Any, Optional, Union
+from datetime import datetime
+from typing import Any, Dict, Optional, Union
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
-from datetime import datetime
 
-from ..services.client_manager_service import get_client_manager, ClientStatus
 from ..logger_config import get_logger
+from ..services.client_manager_service import ClientStatus, get_client_manager
 
 logger = get_logger("client_manager_router")
 
@@ -27,28 +28,40 @@ router = APIRouter()
 
 # ============================================================================Get Text:  Vimeo Post Text Setzt einen Vimeo Tag unter YouTube Vorspann (single)
 
+
 class StartClientRequest(BaseModel):
     """Request-Model für Client-Start"""
-    auto_restart: bool = Field(default=True, description="Automatischer Neustart bei Problemen")
-    server_url: Optional[str] = Field(default=None, description="Optionale Server-URL Überschreibung")
+
+    auto_restart: bool = Field(
+        default=True, description="Automatischer Neustart bei Problemen"
+    )
+    server_url: Optional[str] = Field(
+        default=None, description="Optionale Server-URL Überschreibung"
+    )
 
 
 class StopClientRequest(BaseModel):
     """Request-Model für Client-Stop"""
+
     force: bool = Field(default=False, description="Erzwingt sofortiges Beenden")
 
 
 class HeartbeatRequest(BaseModel):
     """Request-Model für Heartbeats vom Client"""
+
     client_id: str = Field(..., description="Client-Identifier")
-    timestamp: Optional[Union[str, float, int]] = Field(default=None, description="Timestamp (ISO-String oder Unix-Zeit)")
-    frames_sent: Optional[int] = Field(default=None, description="Anzahl gesendeter Frames")
+    timestamp: Optional[Union[str, float, int]] = Field(
+        default=None, description="Timestamp (ISO-String oder Unix-Zeit)"
+    )
+    frames_sent: Optional[int] = Field(
+        default=None, description="Anzahl gesendeter Frames"
+    )
     monitors: Optional[int] = Field(default=None, description="Anzahl aktiver Monitore")
     fps: Optional[float] = Field(default=None, description="Aktuelle FPS")
     status: Optional[str] = Field(default=None, description="Client-Status")
     error: Optional[str] = Field(default=None, description="Letzte Fehlermeldung")
-    
-    @field_validator('timestamp', mode='before')
+
+    @field_validator("timestamp", mode="before")
     @classmethod
     def convert_timestamp(cls, v):
         """Konvertiert timestamp zu ISO-String wenn nötig"""
@@ -62,6 +75,7 @@ class HeartbeatRequest(BaseModel):
 
 class ClientStatusResponse(BaseModel):
     """Response-Model für Client-Status"""
+
     success: bool
     status: str
     is_running: bool
@@ -82,39 +96,33 @@ class ClientStatusResponse(BaseModel):
 # API ENDPOINTS
 # ============================================================================
 
+
 @router.post("/start")
 async def start_client(request: StartClientRequest = StartClientRequest()):
     """
     Startet den Desktop Capture Client.
-    
+
     Der Client wird als Subprocess gestartet und durch einen Watchdog überwacht.
     Bei Problemen erfolgt automatischer Neustart (wenn aktiviert).
-    
+
     Returns:
         Status-Dictionary mit Ergebnis der Start-Operation
     """
     logger.info(f"[API] Start-Request empfangen: auto_restart={request.auto_restart}")
-    
+
     try:
         client_manager = get_client_manager()
         result = await client_manager.start_client(
-            auto_restart=request.auto_restart,
-            server_url=request.server_url
+            auto_restart=request.auto_restart, server_url=request.server_url
         )
-        
+
         if result["success"]:
             logger.info(f"[API] Client erfolgreich gestartet. PID: {result.get('pid')}")
-            return JSONResponse(
-                content=result,
-                status_code=200
-            )
+            return JSONResponse(content=result, status_code=200)
         else:
             logger.warning(f"[API] Client-Start fehlgeschlagen: {result.get('error')}")
-            return JSONResponse(
-                content=result,
-                status_code=400
-            )
-            
+            return JSONResponse(content=result, status_code=400)
+
     except Exception as e:
         logger.error(f"[API] Fehler beim Starten: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -124,32 +132,26 @@ async def start_client(request: StartClientRequest = StartClientRequest()):
 async def stop_client(request: StopClientRequest = StopClientRequest()):
     """
     Stoppt den Desktop Capture Client.
-    
+
     Sendet zunächst SIGTERM für graceful shutdown.
     Bei force=True wird sofort SIGKILL gesendet.
-    
+
     Returns:
         Status-Dictionary mit Ergebnis der Stop-Operation
     """
     logger.info(f"[API] Stop-Request empfangen: force={request.force}")
-    
+
     try:
         client_manager = get_client_manager()
         result = await client_manager.stop_client(force=request.force)
-        
+
         if result["success"]:
             logger.info("[API] Client erfolgreich gestoppt")
-            return JSONResponse(
-                content=result,
-                status_code=200
-            )
+            return JSONResponse(content=result, status_code=200)
         else:
             logger.warning(f"[API] Client-Stop fehlgeschlagen: {result.get('error')}")
-            return JSONResponse(
-                content=result,
-                status_code=400
-            )
-            
+            return JSONResponse(content=result, status_code=400)
+
     except Exception as e:
         logger.error(f"[API] Fehler beim Stoppen: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -159,29 +161,23 @@ async def stop_client(request: StopClientRequest = StopClientRequest()):
 async def get_client_status():
     """
     Gibt den aktuellen Status des Desktop Capture Clients zurück.
-    
+
     Enthält:
     - Laufzeit-Status (running/stopped/error)
     - PID des Prozesses
     - Uptime
     - Letzter Heartbeat
     - Statistiken
-    
+
     Returns:
         Detaillierte Status-Informationen
     """
     try:
         client_manager = get_client_manager()
         status_info = client_manager.get_status_info()
-        
-        return JSONResponse(
-            content={
-                "success": True,
-                **status_info
-            },
-            status_code=200
-        )
-        
+
+        return JSONResponse(content={"success": True, **status_info}, status_code=200)
+
     except Exception as e:
         logger.error(f"[API] Fehler beim Status-Abruf: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -191,18 +187,18 @@ async def get_client_status():
 async def receive_heartbeat(request: HeartbeatRequest):
     """
     Empfängt einen Heartbeat vom Desktop Capture Client.
-    
+
     Der Client sollte alle 5 Sekunden einen Heartbeat senden.
     Bei Ausbleiben für 30 Sekunden wird der Client automatisch neu gestartet.
-    
+
     Returns:
         Acknowledgment mit Server-Timestamp
     """
     logger.debug(f"[API] Heartbeat von {request.client_id}")
-    
+
     try:
         client_manager = get_client_manager()
-        
+
         # Client-Info für Heartbeat zusammenstellen
         client_info = {
             "client_id": request.client_id,
@@ -211,16 +207,13 @@ async def receive_heartbeat(request: HeartbeatRequest):
             "monitors": request.monitors,
             "fps": request.fps,
             "status": request.status,
-            "error": request.error
+            "error": request.error,
         }
-        
+
         result = client_manager.receive_heartbeat(client_info)
-        
-        return JSONResponse(
-            content=result,
-            status_code=200
-        )
-        
+
+        return JSONResponse(content=result, status_code=200)
+
     except Exception as e:
         logger.error(f"[API] Fehler beim Heartbeat: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -230,46 +223,53 @@ async def receive_heartbeat(request: HeartbeatRequest):
 async def restart_client():
     """
     Startet den Desktop Capture Client neu.
-    
+
     Stoppt zunächst den laufenden Client und startet ihn dann neu.
-    
+
     Returns:
         Status-Dictionary mit Ergebnis der Restart-Operation
     """
     logger.info("[API] Restart-Request empfangen")
-    
+
     try:
         client_manager = get_client_manager()
-        
+
         # Erst stoppen
         stop_result = await client_manager.stop_client(force=False)
-        if not stop_result["success"] and stop_result.get("status") != ClientStatus.STOPPED.value:
-            logger.warning(f"[API] Stop vor Restart fehlgeschlagen: {stop_result.get('error')}")
-        
+        if (
+            not stop_result["success"]
+            and stop_result.get("status") != ClientStatus.STOPPED.value
+        ):
+            logger.warning(
+                f"[API] Stop vor Restart fehlgeschlagen: {stop_result.get('error')}"
+            )
+
         # Kurz warten
         import asyncio
+
         await asyncio.sleep(1)
-        
+
         # Dann starten
         start_result = await client_manager.start_client(auto_restart=True)
-        
+
         if start_result["success"]:
-            logger.info(f"[API] Client erfolgreich neugestartet. PID: {start_result.get('pid')}")
+            logger.info(
+                f"[API] Client erfolgreich neugestartet. PID: {start_result.get('pid')}"
+            )
             return JSONResponse(
                 content={
                     "success": True,
                     "message": "Client erfolgreich neugestartet",
-                    **start_result
+                    **start_result,
                 },
-                status_code=200
+                status_code=200,
             )
         else:
-            logger.warning(f"[API] Client-Restart fehlgeschlagen: {start_result.get('error')}")
-            return JSONResponse(
-                content=start_result,
-                status_code=400
+            logger.warning(
+                f"[API] Client-Restart fehlgeschlagen: {start_result.get('error')}"
             )
-            
+            return JSONResponse(content=start_result, status_code=400)
+
     except Exception as e:
         logger.error(f"[API] Fehler beim Restart: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -34,17 +34,19 @@ logger = logging.getLogger(__name__)
 
 class SpecialistDomain(Enum):
     """Specialist domains."""
-    OFFICE = "office"           # Word, Excel, PowerPoint
-    BROWSER = "browser"         # Chrome, Firefox, Edge
-    GAMING = "gaming"           # Steam, Discord, LoL
-    SYSTEM = "system"           # Windows Settings, Explorer
-    CREATIVE = "creative"       # Adobe, Figma, Blender
-    DEVELOPMENT = "development" # VS Code, terminals, Git
+
+    OFFICE = "office"  # Word, Excel, PowerPoint
+    BROWSER = "browser"  # Chrome, Firefox, Edge
+    GAMING = "gaming"  # Steam, Discord, LoL
+    SYSTEM = "system"  # Windows Settings, Explorer
+    CREATIVE = "creative"  # Adobe, Figma, Blender
+    DEVELOPMENT = "development"  # VS Code, terminals, Git
 
 
 @dataclass
 class Shortcut:
     """A keyboard shortcut."""
+
     action: str
     keys: str
     description: str
@@ -55,13 +57,14 @@ class Shortcut:
             "action": self.action,
             "keys": self.keys,
             "description": self.description,
-            "app": self.app
+            "app": self.app,
         }
 
 
 @dataclass
 class Workflow:
     """A workflow for a task."""
+
     task: str
     steps: List[str]
     shortcuts_used: List[str] = field(default_factory=list)
@@ -72,14 +75,19 @@ class Workflow:
             "task": self.task,
             "steps": self.steps,
             "shortcuts_used": self.shortcuts_used,
-            "estimated_time_seconds": self.estimated_time_seconds
+            "estimated_time_seconds": self.estimated_time_seconds,
         }
 
 
 # Domain knowledge bases (embedded for reliability)
 DOMAIN_KNOWLEDGE = {
     SpecialistDomain.OFFICE: {
-        "apps": ["Microsoft Word", "Microsoft Excel", "Microsoft PowerPoint", "Microsoft Outlook"],
+        "apps": [
+            "Microsoft Word",
+            "Microsoft Excel",
+            "Microsoft PowerPoint",
+            "Microsoft Outlook",
+        ],
         "shortcuts": {
             # Common Office shortcuts
             "save": {"keys": "Ctrl+S", "description": "Save document"},
@@ -98,25 +106,60 @@ DOMAIN_KNOWLEDGE = {
             # Word-specific
             "bold": {"keys": "Ctrl+B", "description": "Bold text", "app": "Word"},
             "italic": {"keys": "Ctrl+I", "description": "Italic text", "app": "Word"},
-            "underline": {"keys": "Ctrl+U", "description": "Underline text", "app": "Word"},
-            "font_dialog": {"keys": "Ctrl+D", "description": "Font dialog", "app": "Word"},
+            "underline": {
+                "keys": "Ctrl+U",
+                "description": "Underline text",
+                "app": "Word",
+            },
+            "font_dialog": {
+                "keys": "Ctrl+D",
+                "description": "Font dialog",
+                "app": "Word",
+            },
             "center": {"keys": "Ctrl+E", "description": "Center text", "app": "Word"},
-            "left_align": {"keys": "Ctrl+L", "description": "Left align", "app": "Word"},
-            "right_align": {"keys": "Ctrl+R", "description": "Right align", "app": "Word"},
+            "left_align": {
+                "keys": "Ctrl+L",
+                "description": "Left align",
+                "app": "Word",
+            },
+            "right_align": {
+                "keys": "Ctrl+R",
+                "description": "Right align",
+                "app": "Word",
+            },
             "justify": {"keys": "Ctrl+J", "description": "Justify text", "app": "Word"},
             # Excel-specific
             "sum": {"keys": "Alt+=", "description": "AutoSum", "app": "Excel"},
             "edit_cell": {"keys": "F2", "description": "Edit cell", "app": "Excel"},
-            "insert_row": {"keys": "Ctrl+Shift++", "description": "Insert row", "app": "Excel"},
-            "delete_row": {"keys": "Ctrl+-", "description": "Delete row", "app": "Excel"},
+            "insert_row": {
+                "keys": "Ctrl+Shift++",
+                "description": "Insert row",
+                "app": "Excel",
+            },
+            "delete_row": {
+                "keys": "Ctrl+-",
+                "description": "Delete row",
+                "app": "Excel",
+            },
         },
         "workflows": {
-            "create_document": ["Open Word (Win+type Word+Enter)", "Start typing", "Save with Ctrl+S"],
-            "format_text": ["Select text", "Apply bold (Ctrl+B) or italic (Ctrl+I)", "Change font with Ctrl+D"],
-            "create_spreadsheet": ["Open Excel", "Enter data in cells", "Use Tab to move right, Enter for down"],
-        }
+            "create_document": [
+                "Open Word (Win+type Word+Enter)",
+                "Start typing",
+                "Save with Ctrl+S",
+            ],
+            "format_text": [
+                "Select text",
+                "Apply bold (Ctrl+B) or italic (Ctrl+I)",
+                "Change font with Ctrl+D",
+            ],
+            "create_spreadsheet": [
+                "Open Excel",
+                "Enter data in cells",
+                "Use Tab to move right, Enter for down",
+            ],
+        },
     },
-
     SpecialistDomain.BROWSER: {
         "apps": ["Google Chrome", "Mozilla Firefox", "Microsoft Edge", "Brave"],
         "shortcuts": {
@@ -129,49 +172,98 @@ DOMAIN_KNOWLEDGE = {
             "search": {"keys": "Ctrl+K", "description": "Search in address bar"},
             "find": {"keys": "Ctrl+F", "description": "Find on page"},
             "refresh": {"keys": "F5", "description": "Refresh page"},
-            "hard_refresh": {"keys": "Ctrl+Shift+R", "description": "Hard refresh (clear cache)"},
+            "hard_refresh": {
+                "keys": "Ctrl+Shift+R",
+                "description": "Hard refresh (clear cache)",
+            },
             "back": {"keys": "Alt+Left", "description": "Go back"},
             "forward": {"keys": "Alt+Right", "description": "Go forward"},
             "bookmark": {"keys": "Ctrl+D", "description": "Bookmark page"},
             "history": {"keys": "Ctrl+H", "description": "Open history"},
             "downloads": {"keys": "Ctrl+J", "description": "Open downloads"},
             "dev_tools": {"keys": "F12", "description": "Developer tools"},
-            "incognito": {"keys": "Ctrl+Shift+N", "description": "New incognito window"},
+            "incognito": {
+                "keys": "Ctrl+Shift+N",
+                "description": "New incognito window",
+            },
             "zoom_in": {"keys": "Ctrl++", "description": "Zoom in"},
             "zoom_out": {"keys": "Ctrl+-", "description": "Zoom out"},
             "zoom_reset": {"keys": "Ctrl+0", "description": "Reset zoom"},
         },
         "workflows": {
             "navigate_to_url": ["Press Ctrl+L", "Type URL", "Press Enter"],
-            "search_web": ["Press Ctrl+K or Ctrl+L", "Type search query", "Press Enter"],
-            "manage_tabs": ["Use Ctrl+Tab to switch", "Ctrl+W to close", "Ctrl+Shift+T to restore"],
-        }
+            "search_web": [
+                "Press Ctrl+K or Ctrl+L",
+                "Type search query",
+                "Press Enter",
+            ],
+            "manage_tabs": [
+                "Use Ctrl+Tab to switch",
+                "Ctrl+W to close",
+                "Ctrl+Shift+T to restore",
+            ],
+        },
     },
-
     SpecialistDomain.GAMING: {
         "apps": ["Steam", "Discord", "Epic Games", "Battle.net", "League of Legends"],
         "shortcuts": {
             # Steam
-            "steam_overlay": {"keys": "Shift+Tab", "description": "Steam overlay", "app": "Steam"},
-            "steam_screenshot": {"keys": "F12", "description": "Take screenshot", "app": "Steam"},
+            "steam_overlay": {
+                "keys": "Shift+Tab",
+                "description": "Steam overlay",
+                "app": "Steam",
+            },
+            "steam_screenshot": {
+                "keys": "F12",
+                "description": "Take screenshot",
+                "app": "Steam",
+            },
             # Discord
-            "discord_mute": {"keys": "Ctrl+Shift+M", "description": "Mute mic", "app": "Discord"},
-            "discord_deafen": {"keys": "Ctrl+Shift+D", "description": "Deafen", "app": "Discord"},
-            "discord_search": {"keys": "Ctrl+K", "description": "Quick switcher", "app": "Discord"},
+            "discord_mute": {
+                "keys": "Ctrl+Shift+M",
+                "description": "Mute mic",
+                "app": "Discord",
+            },
+            "discord_deafen": {
+                "keys": "Ctrl+Shift+D",
+                "description": "Deafen",
+                "app": "Discord",
+            },
+            "discord_search": {
+                "keys": "Ctrl+K",
+                "description": "Quick switcher",
+                "app": "Discord",
+            },
             # General gaming
             "fullscreen": {"keys": "Alt+Enter", "description": "Toggle fullscreen"},
-            "screenshot": {"keys": "Win+PrintScreen", "description": "Windows screenshot"},
+            "screenshot": {
+                "keys": "Win+PrintScreen",
+                "description": "Windows screenshot",
+            },
             "game_bar": {"keys": "Win+G", "description": "Windows Game Bar"},
             "record_clip": {"keys": "Win+Alt+R", "description": "Record game clip"},
         },
         "workflows": {
-            "launch_game": ["Open Steam/launcher", "Find game in library", "Click Play"],
-            "join_discord_call": ["Open Discord", "Click voice channel", "or use Quick Switcher (Ctrl+K)"],
-        }
+            "launch_game": [
+                "Open Steam/launcher",
+                "Find game in library",
+                "Click Play",
+            ],
+            "join_discord_call": [
+                "Open Discord",
+                "Click voice channel",
+                "or use Quick Switcher (Ctrl+K)",
+            ],
+        },
     },
-
     SpecialistDomain.SYSTEM: {
-        "apps": ["Windows Explorer", "Settings", "Control Panel", "Task Manager", "Command Prompt"],
+        "apps": [
+            "Windows Explorer",
+            "Settings",
+            "Control Panel",
+            "Task Manager",
+            "Command Prompt",
+        ],
         "shortcuts": {
             "explorer": {"keys": "Win+E", "description": "Open Explorer"},
             "run": {"keys": "Win+R", "description": "Run dialog"},
@@ -188,37 +280,88 @@ DOMAIN_KNOWLEDGE = {
             "emoji": {"keys": "Win+.", "description": "Emoji picker"},
             "action_center": {"keys": "Win+A", "description": "Action center"},
             "new_desktop": {"keys": "Win+Ctrl+D", "description": "New virtual desktop"},
-            "close_desktop": {"keys": "Win+Ctrl+F4", "description": "Close virtual desktop"},
-            "switch_desktop": {"keys": "Win+Ctrl+Left/Right", "description": "Switch desktop"},
+            "close_desktop": {
+                "keys": "Win+Ctrl+F4",
+                "description": "Close virtual desktop",
+            },
+            "switch_desktop": {
+                "keys": "Win+Ctrl+Left/Right",
+                "description": "Switch desktop",
+            },
             # Explorer
-            "new_folder": {"keys": "Ctrl+Shift+N", "description": "New folder", "app": "Explorer"},
+            "new_folder": {
+                "keys": "Ctrl+Shift+N",
+                "description": "New folder",
+                "app": "Explorer",
+            },
             "rename": {"keys": "F2", "description": "Rename", "app": "Explorer"},
-            "delete": {"keys": "Delete", "description": "Delete to recycle bin", "app": "Explorer"},
-            "perm_delete": {"keys": "Shift+Delete", "description": "Permanent delete", "app": "Explorer"},
-            "properties": {"keys": "Alt+Enter", "description": "Properties", "app": "Explorer"},
+            "delete": {
+                "keys": "Delete",
+                "description": "Delete to recycle bin",
+                "app": "Explorer",
+            },
+            "perm_delete": {
+                "keys": "Shift+Delete",
+                "description": "Permanent delete",
+                "app": "Explorer",
+            },
+            "properties": {
+                "keys": "Alt+Enter",
+                "description": "Properties",
+                "app": "Explorer",
+            },
         },
         "workflows": {
             "open_app": ["Press Win key", "Type app name", "Press Enter"],
-            "manage_windows": ["Alt+Tab to switch", "Win+D for desktop", "Win+Arrow to snap"],
-            "file_operations": ["Win+E for Explorer", "Navigate to folder", "Use Ctrl+C/V for copy/paste"],
-        }
+            "manage_windows": [
+                "Alt+Tab to switch",
+                "Win+D for desktop",
+                "Win+Arrow to snap",
+            ],
+            "file_operations": [
+                "Win+E for Explorer",
+                "Navigate to folder",
+                "Use Ctrl+C/V for copy/paste",
+            ],
+        },
     },
-
     SpecialistDomain.CREATIVE: {
-        "apps": ["Adobe Photoshop", "Adobe Premiere", "Figma", "Blender", "Adobe Illustrator"],
+        "apps": [
+            "Adobe Photoshop",
+            "Adobe Premiere",
+            "Figma",
+            "Blender",
+            "Adobe Illustrator",
+        ],
         "shortcuts": {
             # Photoshop
             "ps_brush": {"keys": "B", "description": "Brush tool", "app": "Photoshop"},
-            "ps_eraser": {"keys": "E", "description": "Eraser tool", "app": "Photoshop"},
+            "ps_eraser": {
+                "keys": "E",
+                "description": "Eraser tool",
+                "app": "Photoshop",
+            },
             "ps_move": {"keys": "V", "description": "Move tool", "app": "Photoshop"},
-            "ps_select": {"keys": "M", "description": "Marquee select", "app": "Photoshop"},
+            "ps_select": {
+                "keys": "M",
+                "description": "Marquee select",
+                "app": "Photoshop",
+            },
             "ps_lasso": {"keys": "L", "description": "Lasso tool", "app": "Photoshop"},
             "ps_zoom": {"keys": "Z", "description": "Zoom tool", "app": "Photoshop"},
             "ps_hand": {"keys": "H", "description": "Hand tool", "app": "Photoshop"},
-            "ps_new_layer": {"keys": "Ctrl+Shift+N", "description": "New layer", "app": "Photoshop"},
+            "ps_new_layer": {
+                "keys": "Ctrl+Shift+N",
+                "description": "New layer",
+                "app": "Photoshop",
+            },
             # Figma
             "figma_frame": {"keys": "F", "description": "Frame tool", "app": "Figma"},
-            "figma_rectangle": {"keys": "R", "description": "Rectangle", "app": "Figma"},
+            "figma_rectangle": {
+                "keys": "R",
+                "description": "Rectangle",
+                "app": "Figma",
+            },
             "figma_ellipse": {"keys": "O", "description": "Ellipse", "app": "Figma"},
             "figma_line": {"keys": "L", "description": "Line", "app": "Figma"},
             "figma_text": {"keys": "T", "description": "Text tool", "app": "Figma"},
@@ -230,30 +373,98 @@ DOMAIN_KNOWLEDGE = {
             "fit_view": {"keys": "Ctrl+0", "description": "Fit to view"},
         },
         "workflows": {
-            "edit_image": ["Open in Photoshop", "Make selection", "Apply adjustments", "Save"],
-            "design_ui": ["Create frame in Figma", "Add components", "Style with colors/fonts"],
-        }
+            "edit_image": [
+                "Open in Photoshop",
+                "Make selection",
+                "Apply adjustments",
+                "Save",
+            ],
+            "design_ui": [
+                "Create frame in Figma",
+                "Add components",
+                "Style with colors/fonts",
+            ],
+        },
     },
-
     SpecialistDomain.DEVELOPMENT: {
         "apps": ["Visual Studio Code", "Terminal", "Git Bash", "PyCharm", "IntelliJ"],
         "shortcuts": {
             # VS Code
-            "vsc_command": {"keys": "Ctrl+Shift+P", "description": "Command palette", "app": "VS Code"},
-            "vsc_quick_open": {"keys": "Ctrl+P", "description": "Quick open file", "app": "VS Code"},
-            "vsc_search": {"keys": "Ctrl+Shift+F", "description": "Search in files", "app": "VS Code"},
-            "vsc_terminal": {"keys": "Ctrl+`", "description": "Toggle terminal", "app": "VS Code"},
-            "vsc_sidebar": {"keys": "Ctrl+B", "description": "Toggle sidebar", "app": "VS Code"},
-            "vsc_go_to_line": {"keys": "Ctrl+G", "description": "Go to line", "app": "VS Code"},
-            "vsc_go_to_def": {"keys": "F12", "description": "Go to definition", "app": "VS Code"},
-            "vsc_peek_def": {"keys": "Alt+F12", "description": "Peek definition", "app": "VS Code"},
-            "vsc_rename": {"keys": "F2", "description": "Rename symbol", "app": "VS Code"},
-            "vsc_format": {"keys": "Shift+Alt+F", "description": "Format document", "app": "VS Code"},
-            "vsc_comment": {"keys": "Ctrl+/", "description": "Toggle comment", "app": "VS Code"},
-            "vsc_multi_cursor": {"keys": "Ctrl+Alt+Down", "description": "Add cursor below", "app": "VS Code"},
-            "vsc_select_word": {"keys": "Ctrl+D", "description": "Select word", "app": "VS Code"},
-            "vsc_duplicate": {"keys": "Shift+Alt+Down", "description": "Duplicate line", "app": "VS Code"},
-            "vsc_move_line": {"keys": "Alt+Up/Down", "description": "Move line", "app": "VS Code"},
+            "vsc_command": {
+                "keys": "Ctrl+Shift+P",
+                "description": "Command palette",
+                "app": "VS Code",
+            },
+            "vsc_quick_open": {
+                "keys": "Ctrl+P",
+                "description": "Quick open file",
+                "app": "VS Code",
+            },
+            "vsc_search": {
+                "keys": "Ctrl+Shift+F",
+                "description": "Search in files",
+                "app": "VS Code",
+            },
+            "vsc_terminal": {
+                "keys": "Ctrl+`",
+                "description": "Toggle terminal",
+                "app": "VS Code",
+            },
+            "vsc_sidebar": {
+                "keys": "Ctrl+B",
+                "description": "Toggle sidebar",
+                "app": "VS Code",
+            },
+            "vsc_go_to_line": {
+                "keys": "Ctrl+G",
+                "description": "Go to line",
+                "app": "VS Code",
+            },
+            "vsc_go_to_def": {
+                "keys": "F12",
+                "description": "Go to definition",
+                "app": "VS Code",
+            },
+            "vsc_peek_def": {
+                "keys": "Alt+F12",
+                "description": "Peek definition",
+                "app": "VS Code",
+            },
+            "vsc_rename": {
+                "keys": "F2",
+                "description": "Rename symbol",
+                "app": "VS Code",
+            },
+            "vsc_format": {
+                "keys": "Shift+Alt+F",
+                "description": "Format document",
+                "app": "VS Code",
+            },
+            "vsc_comment": {
+                "keys": "Ctrl+/",
+                "description": "Toggle comment",
+                "app": "VS Code",
+            },
+            "vsc_multi_cursor": {
+                "keys": "Ctrl+Alt+Down",
+                "description": "Add cursor below",
+                "app": "VS Code",
+            },
+            "vsc_select_word": {
+                "keys": "Ctrl+D",
+                "description": "Select word",
+                "app": "VS Code",
+            },
+            "vsc_duplicate": {
+                "keys": "Shift+Alt+Down",
+                "description": "Duplicate line",
+                "app": "VS Code",
+            },
+            "vsc_move_line": {
+                "keys": "Alt+Up/Down",
+                "description": "Move line",
+                "app": "VS Code",
+            },
             # Terminal
             "term_clear": {"keys": "Ctrl+L", "description": "Clear terminal"},
             "term_cancel": {"keys": "Ctrl+C", "description": "Cancel command"},
@@ -261,11 +472,19 @@ DOMAIN_KNOWLEDGE = {
             "term_search": {"keys": "Ctrl+R", "description": "Search history"},
         },
         "workflows": {
-            "open_project": ["Open VS Code", "Ctrl+O or File > Open Folder", "Select project"],
-            "code_navigation": ["Ctrl+P to find file", "F12 for definition", "Ctrl+Shift+F to search"],
+            "open_project": [
+                "Open VS Code",
+                "Ctrl+O or File > Open Folder",
+                "Select project",
+            ],
+            "code_navigation": [
+                "Ctrl+P to find file",
+                "F12 for definition",
+                "Ctrl+Shift+F to search",
+            ],
             "git_workflow": ["Stage changes", "Commit with message", "Push to remote"],
-        }
-    }
+        },
+    },
 }
 
 
@@ -283,7 +502,7 @@ class SpecialistSubagent(BaseSubagent):
         domain: SpecialistDomain,
         openrouter_client: Optional[Any] = None,
         config: Optional[Dict[str, Any]] = None,
-        knowledge_dir: Optional[str] = None
+        knowledge_dir: Optional[str] = None,
     ):
         """
         Initialize the specialist subagent.
@@ -309,7 +528,7 @@ class SpecialistSubagent(BaseSubagent):
             json_path = os.path.join(knowledge_dir, f"{self.domain.value}.json")
             if os.path.exists(json_path):
                 try:
-                    with open(json_path, 'r', encoding='utf-8') as f:
+                    with open(json_path, "r", encoding="utf-8") as f:
                         file_knowledge = json.load(f)
                         # Merge file knowledge with embedded
                         for key, value in file_knowledge.items():
@@ -331,7 +550,7 @@ class SpecialistSubagent(BaseSubagent):
             "can_handle": ["shortcuts", "workflows", "knowledge_query"],
             "apps": self.knowledge.get("apps", []),
             "shortcut_count": len(self.knowledge.get("shortcuts", {})),
-            "workflow_count": len(self.knowledge.get("workflows", {}))
+            "workflow_count": len(self.knowledge.get("workflows", {})),
         }
 
     async def execute(self, context: SubagentContext) -> SubagentOutput:
@@ -376,16 +595,18 @@ class SpecialistSubagent(BaseSubagent):
 
         for action, data in shortcuts.items():
             # Match by action name or description
-            action_words = set(action.lower().split('_'))
+            action_words = set(action.lower().split("_"))
             desc_words = set(data.get("description", "").lower().split())
 
             if query_words & action_words or query_words & desc_words:
-                matches.append(Shortcut(
-                    action=action,
-                    keys=data["keys"],
-                    description=data.get("description", ""),
-                    app=data.get("app")
-                ))
+                matches.append(
+                    Shortcut(
+                        action=action,
+                        keys=data["keys"],
+                        description=data.get("description", ""),
+                        app=data.get("app"),
+                    )
+                )
 
         if matches:
             # Return best match
@@ -396,10 +617,10 @@ class SpecialistSubagent(BaseSubagent):
                     "answer": f"Use {best_match.keys} to {best_match.description}",
                     "shortcut": best_match.to_dict(),
                     "all_matches": [m.to_dict() for m in matches[:5]],
-                    "domain": self.domain.value
+                    "domain": self.domain.value,
                 },
                 confidence=0.95 if len(matches) == 1 else 0.8,
-                reasoning=f"Found {len(matches)} matching shortcuts"
+                reasoning=f"Found {len(matches)} matching shortcuts",
             )
         else:
             # Return all shortcuts for the domain
@@ -409,10 +630,10 @@ class SpecialistSubagent(BaseSubagent):
                 result={
                     "answer": "No exact match found. Here are available shortcuts:",
                     "shortcuts": all_shortcuts,
-                    "domain": self.domain.value
+                    "domain": self.domain.value,
                 },
                 confidence=0.5,
-                reasoning="No exact shortcut match, returning all"
+                reasoning="No exact shortcut match, returning all",
             )
 
     def _handle_workflow_query(self, query: str) -> SubagentOutput:
@@ -424,12 +645,13 @@ class SpecialistSubagent(BaseSubagent):
         query_words = set(query.lower().split())
 
         for task, steps in workflows.items():
-            task_words = set(task.lower().replace('_', ' ').split())
+            task_words = set(task.lower().replace("_", " ").split())
             if query_words & task_words:
-                matches.append(Workflow(
-                    task=task,
-                    steps=steps if isinstance(steps, list) else [steps]
-                ))
+                matches.append(
+                    Workflow(
+                        task=task, steps=steps if isinstance(steps, list) else [steps]
+                    )
+                )
 
         if matches:
             best_match = matches[0]
@@ -439,10 +661,10 @@ class SpecialistSubagent(BaseSubagent):
                     "answer": f"To {best_match.task}:",
                     "workflow": best_match.to_dict(),
                     "steps": best_match.steps,
-                    "domain": self.domain.value
+                    "domain": self.domain.value,
                 },
                 confidence=0.9,
-                reasoning=f"Found matching workflow: {best_match.task}"
+                reasoning=f"Found matching workflow: {best_match.task}",
             )
         else:
             # Try LLM for custom workflow
@@ -454,13 +676,15 @@ class SpecialistSubagent(BaseSubagent):
                 result={
                     "answer": "No predefined workflow found. Available workflows:",
                     "workflows": list(workflows.keys()),
-                    "domain": self.domain.value
+                    "domain": self.domain.value,
                 },
                 confidence=0.4,
-                reasoning="No matching workflow found"
+                reasoning="No matching workflow found",
             )
 
-    def _handle_general_query(self, query: str, context: SubagentContext) -> SubagentOutput:
+    def _handle_general_query(
+        self, query: str, context: SubagentContext
+    ) -> SubagentOutput:
         """Handle a general knowledge query."""
         # Check if query mentions a specific app
         apps = self.knowledge.get("apps", [])
@@ -492,10 +716,10 @@ class SpecialistSubagent(BaseSubagent):
                 "domain": self.domain.value,
                 "apps": apps,
                 "shortcuts": relevant_shortcuts if relevant_shortcuts else shortcuts,
-                "workflows": self.knowledge.get("workflows", {})
+                "workflows": self.knowledge.get("workflows", {}),
             },
             confidence=0.6,
-            reasoning="General domain knowledge"
+            reasoning="General domain knowledge",
         )
 
     def _generate_workflow_with_llm(self, query: str) -> SubagentOutput:
@@ -506,13 +730,15 @@ class SpecialistSubagent(BaseSubagent):
             result={
                 "answer": f"Custom workflow generation not implemented without LLM",
                 "query": query,
-                "domain": self.domain.value
+                "domain": self.domain.value,
             },
             confidence=0.3,
-            reasoning="LLM workflow generation not implemented"
+            reasoning="LLM workflow generation not implemented",
         )
 
-    def _answer_with_llm(self, query: str, context: SubagentContext, shortcuts: Dict) -> SubagentOutput:
+    def _answer_with_llm(
+        self, query: str, context: SubagentContext, shortcuts: Dict
+    ) -> SubagentOutput:
         """Answer using LLM with domain knowledge."""
         # Placeholder - would call LLM API with context
         return SubagentOutput(
@@ -521,10 +747,10 @@ class SpecialistSubagent(BaseSubagent):
                 "answer": f"LLM-assisted answer not implemented",
                 "query": query,
                 "domain": self.domain.value,
-                "relevant_shortcuts": shortcuts
+                "relevant_shortcuts": shortcuts,
             },
             confidence=0.4,
-            reasoning="LLM answer generation not implemented"
+            reasoning="LLM answer generation not implemented",
         )
 
     def get_shortcut(self, action: str) -> Optional[Shortcut]:
@@ -536,7 +762,7 @@ class SpecialistSubagent(BaseSubagent):
                 action=action,
                 keys=data["keys"],
                 description=data.get("description", ""),
-                app=data.get("app")
+                app=data.get("app"),
             )
         return None
 
@@ -547,17 +773,20 @@ class SpecialistSubagent(BaseSubagent):
         for action, data in shortcuts.items():
             if app and data.get("app") and app.lower() not in data["app"].lower():
                 continue
-            result.append(Shortcut(
-                action=action,
-                keys=data["keys"],
-                description=data.get("description", ""),
-                app=data.get("app")
-            ))
+            result.append(
+                Shortcut(
+                    action=action,
+                    keys=data["keys"],
+                    description=data.get("description", ""),
+                    app=data.get("app"),
+                )
+            )
         return result
 
 
 # Runner for the specialist subagent
-from core.subagent_runner import SubagentRunner, SubagentType, SubagentTask, SubagentResult
+from core.subagent_runner import (SubagentResult, SubagentRunner, SubagentTask,
+                                  SubagentType)
 
 
 class SpecialistSubagentRunner(SubagentRunner):
@@ -573,19 +802,19 @@ class SpecialistSubagentRunner(SubagentRunner):
         domain: SpecialistDomain,
         worker_id: Optional[str] = None,
         openrouter_client: Optional[Any] = None,
-        knowledge_dir: Optional[str] = None
+        knowledge_dir: Optional[str] = None,
     ):
         super().__init__(
             redis_client=redis_client,
             agent_type=SubagentType.SPECIALIST,
-            worker_id=worker_id or f"specialist_{domain.value}"
+            worker_id=worker_id or f"specialist_{domain.value}",
         )
         self.domain = domain
         self.subagent = SpecialistSubagent(
             subagent_id=self.worker_id,
             domain=domain,
             openrouter_client=openrouter_client,
-            knowledge_dir=knowledge_dir
+            knowledge_dir=knowledge_dir,
         )
 
     async def execute(self, task: SubagentTask) -> SubagentResult:
@@ -595,7 +824,7 @@ class SpecialistSubagentRunner(SubagentRunner):
             task_id=task.task_id,
             goal=task.params.get("query", ""),
             params=task.params,
-            timeout=task.timeout
+            timeout=task.timeout,
         )
 
         # Execute query
@@ -605,7 +834,7 @@ class SpecialistSubagentRunner(SubagentRunner):
             success=output.success,
             result=output.result,
             confidence=output.confidence,
-            error=output.error
+            error=output.error,
         )
 
 
@@ -614,7 +843,7 @@ async def start_specialist_workers(
     redis_client,
     openrouter_client=None,
     domains: List[SpecialistDomain] = None,
-    knowledge_dir: Optional[str] = None
+    knowledge_dir: Optional[str] = None,
 ) -> List[SpecialistSubagentRunner]:
     """
     Start specialist subagent workers for specified domains.
@@ -638,7 +867,7 @@ async def start_specialist_workers(
             redis_client=redis_client,
             domain=domain,
             openrouter_client=openrouter_client,
-            knowledge_dir=knowledge_dir
+            knowledge_dir=knowledge_dir,
         )
         runners.append(runner)
         asyncio.create_task(runner.run_forever())

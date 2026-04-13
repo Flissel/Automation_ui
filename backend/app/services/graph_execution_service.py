@@ -8,19 +8,17 @@ import asyncio
 import json
 import logging
 import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Set, Tuple
-from dataclasses import dataclass, asdict
 from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Import WebSocket broadcast functions
 try:
-    from app.routers.websocket import (
-        broadcast_workflow_execution_update,
-        broadcast_node_execution_update,
-        broadcast_execution_status_update,
-    )
+    from app.routers.websocket import (broadcast_execution_status_update,
+                                       broadcast_node_execution_update,
+                                       broadcast_workflow_execution_update)
 except ImportError:
     # Fallback functions if WebSocket module is not available
     async def broadcast_workflow_execution_update(execution_id: str, update_data: Dict):
@@ -35,11 +33,11 @@ except ImportError:
         pass
 
 
-from ..models.workflow import Workflow, WorkflowNode, WorkflowConnection
+from ..models.workflow import Workflow, WorkflowConnection, WorkflowNode
 from ..websocket.manager import WebSocketManager
-from .node_service import get_node_service, NodeService
 from .click_automation_service import ClickAutomationService
 from .desktop_automation_service import DesktopAutomationService
+from .node_service import NodeService, get_node_service
 from .ocr_service import OCRService
 
 # Configure logging

@@ -6,10 +6,10 @@ Usage:
     python claude_orchestrator.py --interactive
 """
 
-import subprocess
-import sys
 import json
 import os
+import subprocess
+import sys
 
 # Path to claude CLI - use npm global install location on Windows
 CLAUDE_CMD = os.path.join(os.environ.get("APPDATA", ""), "npm", "claude.cmd")
@@ -45,36 +45,31 @@ def call_claude(prompt: str, use_mcp: bool = True) -> dict:
             capture_output=True,
             text=True,
             timeout=300,  # 5 minute timeout
-            cwd=os.path.dirname(__file__)
+            cwd=os.path.dirname(__file__),
         )
 
         return {
             "success": result.returncode == 0,
             "stdout": result.stdout,
             "stderr": result.stderr,
-            "returncode": result.returncode
+            "returncode": result.returncode,
         }
     except subprocess.TimeoutExpired:
         return {
             "success": False,
             "error": "Claude CLI timed out after 5 minutes",
             "stdout": "",
-            "stderr": ""
+            "stderr": "",
         }
     except FileNotFoundError:
         return {
             "success": False,
             "error": "Claude CLI not found. Make sure 'claude' is in PATH.",
             "stdout": "",
-            "stderr": ""
+            "stderr": "",
         }
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "stdout": "",
-            "stderr": ""
-        }
+        return {"success": False, "error": str(e), "stdout": "", "stderr": ""}
 
 
 def call_claude_streaming(prompt: str, use_mcp: bool = True):
@@ -100,7 +95,7 @@ def call_claude_streaming(prompt: str, use_mcp: bool = True):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        cwd=os.path.dirname(__file__)
+        cwd=os.path.dirname(__file__),
     )
 
     for line in process.stdout:
@@ -151,7 +146,7 @@ def interactive_mode():
             if not task:
                 continue
 
-            if task.lower() in ['quit', 'exit', 'q']:
+            if task.lower() in ["quit", "exit", "q"]:
                 print("Goodbye!")
                 break
 
@@ -160,7 +155,7 @@ def interactive_mode():
 
             # Stream output
             for line in call_claude_streaming(task):
-                print(line, end='')
+                print(line, end="")
 
             print()
             print("-" * 40)
@@ -175,13 +170,15 @@ def interactive_mode():
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage:")
-        print("  python claude_orchestrator.py \"<task>\"")
+        print('  python claude_orchestrator.py "<task>"')
         print("  python claude_orchestrator.py --interactive")
         print()
         print("Examples:")
-        print("  python claude_orchestrator.py \"open notepad and type hello world\"")
-        print("  python claude_orchestrator.py \"send a message to Claude Desktop\"")
-        print("  python claude_orchestrator.py \"read the screen and tell me what you see\"")
+        print('  python claude_orchestrator.py "open notepad and type hello world"')
+        print('  python claude_orchestrator.py "send a message to Claude Desktop"')
+        print(
+            '  python claude_orchestrator.py "read the screen and tell me what you see"'
+        )
         sys.exit(1)
 
     if sys.argv[1] == "--interactive":
@@ -193,4 +190,4 @@ if __name__ == "__main__":
 
         # Use streaming for real-time output
         for line in call_claude_streaming(task):
-            print(line, end='')
+            print(line, end="")

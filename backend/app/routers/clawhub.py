@@ -23,16 +23,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..models.skill import (
-    InstalledSkill,
-    SkillCategory,
-    SkillDetail,
-    SkillExecuteRequest,
-    SkillExecuteResponse,
-    SkillInstallRequest,
-    SkillSearchResponse,
-    SkillSummary,
-)
+from ..models.skill import (InstalledSkill, SkillCategory, SkillDetail,
+                            SkillExecuteRequest, SkillExecuteResponse,
+                            SkillInstallRequest, SkillSearchResponse,
+                            SkillSummary)
 from ..services.clawhub_client import get_clawhub_client
 from ..services.skill_manager import get_skill_manager
 
@@ -71,7 +65,9 @@ async def search_skills(
     category: Optional[SkillCategory] = Query(None, description="Filter by category"),
     limit: int = Query(20, ge=1, le=100, description="Results per page"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
-    sort_by: str = Query("relevance", description="Sort: relevance, rating, installs, newest"),
+    sort_by: str = Query(
+        "relevance", description="Sort: relevance, rating, installs, newest"
+    ),
 ):
     """
     Search ClawHub.ai skill marketplace.
@@ -164,7 +160,9 @@ async def install_skill(request: SkillInstallRequest):
     skill = await client.get_skill(request.skill_id)
 
     if not skill:
-        raise HTTPException(status_code=404, detail=f"Skill '{request.skill_id}' not found on ClawHub")
+        raise HTTPException(
+            status_code=404, detail=f"Skill '{request.skill_id}' not found on ClawHub"
+        )
 
     # Install locally
     installed = await manager.install_skill(skill)
@@ -179,7 +177,9 @@ async def uninstall_skill(request: UninstallRequest):
     manager = get_skill_manager()
 
     if not manager.is_installed(request.skill_id):
-        raise HTTPException(status_code=404, detail=f"Skill '{request.skill_id}' not installed")
+        raise HTTPException(
+            status_code=404, detail=f"Skill '{request.skill_id}' not installed"
+        )
 
     success = await manager.uninstall_skill(request.skill_id)
 
@@ -197,7 +197,9 @@ async def toggle_skill(request: ToggleRequest):
     skill = await manager.toggle_skill(request.skill_id, request.enabled)
 
     if not skill:
-        raise HTTPException(status_code=404, detail=f"Skill '{request.skill_id}' not installed")
+        raise HTTPException(
+            status_code=404, detail=f"Skill '{request.skill_id}' not installed"
+        )
 
     return {
         "status": "toggled",

@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 class SubtaskStatus(Enum):
     """Status of a subtask."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -41,6 +42,7 @@ class SubtaskStatus(Enum):
 @dataclass
 class SubtaskProgress:
     """Progress information for a single subtask."""
+
     subtask_id: str
     description: str
     status: SubtaskStatus = SubtaskStatus.PENDING
@@ -62,6 +64,7 @@ class SubtaskProgress:
 @dataclass
 class TaskProgress:
     """Progress information for a complete task."""
+
     task_id: str
     subtasks: Dict[str, SubtaskProgress] = field(default_factory=dict)
     started_at: Optional[float] = None
@@ -75,22 +78,21 @@ class TaskProgress:
     @property
     def completed(self) -> int:
         return sum(
-            1 for s in self.subtasks.values()
+            1
+            for s in self.subtasks.values()
             if s.status in (SubtaskStatus.COMPLETED, SubtaskStatus.SKIPPED)
         )
 
     @property
     def failed(self) -> int:
         return sum(
-            1 for s in self.subtasks.values()
-            if s.status == SubtaskStatus.FAILED
+            1 for s in self.subtasks.values() if s.status == SubtaskStatus.FAILED
         )
 
     @property
     def running(self) -> int:
         return sum(
-            1 for s in self.subtasks.values()
-            if s.status == SubtaskStatus.RUNNING
+            1 for s in self.subtasks.values() if s.status == SubtaskStatus.RUNNING
         )
 
     @property
@@ -148,14 +150,11 @@ class ProgressTracker:
         subtask_progress = {}
         for subtask in subtasks:
             subtask_progress[subtask.id] = SubtaskProgress(
-                subtask_id=subtask.id,
-                description=subtask.description
+                subtask_id=subtask.id, description=subtask.description
             )
 
         self._tasks[task_id] = TaskProgress(
-            task_id=task_id,
-            subtasks=subtask_progress,
-            started_at=time.time()
+            task_id=task_id, subtasks=subtask_progress, started_at=time.time()
         )
 
         logger.info(f"Started tracking task {task_id} with {len(subtasks)} subtasks")
@@ -213,7 +212,7 @@ class ProgressTracker:
         subtask_id: str,
         success: bool = True,
         result: Optional[Dict] = None,
-        error: Optional[str] = None
+        error: Optional[str] = None,
     ) -> None:
         """
         Mark a subtask as completed.
@@ -244,8 +243,7 @@ class ProgressTracker:
                     f"success={success}, duration={subtask.duration:.1f}s"
                 )
                 self._notify(
-                    task_id, "subtask_completed",
-                    subtask_id=subtask_id, success=success
+                    task_id, "subtask_completed", subtask_id=subtask_id, success=success
                 )
 
     def skip_subtask(self, task_id: str, subtask_id: str, reason: str = None) -> None:
@@ -316,20 +314,20 @@ class ProgressTracker:
         return self._format_status(task)
 
     def _format_status(
-        self,
-        task: TaskProgress,
-        from_history: bool = False
+        self, task: TaskProgress, from_history: bool = False
     ) -> Dict[str, Any]:
         """Format task progress as status dictionary."""
         subtask_statuses = []
         for subtask in task.subtasks.values():
-            subtask_statuses.append({
-                "id": subtask.subtask_id,
-                "description": subtask.description,
-                "status": subtask.status.value,
-                "duration": subtask.duration,
-                "error": subtask.error
-            })
+            subtask_statuses.append(
+                {
+                    "id": subtask.subtask_id,
+                    "description": subtask.description,
+                    "status": subtask.status.value,
+                    "duration": subtask.duration,
+                    "error": subtask.error,
+                }
+            )
 
         return {
             "task_id": task.task_id,
@@ -341,7 +339,7 @@ class ProgressTracker:
             "current_subtask": task.current_subtask,
             "duration": task.duration,
             "subtasks": subtask_statuses,
-            "from_history": from_history
+            "from_history": from_history,
         }
 
     def get_current_subtask(self, task_id: str) -> Optional[str]:
@@ -397,10 +395,7 @@ class ProgressTracker:
 
     def get_all_active_tasks(self) -> List[Dict[str, Any]]:
         """Get status of all active tasks."""
-        return [
-            self._format_status(task)
-            for task in self._tasks.values()
-        ]
+        return [self._format_status(task) for task in self._tasks.values()]
 
     def get_history(self, limit: int = 10) -> List[Dict[str, Any]]:
         """

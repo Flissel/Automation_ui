@@ -10,13 +10,10 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
-from .base_agent import BaseHandoffAgent, AgentConfig
-from .messages import UserTask, HandoffRequest, AgentResponse
-from .tools import (
-    transfer_to_execution,
-    transfer_to_vision,
-    transfer_to_recovery
-)
+from .base_agent import AgentConfig, BaseHandoffAgent
+from .messages import AgentResponse, HandoffRequest, UserTask
+from .tools import (transfer_to_execution, transfer_to_recovery,
+                    transfer_to_vision)
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +35,7 @@ class OrchestratorAgent(BaseHandoffAgent):
             name="orchestrator",
             description="Coordinates workflow execution and delegates to specialists",
             topic_type="orchestrator",
-            timeout=120.0
+            timeout=120.0,
         )
         super().__init__(config)
 
@@ -51,19 +48,19 @@ class OrchestratorAgent(BaseHandoffAgent):
         self.register_delegate_tool(
             name="delegate_to_execution",
             target_agent="execution",
-            description="Delegate keyboard/mouse action to execution agent"
+            description="Delegate keyboard/mouse action to execution agent",
         )
 
         self.register_delegate_tool(
             name="delegate_to_vision",
             target_agent="vision",
-            description="Delegate element finding to vision agent"
+            description="Delegate element finding to vision agent",
         )
 
         self.register_delegate_tool(
             name="delegate_to_recovery",
             target_agent="recovery",
-            description="Delegate error recovery"
+            description="Delegate error recovery",
         )
 
     async def _process_task(self, task: UserTask) -> Any:
@@ -99,10 +96,7 @@ class OrchestratorAgent(BaseHandoffAgent):
             actions = self._plan_generic_workflow(task)
 
         if not actions:
-            return {
-                "success": False,
-                "error": "Could not plan workflow"
-            }
+            return {"success": False, "error": "Could not plan workflow"}
 
         # Store actions in task
         task.pending_actions = actions
@@ -112,10 +106,7 @@ class OrchestratorAgent(BaseHandoffAgent):
         self._total_steps = len(actions)
         self._current_step = 0
 
-        await self.report_progress(
-            task, 5.0,
-            f"Planned {len(actions)} actions"
-        )
+        await self.report_progress(task, 5.0, f"Planned {len(actions)} actions")
 
         # Execute first action
         return await self._execute_next_action(task)
@@ -134,9 +125,7 @@ class OrchestratorAgent(BaseHandoffAgent):
                 # Execution failed - escalate to recovery
                 task.context["error"] = exec_result.get("error", "Execution failed")
                 return await self.hand_off_to(
-                    "recovery",
-                    task,
-                    reason="Execution failed"
+                    "recovery", task, reason="Execution failed"
                 )
 
         # Check vision result
@@ -149,7 +138,7 @@ class OrchestratorAgent(BaseHandoffAgent):
                     task.context["action"] = {
                         "type": "click",
                         "x": vision_result.get("x", 960),
-                        "y": vision_result.get("y", 540)
+                        "y": vision_result.get("y", 540),
                     }
                 else:
                     logger.warning(f"Vision failed, no fallback")
@@ -161,7 +150,7 @@ class OrchestratorAgent(BaseHandoffAgent):
                 return {
                     "success": False,
                     "error": "Recovery failed",
-                    "details": recovery_result
+                    "details": recovery_result,
                 }
 
         # Continue with next action
@@ -175,7 +164,7 @@ class OrchestratorAgent(BaseHandoffAgent):
             return {
                 "success": True,
                 "completed_actions": task.completed_actions,
-                "total_steps": task.total_steps
+                "total_steps": task.total_steps,
             }
 
         # Get next action
@@ -187,8 +176,9 @@ class OrchestratorAgent(BaseHandoffAgent):
         # Calculate progress
         progress = (task.current_step / task.total_steps) * 100
         await self.report_progress(
-            task, progress,
-            f"Step {task.current_step}/{task.total_steps}: {action.get('description', action.get('type', 'unknown'))}"
+            task,
+            progress,
+            f"Step {task.current_step}/{task.total_steps}: {action.get('description', action.get('type', 'unknown'))}",
         )
 
         # Determine agent based on action type
@@ -201,20 +191,24 @@ class OrchestratorAgent(BaseHandoffAgent):
             task.context["returning_from"] = None  # Clear for fresh handoff
 
             return await self.hand_off_to(
-                "vision",
-                task,
-                reason=f"Find element: {action.get('target', '')}"
+                "vision", task, reason=f"Find element: {action.get('target', '')}"
             )
 
-        elif action_type in ("hotkey", "write", "press", "click", "scroll", "sleep", "moveTo"):
+        elif action_type in (
+            "hotkey",
+            "write",
+            "press",
+            "click",
+            "scroll",
+            "sleep",
+            "moveTo",
+        ):
             # Direct execution
             task.context["action"] = action
             task.context["returning_from"] = None
 
             return await self.hand_off_to(
-                "execution",
-                task,
-                reason=f"Execute: {action_type}"
+                "execution", task, reason=f"Execute: {action_type}"
             )
 
         else:
@@ -240,33 +234,21 @@ class OrchestratorAgent(BaseHandoffAgent):
                 {
                     "type": "hotkey",
                     "keys": ["ctrl", "alt", "space"],
-                    "description": "Open Claude Desktop"
+                    "description": "Open Claude Desktop",
                 },
                 {
                     "type": "sleep",
                     "seconds": 2.0,
-                    "description": "Wait for Claude Desktop"
+                    "description": "Wait for Claude Desktop",
                 },
                 {
                     "type": "find_and_click",
                     "target": "chat input field",
-                    "description": "Click chat input"
+                    "description": "Click chat input",
                 },
-                {
-                    "type": "sleep",
-                    "seconds": 0.5,
-                    "description": "Wait for focus"
-                },
-                {
-                    "type": "write",
-                    "text": message,
-                    "description": "Type message"
-                },
-                {
-                    "type": "press",
-                    "key": "enter",
-                    "description": "Send message"
-                }
+                {"type": "sleep", "seconds": 0.5, "description": "Wait for focus"},
+                {"type": "write", "text": message, "description": "Type message"},
+                {"type": "press", "key": "enter", "description": "Send message"},
             ]
 
         # Simple flow - input is already focused when Claude Desktop opens
@@ -274,23 +256,11 @@ class OrchestratorAgent(BaseHandoffAgent):
             {
                 "type": "hotkey",
                 "keys": ["ctrl", "alt", "space"],
-                "description": "Open Claude Desktop"
+                "description": "Open Claude Desktop",
             },
-            {
-                "type": "sleep",
-                "seconds": 1.5,
-                "description": "Wait for Claude Desktop"
-            },
-            {
-                "type": "write",
-                "text": message,
-                "description": "Type message"
-            },
-            {
-                "type": "press",
-                "key": "enter",
-                "description": "Send message"
-            }
+            {"type": "sleep", "seconds": 1.5, "description": "Wait for Claude Desktop"},
+            {"type": "write", "text": message, "description": "Type message"},
+            {"type": "press", "key": "enter", "description": "Send message"},
         ]
 
     def _plan_generic_workflow(self, task: UserTask) -> List[Dict]:
@@ -326,7 +296,7 @@ class RecoveryAgent(BaseHandoffAgent):
         config = AgentConfig(
             name="recovery",
             description="Handles error recovery and retries",
-            topic_type="recovery"
+            topic_type="recovery",
         )
         super().__init__(config)
         self.max_retries = max_retries
@@ -336,13 +306,13 @@ class RecoveryAgent(BaseHandoffAgent):
         self.register_delegate_tool(
             name="retry_with_execution",
             target_agent="execution",
-            description="Retry action with execution agent"
+            description="Retry action with execution agent",
         )
 
         self.register_delegate_tool(
             name="return_to_orchestrator",
             target_agent="orchestrator",
-            description="Return to orchestrator"
+            description="Return to orchestrator",
         )
 
     async def _process_task(self, task: UserTask) -> Any:
@@ -351,24 +321,19 @@ class RecoveryAgent(BaseHandoffAgent):
         failed_action = task.context.get("failed_action", {})
         retry_count = task.context.get("retry_count", 0)
 
-        await self.report_progress(
-            task, 50.0,
-            f"Recovery: {error[:30]}..."
-        )
+        await self.report_progress(task, 50.0, f"Recovery: {error[:30]}...")
 
         # Check retry count
         if retry_count >= self.max_retries:
             # Max retries exceeded
             task.context["recovery_result"] = {
                 "recovered": False,
-                "reason": f"Max retries ({self.max_retries}) exceeded"
+                "reason": f"Max retries ({self.max_retries}) exceeded",
             }
             task.context["returning_from"] = "recovery"
 
             return await self.hand_off_to(
-                "orchestrator",
-                task,
-                reason="Recovery failed - max retries"
+                "orchestrator", task, reason="Recovery failed - max retries"
             )
 
         # Attempt recovery
@@ -380,12 +345,10 @@ class RecoveryAgent(BaseHandoffAgent):
         task.context["action"] = failed_action
         task.context["recovery_result"] = {
             "recovered": True,
-            "retry_count": retry_count + 1
+            "retry_count": retry_count + 1,
         }
         task.context["returning_from"] = "recovery"
 
         return await self.hand_off_to(
-            "execution",
-            task,
-            reason=f"Retry attempt {retry_count + 1}"
+            "execution", task, reason=f"Retry attempt {retry_count + 1}"
         )

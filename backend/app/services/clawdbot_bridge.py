@@ -17,8 +17,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
-from ..services.redis_pubsub import redis_pubsub
 from ..services.contact_registry import get_contact_registry
+from ..services.redis_pubsub import redis_pubsub
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ClawdbotMessage:
     """Incoming message from Clawdbot"""
+
     user_id: str
     platform: str  # whatsapp, telegram, discord, slack, signal, imessage
     text: str
@@ -38,6 +39,7 @@ class ClawdbotMessage:
 @dataclass
 class ClawdbotResponse:
     """Response to send back to Clawdbot"""
+
     success: bool
     message: str
     data: Optional[Dict[str, Any]] = None
@@ -49,6 +51,7 @@ class ClawdbotResponse:
 @dataclass
 class UserSession:
     """Session state for a user"""
+
     user_id: str
     platform: str
     last_command: Optional[str] = None
@@ -76,8 +79,7 @@ class ClawdbotBridgeService:
     CHANNEL_NOTIFICATIONS = "clawdbot:notifications"
 
     def __init__(
-        self,
-        on_notification: Optional[Callable[[str, str, str], None]] = None
+        self, on_notification: Optional[Callable[[str, str, str], None]] = None
     ):
         """
         Initialize ClawdbotBridgeService.
@@ -104,35 +106,29 @@ class ClawdbotBridgeService:
 
         try:
             # Import voice module components
-            import sys
             import os
+            import sys
 
             # Add moire_agents to path if needed
             moire_agents_path = os.path.join(
-                os.path.dirname(__file__),
-                '..', '..', 'moire_agents'
+                os.path.dirname(__file__), "..", "..", "moire_agents"
             )
             if moire_agents_path not in sys.path:
                 sys.path.insert(0, os.path.abspath(moire_agents_path))
 
-            from voice.intent_parser import QuickIntentParser, IntentParser
             from voice.command_executor import CommandExecutor
+            from voice.intent_parser import IntentParser, QuickIntentParser
 
             # Initialize parser with fallback to LLM
-            self._intent_parser = QuickIntentParser(
-                fallback_parser=IntentParser()
-            )
+            self._intent_parser = QuickIntentParser(fallback_parser=IntentParser())
 
             # Initialize executor with feedback callback
-            self._executor = CommandExecutor(
-                on_feedback=self._handle_feedback
-            )
+            self._executor = CommandExecutor(on_feedback=self._handle_feedback)
 
             # Subscribe to Redis channels
             if redis_pubsub.is_connected:
                 await redis_pubsub.subscribe(
-                    self.CHANNEL_COMMANDS,
-                    self._handle_redis_command
+                    self.CHANNEL_COMMANDS, self._handle_redis_command
                 )
                 logger.info("Subscribed to clawdbot:commands channel")
 
@@ -165,11 +161,7 @@ class ClawdbotBridgeService:
             response = await self.process_message(message)
 
             # Publish result back
-            await self.publish_result(
-                message.user_id,
-                message.platform,
-                response
-            )
+            await self.publish_result(message.user_id, message.platform, response)
 
         except Exception as e:
             logger.error(f"Error handling Redis command: {e}")
@@ -187,6 +179,7 @@ class ClawdbotBridgeService:
             ClawdbotResponse with result
         """
         import time
+
         start_time = time.time()
 
         # Ensure initialized
@@ -233,19 +226,28 @@ class ClawdbotBridgeService:
                 return await self._handle_contact_lookup(message.text)
 
             # Handle "send to X" commands with contact resolution
-            if any(text_lower.startswith(p) for p in [
-                "schick an ", "sende an ", "send to ", "nachricht an "
-            ]):
-                return await self._handle_send_to_contact(message.text, message.platform)
+            if any(
+                text_lower.startswith(p)
+                for p in ["schick an ", "sende an ", "send to ", "nachricht an "]
+            ):
+                return await self._handle_send_to_contact(
+                    message.text, message.platform
+                )
 
             # Handle skill execution commands
-            if any(text_lower.startswith(p) for p in [
-                "führe ", "fuehre ", "execute ", "skill ", "run skill "
-            ]):
+            if any(
+                text_lower.startswith(p)
+                for p in ["führe ", "fuehre ", "execute ", "skill ", "run skill "]
+            ):
                 return await self._handle_skill_command(message.text)
 
             # Handle skill listing
-            if text_lower in ["skills", "meine skills", "my skills", "installed skills"]:
+            if text_lower in [
+                "skills",
+                "meine skills",
+                "my skills",
+                "installed skills",
+            ]:
                 return await self._handle_list_skills()
 
             # Resolve variables in message text
@@ -262,7 +264,7 @@ class ClawdbotBridgeService:
                         success=False,
                         message=f"Konnte Befehl nicht verstehen: {intent.error}",
                         error=intent.error,
-                        execution_time_ms=(time.time() - start_time) * 1000
+                        execution_time_ms=(time.time() - start_time) * 1000,
                     )
 
                 if not intent.actions:
@@ -270,7 +272,7 @@ class ClawdbotBridgeService:
                         success=False,
                         message="Keine ausführbare Aktion erkannt",
                         error="No actions parsed",
-                        execution_time_ms=(time.time() - start_time) * 1000
+                        execution_time_ms=(time.time() - start_time) * 1000,
                     )
 
                 # Execute actions
@@ -280,7 +282,7 @@ class ClawdbotBridgeService:
                 session.last_result = {
                     "success": report.success,
                     "actions": len(report.results),
-                    "context": intent.context
+                    "context": intent.context,
                 }
 
                 return ClawdbotResponse(
@@ -289,9 +291,9 @@ class ClawdbotBridgeService:
                     data={
                         "actions_executed": len(report.results),
                         "context": intent.context,
-                        "duration_ms": report.total_duration_ms
+                        "duration_ms": report.total_duration_ms,
                     },
-                    execution_time_ms=(time.time() - start_time) * 1000
+                    execution_time_ms=(time.time() - start_time) * 1000,
                 )
 
             else:
@@ -304,12 +306,13 @@ class ClawdbotBridgeService:
                 success=False,
                 message=f"Fehler bei der Ausführung: {str(e)}",
                 error=str(e),
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
     async def _handle_screenshot_command(self) -> ClawdbotResponse:
         """Take and return a screenshot."""
         import time
+
         start_time = time.time()
 
         try:
@@ -328,7 +331,7 @@ class ClawdbotBridgeService:
                 message="Screenshot aufgenommen",
                 image=image_bytes,
                 data={"size": len(image_bytes)},
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
         except Exception as e:
@@ -337,22 +340,22 @@ class ClawdbotBridgeService:
                 success=False,
                 message=f"Screenshot fehlgeschlagen: {str(e)}",
                 error=str(e),
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
     async def _handle_ocr_command(self) -> ClawdbotResponse:
         """Read screen text via OCR."""
         import time
+
         start_time = time.time()
 
         try:
             # Try using MCP handoff tools
-            import sys
             import os
+            import sys
 
             moire_agents_path = os.path.join(
-                os.path.dirname(__file__),
-                '..', '..', 'moire_agents'
+                os.path.dirname(__file__), "..", "..", "moire_agents"
             )
             if moire_agents_path not in sys.path:
                 sys.path.insert(0, os.path.abspath(moire_agents_path))
@@ -365,7 +368,7 @@ class ClawdbotBridgeService:
                 success=True,
                 message="Bildschirmtext gelesen",
                 data=result,
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
         except ImportError:
@@ -375,13 +378,13 @@ class ClawdbotBridgeService:
                 import pytesseract
 
                 screenshot = pyautogui.screenshot()
-                text = pytesseract.image_to_string(screenshot, lang='deu+eng')
+                text = pytesseract.image_to_string(screenshot, lang="deu+eng")
 
                 return ClawdbotResponse(
                     success=True,
                     message="Bildschirmtext gelesen",
                     data={"text": text[:2000]},  # Limit length
-                    execution_time_ms=(time.time() - start_time) * 1000
+                    execution_time_ms=(time.time() - start_time) * 1000,
                 )
 
             except Exception as e:
@@ -389,7 +392,7 @@ class ClawdbotBridgeService:
                     success=False,
                     message=f"OCR fehlgeschlagen: {str(e)}",
                     error=str(e),
-                    execution_time_ms=(time.time() - start_time) * 1000
+                    execution_time_ms=(time.time() - start_time) * 1000,
                 )
 
         except Exception as e:
@@ -397,12 +400,13 @@ class ClawdbotBridgeService:
                 success=False,
                 message=f"OCR fehlgeschlagen: {str(e)}",
                 error=str(e),
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
     async def _handle_status_command(self) -> ClawdbotResponse:
         """Return status and help information."""
         import time
+
         start_time = time.time()
 
         help_text = """🤖 Desktop Automation via Clawdbot
@@ -436,27 +440,34 @@ Status: ✅ Verbunden"""
             data={
                 "status": "connected",
                 "capabilities": [
-                    "open_url", "click", "type_text", "scroll",
-                    "screenshot", "ocr", "key_press"
-                ]
+                    "open_url",
+                    "click",
+                    "type_text",
+                    "scroll",
+                    "screenshot",
+                    "ocr",
+                    "key_press",
+                ],
             },
-            execution_time_ms=(time.time() - start_time) * 1000
+            execution_time_ms=(time.time() - start_time) * 1000,
         )
 
     async def _handle_fallback_command(self, text: str) -> ClawdbotResponse:
         """Handle command without voice module (basic parsing)."""
         import time
+
         start_time = time.time()
 
         text_lower = text.lower().strip()
 
         try:
-            import pyautogui
             import webbrowser
+
+            import pyautogui
 
             # Basic URL opening
             if text_lower.startswith(("öffne ", "open ", "oeffne ")):
-                target = text[text.find(" "):].strip()
+                target = text[text.find(" ") :].strip()
 
                 if "." in target or target.startswith("http"):
                     url = target if target.startswith("http") else f"https://{target}"
@@ -464,7 +475,7 @@ Status: ✅ Verbunden"""
                     return ClawdbotResponse(
                         success=True,
                         message=f"Öffne {url}",
-                        execution_time_ms=(time.time() - start_time) * 1000
+                        execution_time_ms=(time.time() - start_time) * 1000,
                     )
                 else:
                     # Open via Windows Start menu
@@ -476,24 +487,26 @@ Status: ✅ Verbunden"""
                     return ClawdbotResponse(
                         success=True,
                         message=f"Öffne {target}",
-                        execution_time_ms=(time.time() - start_time) * 1000
+                        execution_time_ms=(time.time() - start_time) * 1000,
                     )
 
             # Scroll commands
             if "scroll" in text_lower:
-                direction = -5 if any(w in text_lower for w in ["up", "hoch", "oben"]) else 5
+                direction = (
+                    -5 if any(w in text_lower for w in ["up", "hoch", "oben"]) else 5
+                )
                 pyautogui.scroll(direction)
                 return ClawdbotResponse(
                     success=True,
                     message="Gescrollt",
-                    execution_time_ms=(time.time() - start_time) * 1000
+                    execution_time_ms=(time.time() - start_time) * 1000,
                 )
 
             return ClawdbotResponse(
                 success=False,
                 message=f"Befehl nicht erkannt: {text}",
                 error="Unknown command",
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
         except Exception as e:
@@ -501,7 +514,7 @@ Status: ✅ Verbunden"""
                 success=False,
                 message=f"Fehler: {str(e)}",
                 error=str(e),
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
     async def _handle_contact_lookup(self, text: str) -> ClawdbotResponse:
@@ -514,12 +527,13 @@ Status: ✅ Verbunden"""
             "wer ist pm" -> Shows contact with alias "pm"
         """
         import time
+
         start_time = time.time()
 
         # Extract the query part
         for prefix in ["kontakt ", "contact ", "wer ist "]:
             if text.lower().startswith(prefix):
-                query = text[len(prefix):].strip()
+                query = text[len(prefix) :].strip()
                 break
         else:
             query = text.strip()
@@ -529,7 +543,7 @@ Status: ✅ Verbunden"""
                 success=False,
                 message="Bitte gib einen Namen an. Beispiel: 'kontakt Peter'",
                 error="No query provided",
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
         registry = get_contact_registry()
@@ -560,7 +574,7 @@ Status: ✅ Verbunden"""
                 success=True,
                 message="\n".join(lines),
                 data={"contact": contact, "query": query},
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
         else:
             # Search for similar contacts
@@ -571,17 +585,19 @@ Status: ✅ Verbunden"""
                     success=False,
                     message=f"Kontakt '{query}' nicht gefunden.\n\nMeintest du vielleicht: {', '.join(suggestions)}?",
                     data={"suggestions": suggestions},
-                    execution_time_ms=(time.time() - start_time) * 1000
+                    execution_time_ms=(time.time() - start_time) * 1000,
                 )
             else:
                 return ClawdbotResponse(
                     success=False,
                     message=f"Kontakt '{query}' nicht gefunden.",
                     error="Contact not found",
-                    execution_time_ms=(time.time() - start_time) * 1000
+                    execution_time_ms=(time.time() - start_time) * 1000,
                 )
 
-    async def _handle_send_to_contact(self, text: str, platform: str) -> ClawdbotResponse:
+    async def _handle_send_to_contact(
+        self, text: str, platform: str
+    ) -> ClawdbotResponse:
         """
         Handle "send to X" commands with contact resolution.
 
@@ -591,6 +607,7 @@ Status: ✅ Verbunden"""
             "send to boss meeting update" -> Resolves boss and prepares message
         """
         import time
+
         start_time = time.time()
 
         # Parse the command to extract recipient and message
@@ -602,7 +619,7 @@ Status: ✅ Verbunden"""
         rest = None
         for prefix in prefixes:
             if text_lower.startswith(prefix):
-                rest = original_text[len(prefix):].strip()
+                rest = original_text[len(prefix) :].strip()
                 break
 
         if not rest:
@@ -610,7 +627,7 @@ Status: ✅ Verbunden"""
                 success=False,
                 message="Format: 'schick an [Name] [Nachricht]'",
                 error="Invalid command format",
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
         # Split into recipient and message
@@ -621,7 +638,7 @@ Status: ✅ Verbunden"""
                 success=False,
                 message="Format: 'schick an [Name] [Nachricht]'\nBeispiel: 'schick an peter hallo wie gehts'",
                 error="Missing message",
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
         recipient_query = parts[0]
@@ -651,13 +668,13 @@ Status: ✅ Verbunden"""
                     success=False,
                     message=f"Kontakt '{recipient_query}' nicht gefunden.\n\nMeintest du: {', '.join(suggestions)}?",
                     data={"suggestions": suggestions, "original_message": message_text},
-                    execution_time_ms=(time.time() - start_time) * 1000
+                    execution_time_ms=(time.time() - start_time) * 1000,
                 )
             return ClawdbotResponse(
                 success=False,
                 message=f"Kontakt '{recipient_query}' nicht gefunden.",
                 error="Contact not found",
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
         # Resolve variables in the message
@@ -667,7 +684,13 @@ Status: ✅ Verbunden"""
         recipient_id = contact.get(platform.lower())
         if not recipient_id:
             # Try alternative platforms
-            for alt_platform in ["whatsapp", "telegram", "discord", "signal", "imessage"]:
+            for alt_platform in [
+                "whatsapp",
+                "telegram",
+                "discord",
+                "signal",
+                "imessage",
+            ]:
                 if contact.get(alt_platform):
                     recipient_id = contact.get(alt_platform)
                     platform = alt_platform
@@ -679,18 +702,18 @@ Status: ✅ Verbunden"""
             return ClawdbotResponse(
                 success=True,
                 message=f"📤 Nachricht an {name} vorbereitet\n\n"
-                        f"Platform: {platform}\n"
-                        f"Empfänger: {recipient_id}\n"
-                        f"Nachricht: {resolved_message}",
+                f"Platform: {platform}\n"
+                f"Empfänger: {recipient_id}\n"
+                f"Nachricht: {resolved_message}",
                 data={
                     "action": "send_message",
                     "recipient": name,
                     "recipient_id": recipient_id,
                     "platform": platform,
                     "message": resolved_message,
-                    "contact": contact
+                    "contact": contact,
                 },
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
         else:
             available = []
@@ -701,10 +724,10 @@ Status: ✅ Verbunden"""
             return ClawdbotResponse(
                 success=False,
                 message=f"Kontakt '{name}' hat keine {platform} ID.\n\n"
-                        f"Verfügbare Kanäle: {', '.join(available) if available else 'keine'}",
+                f"Verfügbare Kanäle: {', '.join(available) if available else 'keine'}",
                 error="Platform not available for contact",
                 data={"contact": contact, "available_platforms": available},
-                execution_time_ms=(time.time() - start_time) * 1000
+                execution_time_ms=(time.time() - start_time) * 1000,
             )
 
     async def _handle_skill_command(self, text: str) -> ClawdbotResponse:
@@ -717,6 +740,7 @@ Status: ✅ Verbunden"""
             "execute github-manager" -> Executes github-manager skill
         """
         import time
+
         start_time = time.time()
 
         # Extract skill name from command
@@ -725,7 +749,7 @@ Status: ✅ Verbunden"""
 
         for prefix in ["führe ", "fuehre ", "execute ", "skill ", "run skill "]:
             if text_lower.startswith(prefix):
-                rest = text[len(prefix):].strip()
+                rest = text[len(prefix) :].strip()
                 # Remove trailing " aus" (German)
                 if rest.lower().endswith(" aus"):
                     rest = rest[:-4].strip()
@@ -766,6 +790,7 @@ Status: ✅ Verbunden"""
     async def _handle_list_skills(self) -> ClawdbotResponse:
         """List all installed skills."""
         import time
+
         start_time = time.time()
 
         try:
@@ -812,8 +837,7 @@ Status: ✅ Verbunden"""
 
         if session_key not in self._sessions:
             self._sessions[session_key] = UserSession(
-                user_id=user_id,
-                platform=platform
+                user_id=user_id, platform=platform
             )
 
         return self._sessions[session_key]
@@ -828,10 +852,7 @@ Status: ✅ Verbunden"""
         return list(self._sessions.values())
 
     async def publish_result(
-        self,
-        user_id: str,
-        platform: str,
-        response: ClawdbotResponse
+        self, user_id: str, platform: str, response: ClawdbotResponse
     ):
         """Publish execution result to Redis for Clawdbot to pick up."""
         if not redis_pubsub.is_connected:
@@ -846,7 +867,7 @@ Status: ✅ Verbunden"""
             "data": response.data,
             "error": response.error,
             "execution_time_ms": response.execution_time_ms,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         # Include image as base64 if present
@@ -856,11 +877,7 @@ Status: ✅ Verbunden"""
         await redis_pubsub.publish(self.CHANNEL_RESULTS, result_data)
 
     async def send_notification(
-        self,
-        user_id: str,
-        platform: str,
-        message: str,
-        notification_type: str = "info"
+        self, user_id: str, platform: str, message: str, notification_type: str = "info"
     ):
         """Send a notification to a user via Clawdbot."""
         if not redis_pubsub.is_connected:
@@ -872,7 +889,7 @@ Status: ✅ Verbunden"""
             "platform": platform,
             "message": message,
             "type": notification_type,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         await redis_pubsub.publish(self.CHANNEL_NOTIFICATIONS, notification)
@@ -881,17 +898,12 @@ Status: ✅ Verbunden"""
             self.on_notification(user_id, platform, message)
 
     async def broadcast_notification(
-        self,
-        message: str,
-        notification_type: str = "info"
+        self, message: str, notification_type: str = "info"
     ):
         """Broadcast notification to all active sessions."""
         for session in self._sessions.values():
             await self.send_notification(
-                session.user_id,
-                session.platform,
-                message,
-                notification_type
+                session.user_id, session.platform, message, notification_type
             )
 
     async def send_callback(
@@ -899,7 +911,7 @@ Status: ✅ Verbunden"""
         user_id: str,
         platform: str,
         response: ClawdbotResponse,
-        callback_url: Optional[str] = None
+        callback_url: Optional[str] = None,
     ):
         """
         Send response back to Clawdbot Gateway via HTTP callback.
@@ -924,7 +936,7 @@ Status: ✅ Verbunden"""
             "data": response.data,
             "error": response.error,
             "execution_time_ms": response.execution_time_ms,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         # Include image as base64 if present
@@ -936,9 +948,7 @@ Status: ✅ Verbunden"""
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    callback_url,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=10)
+                    callback_url, json=payload, timeout=aiohttp.ClientTimeout(total=10)
                 ) as resp:
                     if resp.status == 200:
                         logger.info(f"Callback sent to {user_id}@{platform}")
@@ -967,11 +977,7 @@ Status: ✅ Verbunden"""
             logger.error(f"Failed to send callback: {e}")
 
     async def send_message_to_user(
-        self,
-        user_id: str,
-        platform: str,
-        message: str,
-        image: Optional[bytes] = None
+        self, user_id: str, platform: str, message: str, image: Optional[bytes] = None
     ):
         """
         Convenience method to send a message to a user via callback.
@@ -983,10 +989,7 @@ Status: ✅ Verbunden"""
             image: Optional image bytes (JPEG/PNG)
         """
         response = ClawdbotResponse(
-            success=True,
-            message=message,
-            image=image,
-            execution_time_ms=0
+            success=True, message=message, image=image, execution_time_ms=0
         )
         await self.send_callback(user_id, platform, response)
 

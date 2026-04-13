@@ -64,9 +64,7 @@ class RedisPubSub:
 
         try:
             self._redis = redis.from_url(
-                redis_url,
-                encoding="utf-8",
-                decode_responses=True
+                redis_url, encoding="utf-8", decode_responses=True
             )
 
             # Test connection
@@ -116,7 +114,9 @@ class RedisPubSub:
             return
 
         if handler:
-            self._handlers[channel] = [h for h in self._handlers[channel] if h != handler]
+            self._handlers[channel] = [
+                h for h in self._handlers[channel] if h != handler
+            ]
         else:
             self._handlers[channel] = []
 
@@ -158,8 +158,7 @@ class RedisPubSub:
             while self._running and self._pubsub:
                 try:
                     message = await self._pubsub.get_message(
-                        ignore_subscribe_messages=True,
-                        timeout=1.0
+                        ignore_subscribe_messages=True, timeout=1.0
                     )
 
                     if message and message["type"] == "message":
@@ -168,7 +167,9 @@ class RedisPubSub:
 
                         # Parse JSON data
                         try:
-                            parsed_data = json.loads(data) if isinstance(data, str) else data
+                            parsed_data = (
+                                json.loads(data) if isinstance(data, str) else data
+                            )
                         except json.JSONDecodeError:
                             parsed_data = {"raw": data}
 
@@ -225,53 +226,55 @@ class RedisPubSub:
 
     async def publish_frame(self, desktop_client_id: str, frame_data: Dict[str, Any]):
         """Publish a desktop frame to the frames channel"""
-        await self.publish("desktop-frames", {
-            "desktop_client_id": desktop_client_id,
-            "frame_data": frame_data
-        })
+        await self.publish(
+            "desktop-frames",
+            {"desktop_client_id": desktop_client_id, "frame_data": frame_data},
+        )
 
     async def publish_command(
-        self,
-        desktop_client_id: str,
-        command_type: str,
-        command_data: Dict[str, Any]
+        self, desktop_client_id: str, command_type: str, command_data: Dict[str, Any]
     ):
         """Publish an automation command to the commands channel"""
-        await self.publish("desktop-commands", {
-            "desktop_client_id": desktop_client_id,
-            "command_type": command_type,
-            "command_data": command_data
-        })
+        await self.publish(
+            "desktop-commands",
+            {
+                "desktop_client_id": desktop_client_id,
+                "command_type": command_type,
+                "command_data": command_data,
+            },
+        )
 
     async def publish_client_event(
         self,
         event_type: str,
         client_id: str,
-        client_info: Optional[Dict[str, Any]] = None
+        client_info: Optional[Dict[str, Any]] = None,
     ):
         """Publish a client registry event"""
-        await self.publish("client-registry", {
-            "event_type": event_type,  # "connected", "disconnected", "updated"
-            "client_id": client_id,
-            "client_info": client_info or {}
-        })
+        await self.publish(
+            "client-registry",
+            {
+                "event_type": event_type,  # "connected", "disconnected", "updated"
+                "client_id": client_id,
+                "client_info": client_info or {},
+            },
+        )
 
     # Clawdbot integration channels
 
     async def publish_clawdbot_command(
-        self,
-        user_id: str,
-        platform: str,
-        text: str,
-        message_id: Optional[str] = None
+        self, user_id: str, platform: str, text: str, message_id: Optional[str] = None
     ):
         """Publish an incoming Clawdbot command for processing"""
-        await self.publish("clawdbot:commands", {
-            "user_id": user_id,
-            "platform": platform,
-            "text": text,
-            "message_id": message_id
-        })
+        await self.publish(
+            "clawdbot:commands",
+            {
+                "user_id": user_id,
+                "platform": platform,
+                "text": text,
+                "message_id": message_id,
+            },
+        )
 
     async def publish_clawdbot_result(
         self,
@@ -280,32 +283,34 @@ class RedisPubSub:
         success: bool,
         message: str,
         data: Optional[Dict[str, Any]] = None,
-        image_base64: Optional[str] = None
+        image_base64: Optional[str] = None,
     ):
         """Publish command execution result back to Clawdbot"""
-        await self.publish("clawdbot:results", {
-            "user_id": user_id,
-            "platform": platform,
-            "success": success,
-            "message": message,
-            "data": data,
-            "image_base64": image_base64
-        })
+        await self.publish(
+            "clawdbot:results",
+            {
+                "user_id": user_id,
+                "platform": platform,
+                "success": success,
+                "message": message,
+                "data": data,
+                "image_base64": image_base64,
+            },
+        )
 
     async def publish_clawdbot_notification(
-        self,
-        user_id: str,
-        platform: str,
-        message: str,
-        notification_type: str = "info"
+        self, user_id: str, platform: str, message: str, notification_type: str = "info"
     ):
         """Publish a notification to send via Clawdbot"""
-        await self.publish("clawdbot:notifications", {
-            "user_id": user_id,
-            "platform": platform,
-            "message": message,
-            "type": notification_type
-        })
+        await self.publish(
+            "clawdbot:notifications",
+            {
+                "user_id": user_id,
+                "platform": platform,
+                "message": message,
+                "type": notification_type,
+            },
+        )
 
     # Task Queue Channels (Voice → MCP Integration)
 
@@ -314,30 +319,33 @@ class RedisPubSub:
         task_id: str,
         text: str,
         source: str = "voice",
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """Publish task created event"""
-        await self.publish("task:created", {
-            "task_id": task_id,
-            "text": text,
-            "source": source,
-            "metadata": metadata or {},
-            "status": "created"
-        })
+        await self.publish(
+            "task:created",
+            {
+                "task_id": task_id,
+                "text": text,
+                "source": source,
+                "metadata": metadata or {},
+                "status": "created",
+            },
+        )
 
     async def publish_task_started(
-        self,
-        task_id: str,
-        route: str,
-        actions: Optional[List[Dict[str, Any]]] = None
+        self, task_id: str, route: str, actions: Optional[List[Dict[str, Any]]] = None
     ):
         """Publish task started event"""
-        await self.publish("task:started", {
-            "task_id": task_id,
-            "route": route,
-            "actions": actions or [],
-            "status": "running"
-        })
+        await self.publish(
+            "task:started",
+            {
+                "task_id": task_id,
+                "route": route,
+                "actions": actions or [],
+                "status": "running",
+            },
+        )
 
     async def publish_task_progress(
         self,
@@ -345,17 +353,20 @@ class RedisPubSub:
         progress: float,
         current_step: int,
         total_steps: int,
-        message: str = ""
+        message: str = "",
     ):
         """Publish task progress update"""
-        await self.publish("task:progress", {
-            "task_id": task_id,
-            "progress": progress,
-            "current_step": current_step,
-            "total_steps": total_steps,
-            "message": message,
-            "status": "running"
-        })
+        await self.publish(
+            "task:progress",
+            {
+                "task_id": task_id,
+                "progress": progress,
+                "current_step": current_step,
+                "total_steps": total_steps,
+                "message": message,
+                "status": "running",
+            },
+        )
 
     async def publish_task_validation(
         self,
@@ -364,18 +375,21 @@ class RedisPubSub:
         confidence: float,
         method: str,
         reason: str = "",
-        observed_changes: Optional[List[str]] = None
+        observed_changes: Optional[List[str]] = None,
     ):
         """Publish task validation result"""
-        await self.publish("task:validation", {
-            "task_id": task_id,
-            "success": success,
-            "confidence": confidence,
-            "method": method,
-            "reason": reason,
-            "observed_changes": observed_changes or [],
-            "status": "validating"
-        })
+        await self.publish(
+            "task:validation",
+            {
+                "task_id": task_id,
+                "success": success,
+                "confidence": confidence,
+                "method": method,
+                "reason": reason,
+                "observed_changes": observed_changes or [],
+                "status": "validating",
+            },
+        )
 
     async def publish_task_completed(
         self,
@@ -384,34 +398,36 @@ class RedisPubSub:
         route: str,
         duration_ms: float,
         validation: Optional[Dict[str, Any]] = None,
-        learned: bool = False
+        learned: bool = False,
     ):
         """Publish task completed event"""
-        await self.publish("task:completed", {
-            "task_id": task_id,
-            "success": success,
-            "route": route,
-            "duration_ms": duration_ms,
-            "validation": validation,
-            "learned": learned,
-            "status": "completed"
-        })
+        await self.publish(
+            "task:completed",
+            {
+                "task_id": task_id,
+                "success": success,
+                "route": route,
+                "duration_ms": duration_ms,
+                "validation": validation,
+                "learned": learned,
+                "status": "completed",
+            },
+        )
 
     async def publish_task_failed(
-        self,
-        task_id: str,
-        error: str,
-        route: str = "",
-        duration_ms: float = 0
+        self, task_id: str, error: str, route: str = "", duration_ms: float = 0
     ):
         """Publish task failed event"""
-        await self.publish("task:failed", {
-            "task_id": task_id,
-            "error": error,
-            "route": route,
-            "duration_ms": duration_ms,
-            "status": "failed"
-        })
+        await self.publish(
+            "task:failed",
+            {
+                "task_id": task_id,
+                "error": error,
+                "route": route,
+                "duration_ms": duration_ms,
+                "status": "failed",
+            },
+        )
 
     async def publish_task_learned(
         self,
@@ -419,23 +435,31 @@ class RedisPubSub:
         pattern_id: str,
         task_text: str,
         confidence: float,
-        actions: List[Dict[str, Any]]
+        actions: List[Dict[str, Any]],
     ):
         """Publish new pattern learned event"""
-        await self.publish("task:learned", {
-            "task_id": task_id,
-            "pattern_id": pattern_id,
-            "task_text": task_text,
-            "confidence": confidence,
-            "actions": actions,
-            "status": "learned"
-        })
+        await self.publish(
+            "task:learned",
+            {
+                "task_id": task_id,
+                "pattern_id": pattern_id,
+                "task_text": task_text,
+                "confidence": confidence,
+                "actions": actions,
+                "status": "learned",
+            },
+        )
 
     async def subscribe_task_events(self, handler: Callable[[Dict[str, Any]], None]):
         """Subscribe to all task events with a single handler"""
         task_channels = [
-            "task:created", "task:started", "task:progress",
-            "task:validation", "task:completed", "task:failed", "task:learned"
+            "task:created",
+            "task:started",
+            "task:progress",
+            "task:validation",
+            "task:completed",
+            "task:failed",
+            "task:learned",
         ]
         for channel in task_channels:
             await self.subscribe(channel, handler)

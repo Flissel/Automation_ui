@@ -20,19 +20,18 @@ Options:
 import argparse
 import asyncio
 import logging
+import os
 import signal
 import sys
-import os
 
 # Add parent to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.redis_streams import RedisStreamClient
-from core.subagent_runner import SubagentType, MultiWorkerRunner
+from core.subagent_runner import MultiWorkerRunner, SubagentType
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ class WorkerManager:
         planning_workers: int = 3,
         vision_workers: int = 2,
         specialist_workers: int = 1,
-        background_workers: int = 1
+        background_workers: int = 1,
     ):
         """Start all worker types."""
         logger.info("=" * 60)
@@ -63,10 +62,13 @@ class WorkerManager:
 
         try:
             # Import worker classes
-            from agents.subagents.planning_subagent import PlanningSubagentRunner
+            from agents.subagents.background_subagent import \
+                BackgroundSubagentRunner
+            from agents.subagents.planning_subagent import \
+                PlanningSubagentRunner
+            from agents.subagents.specialist_subagent import \
+                SpecialistSubagentRunner
             from agents.subagents.vision_subagent import VisionSubagentRunner
-            from agents.subagents.specialist_subagent import SpecialistSubagentRunner
-            from agents.subagents.background_subagent import BackgroundSubagentRunner
 
             # Start Planning Workers
             if planning_workers > 0:
@@ -75,7 +77,7 @@ class WorkerManager:
                     client = RedisStreamClient(
                         host=self.redis_host,
                         port=self.redis_port,
-                        consumer_name=f"planning_worker_{i}"
+                        consumer_name=f"planning_worker_{i}",
                     )
                     await client.connect()
                     runner = PlanningSubagentRunner(client)
@@ -90,7 +92,7 @@ class WorkerManager:
                     client = RedisStreamClient(
                         host=self.redis_host,
                         port=self.redis_port,
-                        consumer_name=f"vision_worker_{i}"
+                        consumer_name=f"vision_worker_{i}",
                     )
                     await client.connect()
                     runner = VisionSubagentRunner(client)
@@ -100,16 +102,21 @@ class WorkerManager:
 
             # Start Specialist Workers (one per domain)
             if specialist_workers > 0:
-                from agents.subagents.specialist_subagent import SpecialistDomain
+                from agents.subagents.specialist_subagent import \
+                    SpecialistDomain
 
-                domains = list(SpecialistDomain)[:specialist_workers * 2]  # 2 domains per worker
-                logger.info(f"\nStarting Specialist workers for {len(domains)} domains...")
+                domains = list(SpecialistDomain)[
+                    : specialist_workers * 2
+                ]  # 2 domains per worker
+                logger.info(
+                    f"\nStarting Specialist workers for {len(domains)} domains..."
+                )
 
                 for domain in domains:
                     client = RedisStreamClient(
                         host=self.redis_host,
                         port=self.redis_port,
-                        consumer_name=f"specialist_{domain.value}"
+                        consumer_name=f"specialist_{domain.value}",
                     )
                     await client.connect()
                     runner = SpecialistSubagentRunner(client, domain)
@@ -124,7 +131,7 @@ class WorkerManager:
                     client = RedisStreamClient(
                         host=self.redis_host,
                         port=self.redis_port,
-                        consumer_name=f"background_worker_{i}"
+                        consumer_name=f"background_worker_{i}",
                     )
                     await client.connect()
                     runner = BackgroundSubagentRunner(client)
@@ -186,10 +193,18 @@ async def main():
     parser = argparse.ArgumentParser(description="Start MoireTracker subagent workers")
     parser.add_argument("--host", default="localhost", help="Redis host")
     parser.add_argument("--port", type=int, default=6379, help="Redis port")
-    parser.add_argument("--planning", type=int, default=3, help="Number of planning workers")
-    parser.add_argument("--vision", type=int, default=2, help="Number of vision workers")
-    parser.add_argument("--specialist", type=int, default=1, help="Number of specialist workers")
-    parser.add_argument("--background", type=int, default=1, help="Number of background workers")
+    parser.add_argument(
+        "--planning", type=int, default=3, help="Number of planning workers"
+    )
+    parser.add_argument(
+        "--vision", type=int, default=2, help="Number of vision workers"
+    )
+    parser.add_argument(
+        "--specialist", type=int, default=1, help="Number of specialist workers"
+    )
+    parser.add_argument(
+        "--background", type=int, default=1, help="Number of background workers"
+    )
 
     args = parser.parse_args()
 
@@ -213,7 +228,7 @@ async def main():
             planning_workers=args.planning,
             vision_workers=args.vision,
             specialist_workers=args.specialist,
-            background_workers=args.background
+            background_workers=args.background,
         )
         await manager.wait()
     except KeyboardInterrupt:

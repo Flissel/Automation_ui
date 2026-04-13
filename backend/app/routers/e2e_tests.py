@@ -4,9 +4,9 @@ import asyncio
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks
 from app.models.e2e_models import E2ERunRequest, E2ERunStatus, TestReport
 from app.services.e2e_test_runner import get_runner
+from fastapi import APIRouter, BackgroundTasks
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/e2e", tags=["e2e-tests"])
@@ -20,7 +20,11 @@ async def start_e2e_run(request: E2ERunRequest, background_tasks: BackgroundTask
     """Start an autonomous E2E test run."""
     runner = get_runner()
     if runner.status.running:
-        return {"success": False, "error": "E2E tests already running", "status": runner.status.model_dump()}
+        return {
+            "success": False,
+            "error": "E2E tests already running",
+            "status": runner.status.model_dump(),
+        }
 
     async def _run():
         try:

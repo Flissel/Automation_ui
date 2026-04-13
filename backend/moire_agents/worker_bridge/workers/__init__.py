@@ -13,18 +13,12 @@ from .validation_worker import VisionValidationWorker
 
 # NEW: Tool-Using Agent Workers
 try:
-    from .execution_worker import (
-        ExecutionWorker,
-        ExecutionWorkerConfig,
-        get_execution_worker
-    )
-    from .desktop_tools import (
-        DesktopToolExecutor,
-        SizeValidator,
-        get_tool_executor,
-        get_tool_functions_schema,
-        DESKTOP_TOOLS
-    )
+    from .desktop_tools import (DESKTOP_TOOLS, DesktopToolExecutor,
+                                SizeValidator, get_tool_executor,
+                                get_tool_functions_schema)
+    from .execution_worker import (ExecutionWorker, ExecutionWorkerConfig,
+                                   get_execution_worker)
+
     HAS_EXECUTION_WORKER = True
 except ImportError:
     HAS_EXECUTION_WORKER = False
@@ -38,16 +32,16 @@ except ImportError:
     DESKTOP_TOOLS = {}
 
 __all__ = [
-    'ClassificationWorker',
-    'VisionValidationWorker',
+    "ClassificationWorker",
+    "VisionValidationWorker",
     # Tool-Using Agent
-    'ExecutionWorker',
-    'ExecutionWorkerConfig',
-    'get_execution_worker',
-    'DesktopToolExecutor',
-    'SizeValidator',
-    'get_tool_executor',
-    'get_tool_functions_schema',
-    'DESKTOP_TOOLS',
-    'HAS_EXECUTION_WORKER'
+    "ExecutionWorker",
+    "ExecutionWorkerConfig",
+    "get_execution_worker",
+    "DesktopToolExecutor",
+    "SizeValidator",
+    "get_tool_executor",
+    "get_tool_functions_schema",
+    "DESKTOP_TOOLS",
+    "HAS_EXECUTION_WORKER",
 ]

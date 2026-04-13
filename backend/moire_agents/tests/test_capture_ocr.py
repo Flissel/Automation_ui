@@ -1,10 +1,12 @@
 """Test script for MoireWebSocketClient capture with OCR."""
+
 import asyncio
-import sys
 import os
+import sys
 
 # Add python path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'MoireTracker_v2', 'python'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "MoireTracker_v2", "python"))
+
 
 async def test_capture():
     try:
@@ -60,8 +62,10 @@ async def test_capture():
     except Exception as e:
         print(f"[FAIL] Error: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 if __name__ == "__main__":
     success = asyncio.run(test_capture())

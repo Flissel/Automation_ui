@@ -19,12 +19,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..models.skill import (
-    InstalledSkill,
-    SkillDetail,
-    SkillExecuteResponse,
-    SkillStatus,
-)
+from ..models.skill import (InstalledSkill, SkillDetail, SkillExecuteResponse,
+                            SkillStatus)
 
 logger = logging.getLogger(__name__)
 
@@ -139,13 +135,13 @@ class SkillManager:
         if not skill_py.exists():
             skill_py.write_text(
                 f'"""\n{skill.name}\n\n{skill.description}\n"""\n\n'
-                f'async def execute(params: dict) -> dict:\n'
+                f"async def execute(params: dict) -> dict:\n"
                 f'    """Execute the {skill.name} skill."""\n'
-                f'    return {{\n'
+                f"    return {{\n"
                 f'        "success": True,\n'
                 f'        "message": "{skill.name} executed successfully",\n'
                 f'        "params": params,\n'
-                f'    }}\n',
+                f"    }}\n",
                 encoding="utf-8",
             )
 
@@ -167,6 +163,7 @@ class SkillManager:
         # Remove directory
         if skill_dir.exists():
             import shutil
+
             shutil.rmtree(skill_dir, ignore_errors=True)
 
         # Remove from cache
@@ -175,7 +172,9 @@ class SkillManager:
         logger.info(f"Uninstalled skill: {skill_id}")
         return True
 
-    async def toggle_skill(self, skill_id: str, enabled: bool) -> Optional[InstalledSkill]:
+    async def toggle_skill(
+        self, skill_id: str, enabled: bool
+    ) -> Optional[InstalledSkill]:
         """Enable or disable a skill."""
         self._load_cache()
 

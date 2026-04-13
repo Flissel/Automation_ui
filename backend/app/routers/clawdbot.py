@@ -20,12 +20,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from ..services.clawdbot_bridge import (
-    ClawdbotBridgeService,
-    ClawdbotMessage,
-    ClawdbotResponse,
-    get_clawdbot_bridge,
-)
+from ..services.clawdbot_bridge import (ClawdbotBridgeService, ClawdbotMessage,
+                                        ClawdbotResponse, get_clawdbot_bridge)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +35,7 @@ router = APIRouter()
 
 class CommandRequest(BaseModel):
     """Request to execute an automation command"""
+
     command: str = Field(..., description="Natural language command to execute")
     user_id: str = Field(default="api_user", description="User identifier")
     platform: str = Field(default="api", description="Source platform")
@@ -47,6 +44,7 @@ class CommandRequest(BaseModel):
 
 class CommandResponse(BaseModel):
     """Response from command execution"""
+
     success: bool
     message: str
     data: Optional[Dict[str, Any]] = None
@@ -57,6 +55,7 @@ class CommandResponse(BaseModel):
 
 class ScreenshotRequest(BaseModel):
     """Request for screenshot"""
+
     user_id: str = Field(default="api_user", description="User identifier")
     platform: str = Field(default="api", description="Source platform")
     quality: int = Field(default=85, ge=10, le=100, description="JPEG quality")
@@ -64,6 +63,7 @@ class ScreenshotRequest(BaseModel):
 
 class StatusResponse(BaseModel):
     """Bridge status response"""
+
     status: str
     initialized: bool
     active_sessions: int
@@ -73,6 +73,7 @@ class StatusResponse(BaseModel):
 
 class SessionInfo(BaseModel):
     """User session information"""
+
     user_id: str
     platform: str
     last_command: Optional[str] = None
@@ -82,6 +83,7 @@ class SessionInfo(BaseModel):
 
 class WebhookPayload(BaseModel):
     """Incoming webhook payload from Clawdbot"""
+
     type: str = Field(..., description="Event type")
     user_id: str
     platform: str
@@ -166,7 +168,7 @@ async def get_screenshot(request: ScreenshotRequest):
                 "Content-Disposition": "inline; filename=screenshot.jpg",
                 "X-User-Id": request.user_id,
                 "X-Platform": request.platform,
-            }
+            },
         )
 
     except Exception as e:
@@ -195,7 +197,7 @@ async def get_screenshot_simple():
         return Response(
             content=image_bytes,
             media_type="image/jpeg",
-            headers={"Content-Disposition": "inline; filename=screenshot.jpg"}
+            headers={"Content-Disposition": "inline; filename=screenshot.jpg"},
         )
 
     except Exception as e:
@@ -287,11 +289,7 @@ async def webhook_handler(payload: WebhookPayload, request: Request):
             response = await bridge.process_message(message)
 
             # Publish result for Clawdbot to send back
-            await bridge.publish_result(
-                payload.user_id,
-                payload.platform,
-                response
-            )
+            await bridge.publish_result(payload.user_id, payload.platform, response)
 
             return {
                 "status": "processed",
@@ -316,10 +314,7 @@ async def webhook_handler(payload: WebhookPayload, request: Request):
 
 @router.post("/notify")
 async def send_notification(
-    user_id: str,
-    platform: str,
-    message: str,
-    notification_type: str = "info"
+    user_id: str, platform: str, message: str, notification_type: str = "info"
 ):
     """
     Send a notification to a user via Clawdbot.
@@ -337,7 +332,7 @@ async def send_notification(
             user_id=user_id,
             platform=platform,
             message=message,
-            notification_type=notification_type
+            notification_type=notification_type,
         )
 
         return {"status": "sent", "user_id": user_id, "platform": platform}
@@ -360,6 +355,7 @@ async def health_check():
 
 class ContactCreate(BaseModel):
     """Request to create/update a contact"""
+
     key: str = Field(..., description="Unique contact key (e.g., 'peter')")
     name: str = Field(..., description="Display name")
     whatsapp: Optional[str] = Field(None, description="WhatsApp number (+49...)")
@@ -368,12 +364,15 @@ class ContactCreate(BaseModel):
     email: Optional[str] = Field(None, description="Email address")
     signal: Optional[str] = Field(None, description="Signal number")
     imessage: Optional[str] = Field(None, description="iMessage ID")
-    aliases: Optional[List[str]] = Field(default_factory=list, description="Alternative names")
+    aliases: Optional[List[str]] = Field(
+        default_factory=list, description="Alternative names"
+    )
     notes: Optional[str] = Field(None, description="Notes about this contact")
 
 
 class ContactResponse(BaseModel):
     """Contact information response"""
+
     key: str
     name: str
     whatsapp: Optional[str] = None
@@ -388,6 +387,7 @@ class ContactResponse(BaseModel):
 
 class ContactSearchResult(BaseModel):
     """Contact search result"""
+
     key: str
     contact: Dict[str, Any]
     score: float
@@ -420,10 +420,7 @@ async def search_contacts(q: str, limit: int = 5):
     registry = get_contact_registry()
     results = registry.search(q, limit=limit)
 
-    return {
-        "query": q,
-        "results": results
-    }
+    return {"query": q, "results": results}
 
 
 @router.get("/contacts/{key}")
@@ -482,11 +479,7 @@ async def create_contact(request: ContactCreate):
     if not success:
         raise HTTPException(status_code=500, detail="Failed to save contact")
 
-    return {
-        "status": "created",
-        "key": request.key,
-        "contact": contact_data
-    }
+    return {"status": "created", "key": request.key, "contact": contact_data}
 
 
 @router.delete("/contacts/{key}")
@@ -503,7 +496,9 @@ async def delete_contact(key: str):
     success = registry.remove_contact(key)
 
     if not success:
-        raise HTTPException(status_code=404, detail=f"Contact '{key}' not found or delete failed")
+        raise HTTPException(
+            status_code=404, detail=f"Contact '{key}' not found or delete failed"
+        )
 
     return {"status": "deleted", "key": key}
 
@@ -529,18 +524,10 @@ async def resolve_contact(key: str, platform: Optional[str] = None):
         similar = registry.search(key, limit=3)
         if similar:
             suggestions = [s["contact"].get("name", s["key"]) for s in similar]
-            return {
-                "found": False,
-                "query": key,
-                "suggestions": suggestions
-            }
+            return {"found": False, "query": key, "suggestions": suggestions}
         raise HTTPException(status_code=404, detail=f"Contact '{key}' not found")
 
-    result = {
-        "found": True,
-        "query": key,
-        "contact": contact
-    }
+    result = {"found": True, "query": key, "contact": contact}
 
     if platform:
         recipient_id = contact.get(platform.lower())

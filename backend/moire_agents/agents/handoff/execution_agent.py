@@ -7,12 +7,13 @@ Part of the handoff pattern multi-agent system.
 
 import asyncio
 import logging
-import pyautogui
-import pyperclip
 from typing import Any, Dict, Optional
 
-from .base_agent import BaseHandoffAgent, AgentConfig, Tool
-from .messages import UserTask, HandoffRequest
+import pyautogui
+import pyperclip
+
+from .base_agent import AgentConfig, BaseHandoffAgent, Tool
+from .messages import HandoffRequest, UserTask
 from .tools import transfer_to_orchestrator, transfer_to_recovery
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ class ExecutionAgent(BaseHandoffAgent):
         config = AgentConfig(
             name="execution",
             description="Executes keyboard and mouse actions via pyautogui",
-            topic_type="execution"
+            topic_type="execution",
         )
         super().__init__(config)
 
@@ -60,14 +61,14 @@ class ExecutionAgent(BaseHandoffAgent):
         self.register_delegate_tool(
             name="return_to_orchestrator",
             target_agent="orchestrator",
-            description="Return control to orchestrator after action completion"
+            description="Return control to orchestrator after action completion",
         )
 
         # Escalate to recovery on failure
         self.register_delegate_tool(
             name="escalate_to_recovery",
             target_agent="recovery",
-            description="Escalate to recovery agent on failure"
+            description="Escalate to recovery agent on failure",
         )
 
     async def _process_task(self, task: UserTask) -> Any:
@@ -87,19 +88,13 @@ class ExecutionAgent(BaseHandoffAgent):
 
         action_type = action.get("type", "")
 
-        await self.report_progress(
-            task, 50.0,
-            f"Executing: {action_type}"
-        )
+        await self.report_progress(task, 50.0, f"Executing: {action_type}")
 
         try:
             result = await self._execute_action(action)
 
             # Add to completed actions
-            task.completed_actions.append({
-                **action,
-                "result": result
-            })
+            task.completed_actions.append({**action, "result": result})
 
             await self.report_progress(task, 100.0, "Execution complete")
 
@@ -107,9 +102,7 @@ class ExecutionAgent(BaseHandoffAgent):
             task.context["execution_result"] = result
             task.context["returning_from"] = "execution"
             return await self.hand_off_to(
-                "orchestrator",
-                task,
-                reason="Execution complete"
+                "orchestrator", task, reason="Execution complete"
             )
 
         except Exception as e:
@@ -120,9 +113,7 @@ class ExecutionAgent(BaseHandoffAgent):
             task.context["failed_action"] = action
             task.context["returning_from"] = "execution"
             return await self.hand_off_to(
-                "recovery",
-                task,
-                reason=f"Execution failed: {e}"
+                "recovery", task, reason=f"Execution failed: {e}"
             )
 
     async def _execute_action(self, action: Dict) -> Dict[str, Any]:

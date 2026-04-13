@@ -19,11 +19,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import aiohttp
-
-from app.models.e2e_models import (
-    E2ERunStatus, StepStatus, StepType, TestCase, TestReport,
-    TestResult, TestStatus, TestStep, UserStory,
-)
+from app.models.e2e_models import (E2ERunStatus, StepStatus, StepType,
+                                   TestCase, TestReport, TestResult,
+                                   TestStatus, TestStep, UserStory)
 
 logger = logging.getLogger(__name__)
 
@@ -123,9 +121,17 @@ class E2ETestRunner:
             )
 
             # Save report to disk
-            report_dir = Path(project_path).parent.parent / "output" / Path(project_path).name / "e2e-reports"
+            report_dir = (
+                Path(project_path).parent.parent
+                / "output"
+                / Path(project_path).name
+                / "e2e-reports"
+            )
             report_dir.mkdir(parents=True, exist_ok=True)
-            report_path = report_dir / f"e2e-report-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json"
+            report_path = (
+                report_dir
+                / f"e2e-report-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json"
+            )
             report_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
             report.report_path = str(report_path)
 
@@ -161,12 +167,18 @@ class E2ETestRunner:
                 data = json.loads(epics_file.read_text(encoding="utf-8"))
                 for epic in data if isinstance(data, list) else data.get("epics", []):
                     for us_id in epic.get("user_stories", []):
-                        stories.append(UserStory(
-                            id=us_id,
-                            title=f"{us_id}: {epic.get('name', '')}",
-                            description=epic.get("description", ""),
-                            priority="high" if "Auth" in epic.get("name", "") else "medium",
-                        ))
+                        stories.append(
+                            UserStory(
+                                id=us_id,
+                                title=f"{us_id}: {epic.get('name', '')}",
+                                description=epic.get("description", ""),
+                                priority=(
+                                    "high"
+                                    if "Auth" in epic.get("name", "")
+                                    else "medium"
+                                ),
+                            )
+                        )
             except (json.JSONDecodeError, OSError):
                 pass
 
@@ -175,14 +187,18 @@ class E2ETestRunner:
             if us_file.exists():
                 try:
                     data = json.loads(us_file.read_text(encoding="utf-8"))
-                    for us in data if isinstance(data, list) else data.get("user_stories", []):
-                        stories.append(UserStory(
-                            id=us.get("id", us.get("story_id", "")),
-                            title=us.get("title", us.get("name", "")),
-                            description=us.get("description", ""),
-                            acceptance_criteria=us.get("acceptance_criteria", []),
-                            priority=us.get("priority", "medium"),
-                        ))
+                    for us in (
+                        data if isinstance(data, list) else data.get("user_stories", [])
+                    ):
+                        stories.append(
+                            UserStory(
+                                id=us.get("id", us.get("story_id", "")),
+                                title=us.get("title", us.get("name", "")),
+                                description=us.get("description", ""),
+                                acceptance_criteria=us.get("acceptance_criteria", []),
+                                priority=us.get("priority", "medium"),
+                            )
+                        )
                 except (json.JSONDecodeError, OSError):
                     pass
 
@@ -199,7 +215,9 @@ class E2ETestRunner:
     # 2. Generate Test Plan via LLM
     # =========================================================================
 
-    async def _generate_test_plan(self, stories: List[UserStory], app_url: str) -> List[TestCase]:
+    async def _generate_test_plan(
+        self, stories: List[UserStory], app_url: str
+    ) -> List[TestCase]:
         """Ask LLM to generate test cases from user stories."""
         stories_text = "\n".join(
             f"- {s.id}: {s.title}" + (f"\n  {s.description}" if s.description else "")
@@ -255,7 +273,9 @@ Return ONLY the JSON array, no markdown."""
                     timeout=aiohttp.ClientTimeout(total=60),
                 ) as resp:
                     if resp.status != 200:
-                        logger.warning(f"LLM returned {resp.status}, using fallback tests")
+                        logger.warning(
+                            f"LLM returned {resp.status}, using fallback tests"
+                        )
                         return self._generate_fallback_tests(stories, app_url)
 
                     data = await resp.json()
@@ -279,7 +299,9 @@ Return ONLY the JSON array, no markdown."""
             logger.warning(f"LLM test generation failed: {e}, using fallback")
             return self._generate_fallback_tests(stories, app_url)
 
-    def _generate_fallback_tests(self, stories: List[UserStory], app_url: str) -> List[TestCase]:
+    def _generate_fallback_tests(
+        self, stories: List[UserStory], app_url: str
+    ) -> List[TestCase]:
         """Basic tests without LLM — just check pages load."""
         tests = [
             TestCase(
@@ -303,15 +325,19 @@ Return ONLY the JSON array, no markdown."""
         ]
         # Add a nav test for each feature button visible on homepage
         for label in ["Chats", "Contacts", "Settings", "Calls"]:
-            tests.append(TestCase(
-                story_id=f"NAV-{label.upper()}",
-                name=f"Navigate to {label}",
-                steps=[
-                    TestStep(type=StepType.NAVIGATE, path="/"),
-                    TestStep(type=StepType.CLICK, target=label),
-                    TestStep(type=StepType.SCREENSHOT, label=f"{label.lower()}_page"),
-                ],
-            ))
+            tests.append(
+                TestCase(
+                    story_id=f"NAV-{label.upper()}",
+                    name=f"Navigate to {label}",
+                    steps=[
+                        TestStep(type=StepType.NAVIGATE, path="/"),
+                        TestStep(type=StepType.CLICK, target=label),
+                        TestStep(
+                            type=StepType.SCREENSHOT, label=f"{label.lower()}_page"
+                        ),
+                    ],
+                )
+            )
         return tests
 
     # =========================================================================
@@ -340,7 +366,14 @@ Return ONLY the JSON array, no markdown."""
                 # Use the MCP exec endpoint
                 async with session.post(
                     f"{PLAYWRIGHT_API}/api/v1/mcp/exec",
-                    json={"tool": f"browser_{tool_name}" if not tool_name.startswith("browser_") else tool_name, "arguments": args},
+                    json={
+                        "tool": (
+                            f"browser_{tool_name}"
+                            if not tool_name.startswith("browser_")
+                            else tool_name
+                        ),
+                        "arguments": args,
+                    },
                     timeout=aiohttp.ClientTimeout(total=30),
                 ) as resp:
                     if resp.status == 200:
@@ -353,9 +386,10 @@ Return ONLY the JSON array, no markdown."""
 
     async def _take_screenshot(self, label: str = "screenshot") -> Optional[str]:
         """Take browser screenshot, return path."""
-        result = await self._playwright_call("browser_take_screenshot", {
-            "filename": f"e2e-{label}-{int(time.time())}.png"
-        })
+        result = await self._playwright_call(
+            "browser_take_screenshot",
+            {"filename": f"e2e-{label}-{int(time.time())}.png"},
+        )
         if isinstance(result, dict) and "path" in result:
             return result["path"]
         return None
@@ -401,19 +435,25 @@ Return ONLY the JSON array, no markdown."""
                         # Get snapshot to find element ref
                         snapshot = await self._get_page_text()
                         # Try clicking by finding element in snapshot
-                        result = await self._playwright_call("browser_click", {
-                            "element": step.target or "",
-                            "ref": step.target or "",
-                        })
+                        result = await self._playwright_call(
+                            "browser_click",
+                            {
+                                "element": step.target or "",
+                                "ref": step.target or "",
+                            },
+                        )
                         await asyncio.sleep(1)
                         step.status = StepStatus.PASSED
 
                     elif step.type == StepType.TYPE:
-                        result = await self._playwright_call("browser_type", {
-                            "element": step.target or "",
-                            "ref": step.target or "",
-                            "text": step.value or "",
-                        })
+                        result = await self._playwright_call(
+                            "browser_type",
+                            {
+                                "element": step.target or "",
+                                "ref": step.target or "",
+                                "text": step.value or "",
+                            },
+                        )
                         step.status = StepStatus.PASSED
 
                     elif step.type == StepType.ASSERT_TEXT:
@@ -462,8 +502,7 @@ Return ONLY the JSON array, no markdown."""
 
         finished = datetime.utcnow()
         all_passed = all(
-            s.status in (StepStatus.PASSED, StepStatus.SKIPPED)
-            for s in tc.steps
+            s.status in (StepStatus.PASSED, StepStatus.SKIPPED) for s in tc.steps
         )
         tc.status = TestStatus.PASSED if all_passed else TestStatus.FAILED
         tc.duration_ms = int((finished - started).total_seconds() * 1000)
@@ -509,7 +548,10 @@ Return ONLY the JSON array, no markdown."""
             async with aiohttp.ClientSession() as session:
                 await session.post(
                     f"https://discord.com/api/v10/channels/{channel}/messages",
-                    headers={"Authorization": f"Bot {token}", "Content-Type": "application/json"},
+                    headers={
+                        "Authorization": f"Bot {token}",
+                        "Content-Type": "application/json",
+                    },
                     json={"content": msg[:2000]},
                     timeout=aiohttp.ClientTimeout(total=10),
                 )

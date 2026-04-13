@@ -25,8 +25,7 @@ class Settings(BaseSettings):
 
     # Database Settings (PostgreSQL)
     database_url: str = Field(
-        default="postgresql://localhost:5432/automation_ui",
-        env="DATABASE_URL"
+        default="postgresql://localhost:5432/automation_ui", env="DATABASE_URL"
     )
     database_pool_size: int = Field(default=5, env="DATABASE_POOL_SIZE")
     database_max_overflow: int = Field(default=10, env="DATABASE_MAX_OVERFLOW")
@@ -73,15 +72,21 @@ class Settings(BaseSettings):
     enable_websockets: bool = Field(default=True, env="ENABLE_WEBSOCKETS")
 
     # Remote Execution (Brain-in-Docker mode)
-    execution_mode: str = Field(default="local", env="EXECUTION_MODE")  # "local" or "remote"
+    execution_mode: str = Field(
+        default="local", env="EXECUTION_MODE"
+    )  # "local" or "remote"
     remote_desktop_client_id: str = Field(default="", env="REMOTE_DESKTOP_CLIENT_ID")
     remote_action_timeout: int = Field(default=30, env="REMOTE_ACTION_TIMEOUT")
     remote_frame_max_age_ms: int = Field(default=2000, env="REMOTE_FRAME_MAX_AGE_MS")
 
     # LLM Model Configuration (OpenRouter)
     llm_model: str = Field(default="anthropic/claude-opus-4", env="LLM_MODEL")
-    vision_model: str = Field(default="nvidia/nemotron-nano-12b-v2-vl:free", env="VISION_MODEL")
-    compaction_model: str = Field(default="anthropic/claude-sonnet-4", env="COMPACTION_MODEL")
+    vision_model: str = Field(
+        default="nvidia/nemotron-nano-12b-v2-vl:free", env="VISION_MODEL"
+    )
+    compaction_model: str = Field(
+        default="anthropic/claude-sonnet-4", env="COMPACTION_MODEL"
+    )
     video_agent_default: bool = Field(default=True, env="VIDEO_AGENT_DEFAULT")
 
     # OCR Settings
@@ -190,9 +195,7 @@ class Settings(BaseSettings):
     vm_template_id_end: int = Field(default=199, env="VM_TEMPLATE_ID_END")
 
     # Security & Authentication Settings
-    jwt_secret_key: str = Field(
-        default="", env="JWT_SECRET_KEY"
-    )
+    jwt_secret_key: str = Field(default="", env="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
     jwt_access_token_expire_minutes: int = Field(
         default=30, env="JWT_ACCESS_TOKEN_EXPIRE_MINUTES"
@@ -204,9 +207,7 @@ class Settings(BaseSettings):
     # API Key Settings
     api_key_enabled: bool = Field(default=True, env="API_KEY_ENABLED")
     api_key_header_name: str = Field(default="X-API-Key", env="API_KEY_HEADER_NAME")
-    default_api_keys: List[str] = Field(
-        default=[], env="DEFAULT_API_KEYS"
-    )
+    default_api_keys: List[str] = Field(default=[], env="DEFAULT_API_KEYS")
 
     # Rate Limiting
     rate_limit_enabled: bool = Field(default=True, env="RATE_LIMIT_ENABLED")
@@ -448,7 +449,9 @@ class Settings(BaseSettings):
         """Pydantic config"""
 
         # Load from root .env if it exists (local dev), env vars override (Docker)
-        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
+        env_file = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"
+        )
         env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "ignore"  # Ignore VITE_*, OPENROUTER_*, etc. from shared .env

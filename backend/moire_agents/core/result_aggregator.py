@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class AggregationStrategy(Enum):
     """Strategies for aggregating parallel results."""
+
     BEST_CONFIDENCE = "best_confidence"
     CONSENSUS = "consensus"
     WEIGHTED_MERGE = "weighted_merge"
@@ -29,12 +30,13 @@ class AggregationStrategy(Enum):
 
 
 # Generic type for result objects
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @dataclass
 class AggregationMetrics:
     """Metrics about the aggregation process."""
+
     total_results: int
     successful_results: int
     strategy_used: str
@@ -57,7 +59,7 @@ class ResultAggregator:
         self,
         strategy: AggregationStrategy = AggregationStrategy.BEST_CONFIDENCE,
         min_confidence: float = 0.3,
-        consensus_threshold: float = 0.6
+        consensus_threshold: float = 0.6,
     ):
         """
         Initialize the aggregator.
@@ -72,9 +74,7 @@ class ResultAggregator:
         self.consensus_threshold = consensus_threshold
 
     def aggregate_planning_results(
-        self,
-        results: List[Any],
-        strategy: Optional[AggregationStrategy] = None
+        self, results: List[Any], strategy: Optional[AggregationStrategy] = None
     ) -> Any:
         """
         Aggregate planning subagent results.
@@ -90,9 +90,10 @@ class ResultAggregator:
 
         # Filter to successful results with minimum confidence
         valid_results = [
-            r for r in results
-            if getattr(r, 'success', False) and
-               getattr(r, 'confidence', 0) >= self.min_confidence
+            r
+            for r in results
+            if getattr(r, "success", False)
+            and getattr(r, "confidence", 0) >= self.min_confidence
         ]
 
         if not valid_results:
@@ -117,9 +118,7 @@ class ResultAggregator:
         return self._select_best_confidence(valid_results)
 
     def aggregate_vision_results(
-        self,
-        results: List[Any],
-        strategy: Optional[AggregationStrategy] = None
+        self, results: List[Any], strategy: Optional[AggregationStrategy] = None
     ) -> Dict[str, Any]:
         """
         Aggregate vision subagent results.
@@ -137,21 +136,19 @@ class ResultAggregator:
         merged = {}
 
         for r in results:
-            region_name = getattr(r, 'region_name', 'unknown')
+            region_name = getattr(r, "region_name", "unknown")
             merged[region_name] = {
-                "elements": getattr(r, 'elements', []),
-                "analysis": getattr(r, 'analysis', ''),
-                "confidence": getattr(r, 'confidence', 0.0),
-                "success": getattr(r, 'success', False),
-                "error": getattr(r, 'error', None)
+                "elements": getattr(r, "elements", []),
+                "analysis": getattr(r, "analysis", ""),
+                "confidence": getattr(r, "confidence", 0.0),
+                "success": getattr(r, "success", False),
+                "error": getattr(r, "error", None),
             }
 
         return merged
 
     def aggregate_specialist_results(
-        self,
-        results: List[Any],
-        strategy: Optional[AggregationStrategy] = None
+        self, results: List[Any], strategy: Optional[AggregationStrategy] = None
     ) -> Any:
         """
         Aggregate specialist subagent results.
@@ -168,10 +165,7 @@ class ResultAggregator:
         """
         strategy = strategy or self.strategy
 
-        valid_results = [
-            r for r in results
-            if getattr(r, 'success', False)
-        ]
+        valid_results = [r for r in results if getattr(r, "success", False)]
 
         if not valid_results:
             return results[0] if results else None
@@ -184,16 +178,16 @@ class ResultAggregator:
         merged_workflows = []
 
         for r in valid_results:
-            if hasattr(r, 'shortcuts') and r.shortcuts:
+            if hasattr(r, "shortcuts") and r.shortcuts:
                 merged_shortcuts.update(r.shortcuts)
-            if hasattr(r, 'workflow') and r.workflow:
+            if hasattr(r, "workflow") and r.workflow:
                 merged_workflows.extend(r.workflow)
 
         # Return first result with merged data
         best = valid_results[0]
-        if hasattr(best, 'shortcuts'):
+        if hasattr(best, "shortcuts"):
             best.shortcuts = merged_shortcuts
-        if hasattr(best, 'workflow'):
+        if hasattr(best, "workflow"):
             best.workflow = merged_workflows
 
         return best
@@ -203,16 +197,14 @@ class ResultAggregator:
         if not results:
             return None
 
-        best = max(results, key=lambda r: getattr(r, 'confidence', 0))
-        logger.debug(
-            f"Selected best confidence: {getattr(best, 'confidence', 0):.2f}"
-        )
+        best = max(results, key=lambda r: getattr(r, "confidence", 0))
+        logger.debug(f"Selected best confidence: {getattr(best, 'confidence', 0):.2f}")
         return best
 
     def _select_first_success(self, results: List[Any]) -> Any:
         """Select the first successful result."""
         for r in results:
-            if getattr(r, 'success', False):
+            if getattr(r, "success", False):
                 return r
         return results[0] if results else None
 
@@ -229,10 +221,14 @@ class ResultAggregator:
         # Extract action signatures for comparison
         signatures = []
         for r in results:
-            actions = getattr(r, 'actions', [])
+            actions = getattr(r, "actions", [])
             # Create a simplified signature of the action sequence
             sig = tuple(
-                action.get('action', 'unknown') if isinstance(action, dict) else 'unknown'
+                (
+                    action.get("action", "unknown")
+                    if isinstance(action, dict)
+                    else "unknown"
+                )
                 for action in actions[:5]  # First 5 actions
             )
             signatures.append(sig)
@@ -257,11 +253,7 @@ class ResultAggregator:
         )
         return self._select_best_confidence(results)
 
-    def compute_metrics(
-        self,
-        results: List[Any],
-        selected: Any
-    ) -> AggregationMetrics:
+    def compute_metrics(self, results: List[Any], selected: Any) -> AggregationMetrics:
         """
         Compute metrics about the aggregation.
 
@@ -272,10 +264,8 @@ class ResultAggregator:
         Returns:
             AggregationMetrics
         """
-        successful = [r for r in results if getattr(r, 'success', False)]
-        confidences = [
-            getattr(r, 'confidence', 0) for r in results
-        ]
+        successful = [r for r in results if getattr(r, "success", False)]
+        confidences = [getattr(r, "confidence", 0) for r in results]
 
         selected_idx = None
         if selected:
@@ -289,11 +279,12 @@ class ResultAggregator:
             successful_results=len(successful),
             strategy_used=self.strategy.value,
             confidence_scores=confidences,
-            selected_index=selected_idx
+            selected_index=selected_idx,
         )
 
 
 # Helper functions for common aggregation patterns
+
 
 def select_best_plan(results: List[Any]) -> Any:
     """Convenience function to select best planning result."""
@@ -307,13 +298,9 @@ def merge_vision_regions(results: List[Any]) -> Dict[str, Any]:
     return aggregator.aggregate_vision_results(results)
 
 
-def require_consensus(
-    results: List[Any],
-    threshold: float = 0.6
-) -> Any:
+def require_consensus(results: List[Any], threshold: float = 0.6) -> Any:
     """Convenience function for consensus-based selection."""
     aggregator = ResultAggregator(
-        AggregationStrategy.CONSENSUS,
-        consensus_threshold=threshold
+        AggregationStrategy.CONSENSUS, consensus_threshold=threshold
     )
     return aggregator.aggregate_planning_results(results)

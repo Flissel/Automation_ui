@@ -11,12 +11,12 @@ Usage:
 """
 
 import json
+import logging
 import os
 import re
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from difflib import SequenceMatcher
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class ContactRegistry:
             return
 
         try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
+            with open(self.config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
             self._contacts = config.get("contacts", {})
@@ -61,9 +61,11 @@ class ContactRegistry:
             # Build alias map for fast lookup
             self._build_alias_map()
 
-            logger.info(f"Loaded {len(self._contacts)} contacts, "
-                       f"{len(self._variables)} variables, "
-                       f"{len(self._templates)} templates")
+            logger.info(
+                f"Loaded {len(self._contacts)} contacts, "
+                f"{len(self._variables)} variables, "
+                f"{len(self._templates)} templates"
+            )
 
         except Exception as e:
             logger.error(f"Failed to load contact config: {e}")
@@ -154,7 +156,9 @@ class ContactRegistry:
                 best_key = key
 
         if best_key:
-            logger.debug(f"Fuzzy matched '{query}' -> '{best_key}' (score: {best_score:.2f})")
+            logger.debug(
+                f"Fuzzy matched '{query}' -> '{best_key}' (score: {best_score:.2f})"
+            )
 
         return best_key
 
@@ -178,11 +182,7 @@ class ContactRegistry:
                 score = max(score, alias_score)
 
             if score > 0.3:
-                results.append({
-                    "key": key,
-                    "contact": contact,
-                    "score": score
-                })
+                results.append({"key": key, "contact": contact, "score": score})
 
         # Sort by score descending
         results.sort(key=lambda x: x["score"], reverse=True)
@@ -206,11 +206,12 @@ class ContactRegistry:
         Returns:
             Text with variables replaced
         """
+
         def replace_var(match):
             var_name = match.group(1)
             return self._variables.get(var_name, match.group(0))
 
-        return re.sub(r'\{(\w+)\}', replace_var, text)
+        return re.sub(r"\{(\w+)\}", replace_var, text)
 
     # =========================================================================
     # TEMPLATES
@@ -243,7 +244,7 @@ class ContactRegistry:
             key = match.group(1)
             return str(context.get(key, match.group(0)))
 
-        return re.sub(r'\{(\w+)\}', replace_placeholder, template)
+        return re.sub(r"\{(\w+)\}", replace_placeholder, template)
 
     # =========================================================================
     # MANAGEMENT
@@ -274,10 +275,10 @@ class ContactRegistry:
             config = {
                 "contacts": self._contacts,
                 "variables": self._variables,
-                "templates": self._templates
+                "templates": self._templates,
             }
 
-            with open(self.config_path, 'w', encoding='utf-8') as f:
+            with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2, ensure_ascii=False)
 
             return True

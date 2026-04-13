@@ -7,15 +7,16 @@ Core message types that enable agent communication:
 - HandoffRequest: Explicit handoff to another agent
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-from datetime import datetime
 import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
 class Message:
     """Base message class."""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = field(default_factory=datetime.now)
     session_id: str = ""
@@ -28,6 +29,7 @@ class UserTask(Message):
     Task message containing context and instructions.
     Published when agents hand off tasks to each other.
     """
+
     goal: str = ""
     context: Dict[str, Any] = field(default_factory=dict)
     history: List[Dict[str, Any]] = field(default_factory=list)
@@ -45,12 +47,14 @@ class UserTask(Message):
 
     def add_to_history(self, agent: str, action: str, result: Any):
         """Add an entry to the conversation history."""
-        self.history.append({
-            "agent": agent,
-            "action": action,
-            "result": result,
-            "timestamp": datetime.now().isoformat()
-        })
+        self.history.append(
+            {
+                "agent": agent,
+                "action": action,
+                "result": result,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
 
 @dataclass
@@ -58,6 +62,7 @@ class AgentResponse(Message):
     """
     Response from an agent with execution results.
     """
+
     success: bool = False
     result: Any = None
     error: Optional[str] = None
@@ -74,6 +79,7 @@ class HandoffRequest(Message):
     """
     Explicit request to transfer control to another agent.
     """
+
     target_agent: str = ""
     reason: str = ""
     task: Optional[UserTask] = None
@@ -89,6 +95,7 @@ class ProgressUpdate(Message):
     """
     Progress update from an agent.
     """
+
     agent_name: str = ""
     progress_percentage: float = 0.0
     current_action: str = ""
@@ -101,6 +108,7 @@ class RecoveryRequest(Message):
     """
     Request for recovery agent to handle a failure.
     """
+
     failed_action: Dict = field(default_factory=dict)
     error_message: str = ""
     retry_count: int = 0

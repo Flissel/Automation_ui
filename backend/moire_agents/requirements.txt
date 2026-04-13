@@ -32,6 +32,9 @@ redis>=5.0.0
 # Environment Variables
 python-dotenv>=1.0.0
 
+# VibeMind Shared LLM Config
+vibemind-shared>=0.1.0
+
 # Image Processing
 numpy>=1.24.0
 

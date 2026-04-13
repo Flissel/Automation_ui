@@ -1,12 +1,14 @@
 """Configuration settings for the application."""
 
-from typing import Optional
+from typing import Any, List, Optional, Union
 
 try:
+    from pydantic import field_validator
     from pydantic_settings import BaseSettings
 except ImportError:
     # Fallback for older pydantic versions
-    from pydantic import BaseSettings
+    from pydantic import BaseSettings, validator as field_validator
+
 import os
 
 
@@ -23,10 +25,24 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = False
 
-    # CORS Settings
-    cors_origins: list = ["*"]
-    cors_methods: list = ["*"]
-    cors_headers: list = ["*"]
+    # CORS Settings — stored as raw CSV strings, exposed as lists via properties.
+    # Typing as List[str] makes pydantic-settings JSON-decode the .env value before any validator runs,
+    # which breaks on plain comma-separated input. Keep as str, split lazily.
+    cors_origins: str = "*"
+    cors_methods: str = "*"
+    cors_headers: str = "*"
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        return [x.strip() for x in self.cors_origins.split(",") if x.strip()] or ["*"]
+
+    @property
+    def cors_methods_list(self) -> List[str]:
+        return [x.strip() for x in self.cors_methods.split(",") if x.strip()] or ["*"]
+
+    @property
+    def cors_headers_list(self) -> List[str]:
+        return [x.strip() for x in self.cors_headers.split(",") if x.strip()] or ["*"]
 
     # Storage Settings
     storage_path: str = "./storage"

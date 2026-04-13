@@ -24,7 +24,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Awaitable
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from .base_subagent import BaseSubagent, SubagentContext, SubagentOutput
 
@@ -33,26 +33,28 @@ logger = logging.getLogger(__name__)
 
 class MonitorCondition(Enum):
     """Types of conditions to monitor."""
-    ELEMENT_APPEARS = "element_appears"       # UI element becomes visible
-    ELEMENT_DISAPPEARS = "element_disappears" # UI element disappears
-    TEXT_CONTAINS = "text_contains"           # Text appears on screen
-    STATE_CHANGE = "state_change"             # Application state changes
-    FILE_EXISTS = "file_exists"               # File appears on disk
-    FILE_MODIFIED = "file_modified"           # File is modified
-    DOWNLOAD_COMPLETE = "download_complete"   # Download finishes
-    WINDOW_OPENS = "window_opens"             # New window appears
-    WINDOW_CLOSES = "window_closes"           # Window closes
-    PROCESS_STARTS = "process_starts"         # Process starts running
-    PROCESS_ENDS = "process_ends"             # Process stops running
-    CUSTOM = "custom"                         # Custom condition check
+
+    ELEMENT_APPEARS = "element_appears"  # UI element becomes visible
+    ELEMENT_DISAPPEARS = "element_disappears"  # UI element disappears
+    TEXT_CONTAINS = "text_contains"  # Text appears on screen
+    STATE_CHANGE = "state_change"  # Application state changes
+    FILE_EXISTS = "file_exists"  # File appears on disk
+    FILE_MODIFIED = "file_modified"  # File is modified
+    DOWNLOAD_COMPLETE = "download_complete"  # Download finishes
+    WINDOW_OPENS = "window_opens"  # New window appears
+    WINDOW_CLOSES = "window_closes"  # Window closes
+    PROCESS_STARTS = "process_starts"  # Process starts running
+    PROCESS_ENDS = "process_ends"  # Process stops running
+    CUSTOM = "custom"  # Custom condition check
 
 
 @dataclass
 class MonitorConfig:
     """Configuration for a background monitor."""
+
     condition: MonitorCondition
-    target: str                    # What to look for (element name, text, file path, etc.)
-    check_interval: float = 1.0   # How often to check (seconds)
+    target: str  # What to look for (element name, text, file path, etc.)
+    check_interval: float = 1.0  # How often to check (seconds)
     timeout: Optional[float] = None  # Max time to monitor (None = indefinite)
     screenshot_required: bool = True  # Whether to take screenshots for visual checks
     extra_params: Dict[str, Any] = field(default_factory=dict)
@@ -61,6 +63,7 @@ class MonitorConfig:
 @dataclass
 class MonitorResult:
     """Result from a background monitor check."""
+
     condition_met: bool
     details: Dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
@@ -79,7 +82,7 @@ class BackgroundSubagent(BaseSubagent):
         self,
         subagent_id: str,
         openrouter_client: Optional[Any] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the background subagent.
@@ -98,7 +101,7 @@ class BackgroundSubagent(BaseSubagent):
             "type": "background",
             "can_handle": list(MonitorCondition.__members__.keys()),
             "supports_vision": self.client is not None,
-            "active_monitors": len(self._active_monitors)
+            "active_monitors": len(self._active_monitors),
         }
 
     async def execute(self, context: SubagentContext) -> SubagentOutput:
@@ -125,7 +128,7 @@ class BackgroundSubagent(BaseSubagent):
             condition=condition,
             target=target,
             screenshot_bytes=context.screenshot_bytes,
-            params=params
+            params=params,
         )
 
         return SubagentOutput(
@@ -135,10 +138,10 @@ class BackgroundSubagent(BaseSubagent):
                 "details": result.details,
                 "timestamp": result.timestamp,
                 "condition": condition.value,
-                "target": target
+                "target": target,
             },
             confidence=0.9 if result.condition_met else 0.5,
-            reasoning=f"Check {condition.value}: {'met' if result.condition_met else 'not met'}"
+            reasoning=f"Check {condition.value}: {'met' if result.condition_met else 'not met'}",
         )
 
     async def _check_condition(
@@ -146,7 +149,7 @@ class BackgroundSubagent(BaseSubagent):
         condition: MonitorCondition,
         target: str,
         screenshot_bytes: Optional[bytes] = None,
-        params: Dict[str, Any] = None
+        params: Dict[str, Any] = None,
     ) -> MonitorResult:
         """Check if a condition is met."""
         params = params or {}
@@ -155,7 +158,9 @@ class BackgroundSubagent(BaseSubagent):
             return await self._check_element_appears(target, screenshot_bytes, params)
 
         elif condition == MonitorCondition.ELEMENT_DISAPPEARS:
-            return await self._check_element_disappears(target, screenshot_bytes, params)
+            return await self._check_element_disappears(
+                target, screenshot_bytes, params
+            )
 
         elif condition == MonitorCondition.TEXT_CONTAINS:
             return await self._check_text_contains(target, screenshot_bytes, params)
@@ -185,50 +190,65 @@ class BackgroundSubagent(BaseSubagent):
             # Custom or unknown condition
             return MonitorResult(
                 condition_met=False,
-                details={"error": f"Unknown condition: {condition.value}"}
+                details={"error": f"Unknown condition: {condition.value}"},
             )
 
     async def _check_element_appears(
-        self,
-        target: str,
-        screenshot_bytes: Optional[bytes],
-        params: Dict[str, Any]
+        self, target: str, screenshot_bytes: Optional[bytes], params: Dict[str, Any]
     ) -> MonitorResult:
         """Check if a UI element has appeared."""
         if not screenshot_bytes:
             return MonitorResult(
                 condition_met=False,
-                details={"error": "No screenshot provided for element check"}
+                details={"error": "No screenshot provided for element check"},
             )
 
         # Use LLM vision to check for element
         if self.client:
             try:
                 import base64
-                image_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+
+                image_b64 = base64.b64encode(screenshot_bytes).decode("utf-8")
 
                 response = await self.client.chat_completion(
                     model="openai/gpt-4o-mini",
                     messages=[
-                        {"role": "system", "content": "You are a UI element detector. Answer only 'YES' or 'NO'."},
+                        {
+                            "role": "system",
+                            "content": "You are a UI element detector. Answer only 'YES' or 'NO'.",
+                        },
                         {
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": f"Is the element '{target}' visible in this screenshot? Answer YES or NO."},
-                                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}}
-                            ]
-                        }
+                                {
+                                    "type": "text",
+                                    "text": f"Is the element '{target}' visible in this screenshot? Answer YES or NO.",
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/png;base64,{image_b64}"
+                                    },
+                                },
+                            ],
+                        },
                     ],
                     temperature=0.1,
-                    max_tokens=10
+                    max_tokens=10,
                 )
 
-                answer = response.get("choices", [{}])[0].get("message", {}).get("content", "NO").strip().upper()
+                answer = (
+                    response.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "NO")
+                    .strip()
+                    .upper()
+                )
                 found = "YES" in answer
 
                 return MonitorResult(
                     condition_met=found,
-                    details={"element": target, "llm_response": answer}
+                    details={"element": target, "llm_response": answer},
                 )
 
             except Exception as e:
@@ -237,14 +257,11 @@ class BackgroundSubagent(BaseSubagent):
         # Fallback: basic check (always returns False without LLM)
         return MonitorResult(
             condition_met=False,
-            details={"element": target, "method": "no_llm_available"}
+            details={"element": target, "method": "no_llm_available"},
         )
 
     async def _check_element_disappears(
-        self,
-        target: str,
-        screenshot_bytes: Optional[bytes],
-        params: Dict[str, Any]
+        self, target: str, screenshot_bytes: Optional[bytes], params: Dict[str, Any]
     ) -> MonitorResult:
         """Check if a UI element has disappeared."""
         # Check if element appears
@@ -252,58 +269,72 @@ class BackgroundSubagent(BaseSubagent):
         # Invert the result
         return MonitorResult(
             condition_met=not result.condition_met,
-            details={**result.details, "check_type": "disappeared"}
+            details={**result.details, "check_type": "disappeared"},
         )
 
     async def _check_text_contains(
-        self,
-        target: str,
-        screenshot_bytes: Optional[bytes],
-        params: Dict[str, Any]
+        self, target: str, screenshot_bytes: Optional[bytes], params: Dict[str, Any]
     ) -> MonitorResult:
         """Check if specific text appears on screen."""
         if not screenshot_bytes:
             return MonitorResult(
                 condition_met=False,
-                details={"error": "No screenshot provided for text check"}
+                details={"error": "No screenshot provided for text check"},
             )
 
         # Use LLM vision for text detection
         if self.client:
             try:
                 import base64
-                image_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+
+                image_b64 = base64.b64encode(screenshot_bytes).decode("utf-8")
 
                 response = await self.client.chat_completion(
                     model="openai/gpt-4o-mini",
                     messages=[
-                        {"role": "system", "content": "You are a text detector. Answer only 'YES' or 'NO'."},
+                        {
+                            "role": "system",
+                            "content": "You are a text detector. Answer only 'YES' or 'NO'.",
+                        },
                         {
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": f"Does this screenshot contain the text '{target}' (or very similar)? Answer YES or NO."},
-                                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}}
-                            ]
-                        }
+                                {
+                                    "type": "text",
+                                    "text": f"Does this screenshot contain the text '{target}' (or very similar)? Answer YES or NO.",
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/png;base64,{image_b64}"
+                                    },
+                                },
+                            ],
+                        },
                     ],
                     temperature=0.1,
-                    max_tokens=10
+                    max_tokens=10,
                 )
 
-                answer = response.get("choices", [{}])[0].get("message", {}).get("content", "NO").strip().upper()
+                answer = (
+                    response.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "NO")
+                    .strip()
+                    .upper()
+                )
                 found = "YES" in answer
 
                 return MonitorResult(
                     condition_met=found,
-                    details={"text": target, "llm_response": answer}
+                    details={"text": target, "llm_response": answer},
                 )
 
             except Exception as e:
                 logger.error(f"LLM text check failed: {e}")
 
         return MonitorResult(
-            condition_met=False,
-            details={"text": target, "method": "no_llm_available"}
+            condition_met=False, details={"text": target, "method": "no_llm_available"}
         )
 
     def _check_file_exists(self, target: str, params: Dict[str, Any]) -> MonitorResult:
@@ -318,16 +349,20 @@ class BackgroundSubagent(BaseSubagent):
 
         return MonitorResult(condition_met=exists, details=details)
 
-    def _check_file_modified(self, target: str, params: Dict[str, Any]) -> MonitorResult:
+    def _check_file_modified(
+        self, target: str, params: Dict[str, Any]
+    ) -> MonitorResult:
         """Check if a file has been modified since a reference time."""
         if not os.path.exists(target):
             return MonitorResult(
                 condition_met=False,
-                details={"path": target, "error": "File does not exist"}
+                details={"path": target, "error": "File does not exist"},
             )
 
         stat = os.stat(target)
-        reference_time = params.get("reference_time", time.time() - 60)  # Default: last minute
+        reference_time = params.get(
+            "reference_time", time.time() - 60
+        )  # Default: last minute
 
         modified = stat.st_mtime > reference_time
 
@@ -337,11 +372,13 @@ class BackgroundSubagent(BaseSubagent):
                 "path": target,
                 "modified_time": stat.st_mtime,
                 "reference_time": reference_time,
-                "modified": modified
-            }
+                "modified": modified,
+            },
         )
 
-    def _check_download_complete(self, target: str, params: Dict[str, Any]) -> MonitorResult:
+    def _check_download_complete(
+        self, target: str, params: Dict[str, Any]
+    ) -> MonitorResult:
         """Check if a download has completed."""
         download_dir = params.get("download_dir", os.path.expanduser("~/Downloads"))
         file_pattern = target.lower()
@@ -351,7 +388,7 @@ class BackgroundSubagent(BaseSubagent):
             filepath = os.path.join(download_dir, filename)
 
             # Skip partial/temp files
-            if filename.endswith(('.crdownload', '.part', '.tmp', '.download')):
+            if filename.endswith((".crdownload", ".part", ".tmp", ".download")):
                 continue
 
             # Match pattern
@@ -360,31 +397,29 @@ class BackgroundSubagent(BaseSubagent):
                 # Check if file is stable (not being written to)
                 return MonitorResult(
                     condition_met=True,
-                    details={
-                        "file": filepath,
-                        "size": stat.st_size,
-                        "completed": True
-                    }
+                    details={"file": filepath, "size": stat.st_size, "completed": True},
                 )
 
         return MonitorResult(
             condition_met=False,
-            details={"pattern": target, "download_dir": download_dir, "completed": False}
+            details={
+                "pattern": target,
+                "download_dir": download_dir,
+                "completed": False,
+            },
         )
 
     async def _check_process_running(
-        self,
-        target: str,
-        params: Dict[str, Any],
-        should_exist: bool
+        self, target: str, params: Dict[str, Any], should_exist: bool
     ) -> MonitorResult:
         """Check if a process is running."""
         try:
             import subprocess
+
             result = subprocess.run(
-                ['tasklist', '/FI', f'IMAGENAME eq {target}*'],
+                ["tasklist", "/FI", f"IMAGENAME eq {target}*"],
                 capture_output=True,
-                text=True
+                text=True,
             )
             is_running = target.lower() in result.stdout.lower()
 
@@ -395,24 +430,21 @@ class BackgroundSubagent(BaseSubagent):
                 details={
                     "process": target,
                     "is_running": is_running,
-                    "expected_state": "running" if should_exist else "stopped"
-                }
+                    "expected_state": "running" if should_exist else "stopped",
+                },
             )
         except Exception as e:
             return MonitorResult(
-                condition_met=False,
-                details={"error": str(e), "process": target}
+                condition_met=False, details={"error": str(e), "process": target}
             )
 
     async def _check_window_exists(
-        self,
-        target: str,
-        params: Dict[str, Any],
-        should_exist: bool
+        self, target: str, params: Dict[str, Any], should_exist: bool
     ) -> MonitorResult:
         """Check if a window with specific title exists."""
         try:
             import ctypes
+
             user32 = ctypes.windll.user32
 
             # Enumerate windows to find matching title
@@ -432,7 +464,9 @@ class BackgroundSubagent(BaseSubagent):
                             found = True
                 return True
 
-            EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_int)
+            EnumWindowsProc = ctypes.WINFUNCTYPE(
+                ctypes.c_bool, ctypes.c_int, ctypes.c_int
+            )
             user32.EnumWindows(EnumWindowsProc(enum_callback), 0)
 
             condition_met = found if should_exist else not found
@@ -442,18 +476,18 @@ class BackgroundSubagent(BaseSubagent):
                 details={
                     "target_title": target,
                     "window_found": found,
-                    "expected_state": "open" if should_exist else "closed"
-                }
+                    "expected_state": "open" if should_exist else "closed",
+                },
             )
         except Exception as e:
             return MonitorResult(
-                condition_met=False,
-                details={"error": str(e), "target_title": target}
+                condition_met=False, details={"error": str(e), "target_title": target}
             )
 
 
 # Runner for the background subagent
-from core.subagent_runner import SubagentRunner, SubagentType, SubagentTask, SubagentResult
+from core.subagent_runner import (SubagentResult, SubagentRunner, SubagentTask,
+                                  SubagentType)
 
 
 class BackgroundSubagentRunner(SubagentRunner):
@@ -467,16 +501,15 @@ class BackgroundSubagentRunner(SubagentRunner):
         self,
         redis_client,
         worker_id: Optional[str] = None,
-        openrouter_client: Optional[Any] = None
+        openrouter_client: Optional[Any] = None,
     ):
         super().__init__(
             redis_client=redis_client,
             agent_type=SubagentType.BACKGROUND,
-            worker_id=worker_id or "background_monitor"
+            worker_id=worker_id or "background_monitor",
         )
         self.subagent = BackgroundSubagent(
-            subagent_id=self.worker_id,
-            openrouter_client=openrouter_client
+            subagent_id=self.worker_id, openrouter_client=openrouter_client
         )
 
     async def execute(self, task: SubagentTask) -> SubagentResult:
@@ -487,7 +520,7 @@ class BackgroundSubagentRunner(SubagentRunner):
             goal=f"Check condition: {task.params.get('check_type', 'unknown')}",
             params=task.params,
             screenshot_bytes=task.params.get("screenshot_bytes"),
-            timeout=task.timeout
+            timeout=task.timeout,
         )
 
         # Execute check
@@ -497,15 +530,13 @@ class BackgroundSubagentRunner(SubagentRunner):
             success=output.success,
             result=output.result,
             confidence=output.confidence,
-            error=output.error
+            error=output.error,
         )
 
 
 # Convenience function to start background workers
 async def start_background_workers(
-    redis_client,
-    openrouter_client=None,
-    num_workers: int = 2
+    redis_client, openrouter_client=None, num_workers: int = 2
 ) -> List[BackgroundSubagentRunner]:
     """
     Start background monitor workers.
@@ -526,7 +557,7 @@ async def start_background_workers(
         runner = BackgroundSubagentRunner(
             redis_client=redis_client,
             worker_id=f"background_worker_{i}",
-            openrouter_client=openrouter_client
+            openrouter_client=openrouter_client,
         )
         runners.append(runner)
         asyncio.create_task(runner.run_forever())

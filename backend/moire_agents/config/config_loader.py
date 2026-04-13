@@ -6,11 +6,12 @@ with support for multiple environment types (development, production).
 """
 
 import os
-import sys
 import shutil
-from pathlib import Path
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
+
 from dotenv import load_dotenv
 
 
@@ -70,8 +71,13 @@ class ProductionConfig:
         if self.moire_port < 1 or self.moire_port > 65535:
             errors.append(f"Invalid MOIRE_PORT: {self.moire_port}")
 
-        if self.validation_confidence_threshold < 0 or self.validation_confidence_threshold > 1:
-            errors.append(f"Invalid VALIDATION_CONFIDENCE_THRESHOLD: {self.validation_confidence_threshold}")
+        if (
+            self.validation_confidence_threshold < 0
+            or self.validation_confidence_threshold > 1
+        ):
+            errors.append(
+                f"Invalid VALIDATION_CONFIDENCE_THRESHOLD: {self.validation_confidence_threshold}"
+            )
 
         if self.log_to_file:
             log_dir = Path(self.log_file).parent
@@ -115,10 +121,10 @@ def load_config(force_reload: bool = False) -> ProductionConfig:
 
     # Load env files in reverse priority order (last loaded wins)
     env_files = [
-        python_root / ".env",                          # Development defaults
-        python_root / ".env.production",               # Production defaults
-        python_root / ".env.local",                    # Local overrides
-        user_home / ".handoff_mcp" / ".env",          # User-specific
+        python_root / ".env",  # Development defaults
+        python_root / ".env.production",  # Production defaults
+        python_root / ".env.local",  # Local overrides
+        user_home / ".handoff_mcp" / ".env",  # User-specific
     ]
 
     for env_file in env_files:
@@ -129,34 +135,33 @@ def load_config(force_reload: bool = False) -> ProductionConfig:
     _config = ProductionConfig(
         # Required
         openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
-
         # MoireServer
         moire_host=os.getenv("MOIRE_HOST", "localhost"),
         moire_port=int(os.getenv("MOIRE_PORT", "8765")),
         moire_reconnect_attempts=int(os.getenv("MOIRE_RECONNECT_ATTEMPTS", "10")),
         moire_reconnect_interval=int(os.getenv("MOIRE_RECONNECT_INTERVAL", "2000")),
-
         # Tesseract (auto-detect or use TESSERACT_PATH env var)
         tesseract_path=os.getenv("TESSERACT_PATH") or shutil.which("tesseract") or "",
-
         # Logging
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         log_file=os.getenv("LOG_FILE", ""),
         log_to_console=os.getenv("LOG_TO_CONSOLE", "true").lower() == "true",
         log_to_file=os.getenv("LOG_TO_FILE", "true").lower() == "true",
-
         # Performance
         planning_max_rounds=int(os.getenv("PLANNING_MAX_ROUNDS", "3")),
-        validation_confidence_threshold=float(os.getenv("VALIDATION_CONFIDENCE_THRESHOLD", "0.7")),
-        execution_inter_step_delay=float(os.getenv("EXECUTION_INTER_STEP_DELAY", "0.3")),
-
+        validation_confidence_threshold=float(
+            os.getenv("VALIDATION_CONFIDENCE_THRESHOLD", "0.7")
+        ),
+        execution_inter_step_delay=float(
+            os.getenv("EXECUTION_INTER_STEP_DELAY", "0.3")
+        ),
         # Paths
         project_root=os.getenv("PROJECT_ROOT", str(project_root)),
         python_root=os.getenv("PYTHON_ROOT", str(python_root)),
-
         # Health Check
         health_check_interval=int(os.getenv("HEALTH_CHECK_INTERVAL", "30")),
-        auto_restart_on_failure=os.getenv("AUTO_RESTART_ON_FAILURE", "true").lower() == "true",
+        auto_restart_on_failure=os.getenv("AUTO_RESTART_ON_FAILURE", "true").lower()
+        == "true",
         max_restart_attempts=int(os.getenv("MAX_RESTART_ATTEMPTS", "3")),
     )
 
@@ -183,7 +188,9 @@ def print_config_status():
     print(f"MoireServer:       {config.moire_host}:{config.moire_port}")
     print(f"Log Level:         {config.log_level}")
     print(f"Log File:          {config.log_file}")
-    print(f"API Key Set:       {'Yes' if config.openrouter_api_key else 'NO - REQUIRED!'}")
+    print(
+        f"API Key Set:       {'Yes' if config.openrouter_api_key else 'NO - REQUIRED!'}"
+    )
     print(f"Tesseract Path:    {config.tesseract_path}")
     print(f"Tesseract Exists:  {Path(config.tesseract_path).exists()}")
     print("-" * 60)

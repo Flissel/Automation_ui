@@ -9,11 +9,10 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from app.database import Base
 from sqlalchemy import Boolean, Column, DateTime, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.sql import func
-
-from app.database import Base
 
 
 class LiveDesktopConfig(Base):
@@ -27,8 +26,15 @@ class LiveDesktopConfig(Base):
     category = Column(String(100), nullable=True)
     configuration = Column(JSON, default=dict, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
     created_by = Column(String(255), nullable=True)
     tags = Column(JSON, default=list, nullable=False)
 
@@ -43,7 +49,7 @@ class LiveDesktopConfig(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "created_by": self.created_by,
-            "tags": self.tags
+            "tags": self.tags,
         }
 
 
@@ -59,14 +65,21 @@ class ActiveDesktopClient(Base):
     user_id = Column(String(255), nullable=True)
     hostname = Column(String(255), nullable=True)
     is_streaming = Column(Boolean, default=False, nullable=False)
-    last_ping = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    connected_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    last_ping = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    connected_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
 
     # Index for cleanup queries
-    __table_args__ = (
-        Index('idx_active_clients_last_ping', 'last_ping'),
-    )
+    __table_args__ = (Index("idx_active_clients_last_ping", "last_ping"),)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -78,8 +91,10 @@ class ActiveDesktopClient(Base):
             "hostname": self.hostname,
             "is_streaming": self.is_streaming,
             "last_ping": self.last_ping.isoformat() if self.last_ping else None,
-            "connected_at": self.connected_at.isoformat() if self.connected_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "connected_at": (
+                self.connected_at.isoformat() if self.connected_at else None
+            ),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
@@ -92,18 +107,27 @@ class DesktopCommand(Base):
     desktop_client_id = Column(String(255), nullable=False)
     command_type = Column(String(100), nullable=False)
     command_data = Column(JSON, default=dict, nullable=False)
-    status = Column(String(50), default="pending", nullable=False)  # pending, completed, failed
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    status = Column(
+        String(50), default="pending", nullable=False
+    )  # pending, completed, failed
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     processed_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(Text, nullable=True)
     idempotency_key = Column(String(255), nullable=True, unique=True)
 
     # Indexes for efficient querying
     __table_args__ = (
-        Index('idx_desktop_commands_client_status', 'desktop_client_id', 'status'),
-        Index('idx_desktop_commands_created', 'created_at'),
-        Index('idx_desktop_commands_pending', 'desktop_client_id', 'status', 'created_at',
-              postgresql_where=(status == 'pending')),
+        Index("idx_desktop_commands_client_status", "desktop_client_id", "status"),
+        Index("idx_desktop_commands_created", "created_at"),
+        Index(
+            "idx_desktop_commands_pending",
+            "desktop_client_id",
+            "status",
+            "created_at",
+            postgresql_where=(status == "pending"),
+        ),
     )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -114,9 +138,11 @@ class DesktopCommand(Base):
             "command_data": self.command_data,
             "status": self.status,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "processed_at": self.processed_at.isoformat() if self.processed_at else None,
+            "processed_at": (
+                self.processed_at.isoformat() if self.processed_at else None
+            ),
             "error_message": self.error_message,
-            "idempotency_key": self.idempotency_key
+            "idempotency_key": self.idempotency_key,
         }
 
 
@@ -132,8 +158,15 @@ class WorkflowRecord(Base):
     connections = Column(JSON, default=list, nullable=False)
     variables = Column(JSON, default=dict, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
     created_by = Column(String(255), nullable=True)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -147,7 +180,7 @@ class WorkflowRecord(Base):
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "created_by": self.created_by
+            "created_by": self.created_by,
         }
 
 
@@ -158,7 +191,9 @@ class WorkflowExecutionRecord(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workflow_id = Column(UUID(as_uuid=True), nullable=False)
-    status = Column(String(50), default="pending", nullable=False)  # pending, running, completed, failed, cancelled
+    status = Column(
+        String(50), default="pending", nullable=False
+    )  # pending, running, completed, failed, cancelled
     node_results = Column(JSON, default=dict, nullable=False)
     variables = Column(JSON, default=dict, nullable=False)
     logs = Column(JSON, default=list, nullable=False)
@@ -166,11 +201,13 @@ class WorkflowExecutionRecord(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     duration_ms = Column(String(50), nullable=True)
     error_message = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     __table_args__ = (
-        Index('idx_workflow_executions_workflow', 'workflow_id'),
-        Index('idx_workflow_executions_status', 'status'),
+        Index("idx_workflow_executions_workflow", "workflow_id"),
+        Index("idx_workflow_executions_status", "status"),
     )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -182,8 +219,10 @@ class WorkflowExecutionRecord(Base):
             "variables": self.variables,
             "logs": self.logs,
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
             "duration_ms": self.duration_ms,
             "error_message": self.error_message,
-            "created_at": self.created_at.isoformat() if self.created_at else None
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }

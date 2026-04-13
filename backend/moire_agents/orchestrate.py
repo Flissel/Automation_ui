@@ -5,14 +5,15 @@ Usage:
     python orchestrate.py "open notepad and type hello"
     python orchestrate.py "send message to Claude Desktop"
 """
+
 import asyncio
-import sys
-import os
 import json
+import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from mcp_server_handoff import handle_plan, handle_execute, cleanup
+from mcp_server_handoff import cleanup, handle_execute, handle_plan
 
 
 async def orchestrate(goal: str, auto_execute: bool = False):
@@ -31,10 +32,10 @@ async def orchestrate(goal: str, auto_execute: bool = False):
     print("\n[Step 1] Creating plan with LLM Planner + Critic...")
     result = await handle_plan(goal)
 
-    plan = result.get('plan', [])
-    approved = result.get('approved', False)
-    issues = result.get('issues', [])
-    confidence = result.get('planner_confidence', 0)
+    plan = result.get("plan", [])
+    approved = result.get("approved", False)
+    issues = result.get("issues", [])
+    confidence = result.get("planner_confidence", 0)
 
     print(f"  Approved: {approved}")
     print(f"  Confidence: {confidence:.0%}")
@@ -63,7 +64,9 @@ async def orchestrate(goal: str, auto_execute: bool = False):
         print(f"\n  Execution: {'SUCCESS' if exec_result.get('success') else 'FAILED'}")
     else:
         print("  Plan NOT approved - stopping")
-        print("  (In Claude Code, I would decide: retry with modifications or ask user)")
+        print(
+            "  (In Claude Code, I would decide: retry with modifications or ask user)"
+        )
 
     # Cleanup
     await cleanup()
@@ -78,7 +81,7 @@ async def orchestrate(goal: str, auto_execute: bool = False):
 async def main():
     if len(sys.argv) < 2:
         print("Usage: python orchestrate.py <goal>")
-        print("Example: python orchestrate.py \"open notepad and type hello\"")
+        print('Example: python orchestrate.py "open notepad and type hello"')
         return
 
     goal = " ".join(sys.argv[1:])

@@ -23,17 +23,18 @@ Usage:
 import asyncio
 import base64
 import logging
+import os
+# Import Moire components
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
-# Import Moire components
-import sys
-import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from bridge.websocket_client import MoireWebSocketClient, CaptureResult
-from validation.state_comparator import StateComparator, ScreenState, ChangeType
+from bridge.websocket_client import CaptureResult, MoireWebSocketClient
 from core.action_executor import ActionExecutor
+from validation.state_comparator import (ChangeType, ScreenState,
+                                         StateComparator)
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ValidationResult:
     """Result of validating a single action."""
+
     success: bool
     change_detected: bool
     change_type: Optional[ChangeType] = None
@@ -53,6 +55,7 @@ class ValidationResult:
 @dataclass
 class ExecutionResult:
     """Result of executing all subtasks with validation."""
+
     success: bool
     goal_achieved: bool
     actions_executed: int
@@ -81,7 +84,7 @@ class ValidatedExecutor:
         moire_host: str = "localhost",
         moire_port: int = 8765,
         validation_threshold: float = 0.1,  # Lowered for text changes
-        dry_run: bool = False
+        dry_run: bool = False,
     ):
         """
         Initialize the ValidatedExecutor.
@@ -123,9 +126,10 @@ class ValidatedExecutor:
     async def capture_screen_state(self) -> Optional[ScreenState]:
         """Capture current screen state via MoireServer."""
         try:
-            result: CaptureResult = await self.moire_client.capture_and_wait_for_complete(
-                timeout=30.0,
-                min_ocr_confidence=0.3
+            result: CaptureResult = (
+                await self.moire_client.capture_and_wait_for_complete(
+                    timeout=30.0, min_ocr_confidence=0.3
+                )
             )
 
             if not result.success:
@@ -138,12 +142,12 @@ class ValidatedExecutor:
                 # Fix padding if needed
                 b64_str = result.screenshot_base64
                 # Remove data URL prefix if present
-                if ',' in b64_str:
-                    b64_str = b64_str.split(',', 1)[1]
+                if "," in b64_str:
+                    b64_str = b64_str.split(",", 1)[1]
                 # Add padding if missing
                 padding = 4 - (len(b64_str) % 4)
                 if padding != 4:
-                    b64_str += '=' * padding
+                    b64_str += "=" * padding
                 try:
                     screenshot_bytes = base64.b64decode(b64_str)
                 except Exception as e:
@@ -156,15 +160,19 @@ class ValidatedExecutor:
 
             if result.ui_context:
                 # Get OCR texts
-                if hasattr(result.ui_context, 'texts') and result.ui_context.texts:
-                    ocr_text = [t.get('text', '') for t in result.ui_context.texts if t.get('text')]
+                if hasattr(result.ui_context, "texts") and result.ui_context.texts:
+                    ocr_text = [
+                        t.get("text", "")
+                        for t in result.ui_context.texts
+                        if t.get("text")
+                    ]
 
                 # Get detected elements
-                if hasattr(result.ui_context, 'boxes') and result.ui_context.boxes:
+                if hasattr(result.ui_context, "boxes") and result.ui_context.boxes:
                     elements = result.ui_context.boxes
 
                 # Get window title if available
-                if hasattr(result.ui_context, 'window_title'):
+                if hasattr(result.ui_context, "window_title"):
                     window_title = result.ui_context.window_title
 
             # Create ScreenState using factory method
@@ -173,7 +181,7 @@ class ValidatedExecutor:
                     screenshot_data=screenshot_bytes,
                     elements=elements,
                     ocr_text=ocr_text,
-                    window_title=window_title
+                    window_title=window_title,
                 )
             else:
                 # Fallback if no screenshot data
@@ -183,7 +191,7 @@ class ValidatedExecutor:
                     screenshot_data=None,
                     elements=elements,
                     ocr_text=ocr_text,
-                    window_title=window_title
+                    window_title=window_title,
                 )
 
             return state
@@ -196,7 +204,7 @@ class ValidatedExecutor:
         self,
         before_state: ScreenState,
         after_state: ScreenState,
-        expected_description: str
+        expected_description: str,
     ) -> ValidationResult:
         """
         Validate that an action succeeded by comparing before/after states.
@@ -216,7 +224,7 @@ class ValidatedExecutor:
             # Determine if change is significant enough
             change_detected = comparison.change_type not in [
                 ChangeType.NO_CHANGE,
-                ChangeType.MINOR_CHANGE
+                ChangeType.MINOR_CHANGE,
             ]
 
             # Calculate confidence based on change type
@@ -247,7 +255,7 @@ class ValidatedExecutor:
                 confidence=confidence,
                 message=message,
                 before_screenshot=None,  # Skip storing full screenshots for now
-                after_screenshot=None
+                after_screenshot=None,
             )
 
         except Exception as e:
@@ -256,7 +264,7 @@ class ValidatedExecutor:
                 success=False,
                 change_detected=False,
                 confidence=0.0,
-                message=f"Validation error: {e}"
+                message=f"Validation error: {e}",
             )
 
     async def execute_with_validation(
@@ -264,7 +272,7 @@ class ValidatedExecutor:
         subtasks: List,
         goal: str,
         on_progress: Optional[Callable] = None,
-        max_retries: int = 2
+        max_retries: int = 2,
     ) -> ExecutionResult:
         """
         Execute all subtasks with visual validation.
@@ -279,6 +287,7 @@ class ValidatedExecutor:
             ExecutionResult with detailed status
         """
         import time
+
         start_time = time.time()
 
         if not self._connected:
@@ -289,7 +298,7 @@ class ValidatedExecutor:
                     actions_executed=0,
                     actions_validated=0,
                     actions_failed=0,
-                    error="Could not connect to MoireServer"
+                    error="Could not connect to MoireServer",
                 )
 
         total = len(subtasks)
@@ -310,11 +319,13 @@ class ValidatedExecutor:
 
             if not action:
                 logger.debug(f"No action for subtask: {description}")
-                validation_results.append(ValidationResult(
-                    success=True,
-                    change_detected=False,
-                    message="No action required"
-                ))
+                validation_results.append(
+                    ValidationResult(
+                        success=True,
+                        change_detected=False,
+                        message="No action required",
+                    )
+                )
                 continue
 
             # Retry loop
@@ -322,7 +333,9 @@ class ValidatedExecutor:
                 # 1. Capture BEFORE state
                 before_state = await self.capture_screen_state()
                 if not before_state:
-                    logger.warning("Could not capture before state, proceeding without validation")
+                    logger.warning(
+                        "Could not capture before state, proceeding without validation"
+                    )
 
                 # 2. Execute action
                 action_success = await self.action_executor.execute_action(action)
@@ -330,11 +343,13 @@ class ValidatedExecutor:
                 if not action_success:
                     logger.error(f"Action execution failed: {description}")
                     actions_failed += 1
-                    validation_results.append(ValidationResult(
-                        success=False,
-                        change_detected=False,
-                        message="Action execution failed"
-                    ))
+                    validation_results.append(
+                        ValidationResult(
+                            success=False,
+                            change_detected=False,
+                            message="Action execution failed",
+                        )
+                    )
                     break
 
                 # 3. Wait for action to take effect
@@ -347,9 +362,7 @@ class ValidatedExecutor:
                 # 5. Validate change
                 if before_state and after_state:
                     validation = await self.validate_action(
-                        before_state,
-                        after_state,
-                        description
+                        before_state, after_state, description
                     )
 
                     status = "[OK]" if validation.success else "[??]"
@@ -363,23 +376,34 @@ class ValidatedExecutor:
                             actions_failed += 1
                         break
                     else:
-                        logger.info(f"Retrying action (attempt {attempt + 2}/{max_retries + 1})")
+                        logger.info(
+                            f"Retrying action (attempt {attempt + 2}/{max_retries + 1})"
+                        )
                 else:
                     # No validation possible, assume success
-                    validation_results.append(ValidationResult(
-                        success=True,
-                        change_detected=True,
-                        message="Executed (no validation)"
-                    ))
+                    validation_results.append(
+                        ValidationResult(
+                            success=True,
+                            change_detected=True,
+                            message="Executed (no validation)",
+                        )
+                    )
                     actions_validated += 1
                     break
 
             if on_progress:
-                on_progress(i, total, description, validation_results[-1] if validation_results else None)
+                on_progress(
+                    i,
+                    total,
+                    description,
+                    validation_results[-1] if validation_results else None,
+                )
 
         # Calculate totals
         total_time = time.time() - start_time
-        actions_executed = len([v for v in validation_results if v.success or v.change_detected])
+        actions_executed = len(
+            [v for v in validation_results if v.success or v.change_detected]
+        )
 
         # Goal reflection (simplified - could use VisionAgent for more thorough analysis)
         goal_achieved = actions_failed == 0 and actions_validated > 0
@@ -398,7 +422,7 @@ class ValidatedExecutor:
             actions_failed=actions_failed,
             validation_results=validation_results,
             goal_reflection=goal_reflection,
-            total_time_seconds=total_time
+            total_time_seconds=total_time,
         )
 
 
@@ -413,32 +437,40 @@ async def demo():
             approach="keyboard",
             context={
                 "pyautogui_action": {"type": "hotkey", "keys": ["win", "r"]},
-                "wait_after": 0.5
-            }
+                "wait_after": 0.5,
+            },
         ),
         Subtask.create(
             description="Type notepad",
             approach="keyboard",
             context={
-                "pyautogui_action": {"type": "write", "text": "notepad", "interval": 0.05},
-                "wait_after": 0.2
-            }
+                "pyautogui_action": {
+                    "type": "write",
+                    "text": "notepad",
+                    "interval": 0.05,
+                },
+                "wait_after": 0.2,
+            },
         ),
         Subtask.create(
             description="Press Enter to launch",
             approach="keyboard",
             context={
                 "pyautogui_action": {"type": "press", "key": "enter"},
-                "wait_after": 2.0
-            }
+                "wait_after": 2.0,
+            },
         ),
         Subtask.create(
             description="Type Hello World",
             approach="keyboard",
             context={
-                "pyautogui_action": {"type": "write", "text": "Hello World!", "interval": 0.03},
-                "wait_after": 0.2
-            }
+                "pyautogui_action": {
+                    "type": "write",
+                    "text": "Hello World!",
+                    "interval": 0.03,
+                },
+                "wait_after": 0.2,
+            },
         ),
     ]
 
@@ -460,8 +492,7 @@ async def demo():
 
     try:
         result = await executor.execute_with_validation(
-            subtasks=subtasks,
-            goal="Open Notepad and type Hello World"
+            subtasks=subtasks, goal="Open Notepad and type Hello World"
         )
 
         print("\n" + "-" * 50)

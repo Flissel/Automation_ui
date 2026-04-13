@@ -16,24 +16,26 @@ import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class ReportType(Enum):
     """Types of reports Claude Desktop can send."""
-    STATUS = "status"           # Current status update
-    COMPLETION = "completion"   # Task completed
-    ERROR = "error"             # Error occurred
-    REQUEST = "request"         # Requesting action from automation
-    DATA = "data"               # Data/results to process
+
+    STATUS = "status"  # Current status update
+    COMPLETION = "completion"  # Task completed
+    ERROR = "error"  # Error occurred
+    REQUEST = "request"  # Requesting action from automation
+    DATA = "data"  # Data/results to process
 
 
 @dataclass
 class ClaudeDesktopReport:
     """Structured report from Claude Desktop."""
+
     report_type: ReportType
     message: str
     data: Dict[str, Any] = field(default_factory=dict)
@@ -123,6 +125,7 @@ Always output reports so the automation system stays informed!
 
 # ==================== Event Stream ====================
 
+
 class EventStream:
     """
     Event stream for receiving reports from Claude Desktop.
@@ -132,9 +135,7 @@ class EventStream:
     """
 
     def __init__(self):
-        self._handlers: Dict[ReportType, List[Callable]] = {
-            rt: [] for rt in ReportType
-        }
+        self._handlers: Dict[ReportType, List[Callable]] = {rt: [] for rt in ReportType}
         self._all_handlers: List[Callable] = []
         self._reports: List[ClaudeDesktopReport] = []
         self._running = False
@@ -171,7 +172,9 @@ class EventStream:
             except Exception as e:
                 logger.error(f"Handler error: {e}")
 
-    def get_reports(self, report_type: Optional[ReportType] = None) -> List[ClaudeDesktopReport]:
+    def get_reports(
+        self, report_type: Optional[ReportType] = None
+    ) -> List[ClaudeDesktopReport]:
         """Get all reports, optionally filtered by type."""
         if report_type:
             return [r for r in self._reports if r.report_type == report_type]
@@ -184,13 +187,13 @@ class EventStream:
 
 # ==================== Report Parser ====================
 
+
 class ReportParser:
     """Parses automation-report blocks from text."""
 
     # Pattern to match automation-report code blocks
     REPORT_PATTERN = re.compile(
-        r'```automation-report\s*\n(.*?)\n```',
-        re.DOTALL | re.MULTILINE
+        r"```automation-report\s*\n(.*?)\n```", re.DOTALL | re.MULTILINE
     )
 
     @classmethod
@@ -222,7 +225,7 @@ class ReportParser:
                 report_type=report_type,
                 message=message,
                 data=data.get("data", {}),
-                task_id=data.get("task_id")
+                task_id=data.get("task_id"),
             )
 
             # Handle request type
@@ -243,6 +246,7 @@ class ReportParser:
 
 # ==================== Claude Desktop Bridge ====================
 
+
 class ClaudeDesktopBridge:
     """
     Bridge between handoff system and Claude Desktop.
@@ -258,7 +262,7 @@ class ClaudeDesktopBridge:
         self,
         moire_host: str = "localhost",
         moire_port: int = 8765,
-        poll_interval: float = 2.0
+        poll_interval: float = 2.0,
     ):
         self.moire_host = moire_host
         self.moire_port = moire_port
@@ -291,9 +295,9 @@ class ClaudeDesktopBridge:
         if self._moire_client is None:
             try:
                 from bridge.websocket_client import MoireWebSocketClient
+
                 self._moire_client = MoireWebSocketClient(
-                    host=self.moire_host,
-                    port=self.moire_port
+                    host=self.moire_host, port=self.moire_port
                 )
                 await self._moire_client.connect()
             except Exception as e:
@@ -337,7 +341,9 @@ class ClaudeDesktopBridge:
                         reports = self.parser.parse_text(new_text)
 
                         for report in reports:
-                            logger.info(f"ClaudeDesktopBridge: Received {report.report_type.value} report")
+                            logger.info(
+                                f"ClaudeDesktopBridge: Received {report.report_type.value} report"
+                            )
                             await self.event_stream.emit(report)
 
                             # Handle REQUEST reports
@@ -376,7 +382,7 @@ class ClaudeDesktopBridge:
         # Simple approach: return content after last seen
         # In practice, you'd want smarter diffing
         if current_text.startswith(self._last_seen_text):
-            return current_text[len(self._last_seen_text):]
+            return current_text[len(self._last_seen_text) :]
 
         return current_text
 
@@ -418,16 +424,14 @@ class ClaudeDesktopBridge:
 
         logger.info(f"Running command: {cmd}")
         proc = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
         stdout, stderr = await proc.communicate()
 
         return {
             "stdout": stdout.decode() if stdout else "",
             "stderr": stderr.decode() if stderr else "",
-            "returncode": proc.returncode
+            "returncode": proc.returncode,
         }
 
     async def _action_save_file(self, params: Dict):
@@ -443,10 +447,7 @@ class ClaudeDesktopBridge:
     # ==================== High-level API ====================
 
     async def send_task_and_wait(
-        self,
-        task: str,
-        timeout: float = 60.0,
-        wait_for_completion: bool = True
+        self, task: str, timeout: float = 60.0, wait_for_completion: bool = True
     ) -> Optional[ClaudeDesktopReport]:
         """
         Send a task to Claude Desktop and wait for completion report.
@@ -459,10 +460,10 @@ class ClaudeDesktopBridge:
         Returns:
             Completion report or None if timeout
         """
-        from .runtime import AgentRuntime
-        from .orchestrator_agent import OrchestratorAgent
         from .execution_agent import ExecutionAgent
         from .messages import UserTask
+        from .orchestrator_agent import OrchestratorAgent
+        from .runtime import AgentRuntime
 
         # Start monitoring
         await self.start_monitoring()
@@ -486,10 +487,7 @@ class ClaudeDesktopBridge:
 
         user_task = UserTask(
             goal=f"Send to Claude Desktop: {task}",
-            context={
-                "workflow": "claude_desktop",
-                "message": task
-            }
+            context={"workflow": "claude_desktop", "message": task},
         )
 
         await runtime.run_task(user_task, entry_agent="orchestrator")
