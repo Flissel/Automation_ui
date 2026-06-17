@@ -58,7 +58,7 @@ dependencies = [
     "typing-extensions==4.8.0",
     
     # ASGI server and middleware
-    "starlette==0.27.0",
+    "starlette==1.0.0",
     
     # System monitoring
     "psutil==5.9.6",
