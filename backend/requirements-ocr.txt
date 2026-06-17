@@ -20,7 +20,7 @@ opencv-python-headless==4.6.0.66
 numpy==1.24.4
 
 # OCR Engines
-pytesseract==0.3.10
+pytesseract==0.3.13
 easyocr==1.7.0
 
 # PaddleOCR (optional - großer Download)

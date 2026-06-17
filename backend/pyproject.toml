@@ -39,7 +39,7 @@ dependencies = [
     "Pillow==10.1.0",
     
     # OCR (Optical Character Recognition)
-    "pytesseract==0.3.10",
+    "pytesseract==0.3.13",
     "opencv-python==4.8.1.78",
     
     # File system monitoring
