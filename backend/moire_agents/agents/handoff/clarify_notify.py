@@ -271,3 +271,122 @@ async def handle_clarify_check(clarify_id: str) -> Dict[str, Any]:
         "answered_at": row["answered_at"],
         "timeout_at": row["timeout_at"],
     }
+
+
+# ─── Phase: 4-way-split public API (sync façade) ─────────────────────────────
+# The split MCP entrypoints (messenger-mcp, document-mcp) import three names
+# from this module by their PUBLIC, sync, blocking contract:
+#     handoff_clarify, handoff_clarify_check, handoff_approval_request
+# The underlying implementations above are async (handle_clarify/_check). These
+# thin façades give the entrypoints the exact name + signature they expect and
+# run the coroutine on a private loop so they stay callable from a sync dispatch
+# dict without an already-running event loop. `handoff_approval_request` is the
+# one genuinely new primitive: a blocking yes/no gate built on the same SQLite
+# clarify store (a clarify with options ["Approve","Decline"], polled to a
+# decision), so approval correctness shares one source of truth with clarify.
+
+
+def _run_coro(coro):
+    """Run a coroutine to completion from sync code on a private loop.
+
+    The split entrypoints call these from a `_SYNC` dispatch dict — i.e. NOT
+    from inside the stdio event loop's running coroutine, so a fresh loop is
+    safe and avoids 're-entrant loop' errors.
+    """
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
+def handoff_clarify(
+    question: str,
+    options: Optional[List[str]] = None,
+    form_schema: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Sync façade over handle_clarify for the split entrypoints.
+
+    `form_schema` is accepted for entrypoint-signature compatibility and folded
+    into metadata (the async impl has no dedicated form_schema param).
+    """
+    meta = {"form_schema": form_schema} if form_schema else None
+    return _run_coro(handle_clarify(question=question, options=options, metadata=meta))
+
+
+def handoff_clarify_check(clarify_id: str) -> Dict[str, Any]:
+    """Sync façade over handle_clarify_check."""
+    return _run_coro(handle_clarify_check(clarify_id=clarify_id))
+
+
+def handoff_approval_request(
+    action: str,
+    reason: Optional[str] = None,
+    timeout_seconds: int = 60,
+    default_on_timeout: str = "approved",
+) -> Dict[str, Any]:
+    """Blocking human-in-the-loop approval gate (new primitive for the split).
+
+    Files an Approve/Decline clarify, surfaces it via the same notification
+    transports, then polls clarify.db until answered or timed out. Returns
+    ``{"decision": "approved"|"declined", ...}``. On timeout it falls back to
+    ``default_on_timeout`` (fail-open "approved" during the LAN/transition
+    phase; document-mcp flips this to "declined" once an approval bot exists).
+
+    The answer is written out-of-band into clarify.db (status='answered',
+    answer carries the choice) by record_clarify_answer() — e.g. the FastAPI
+    clarify form route or the Telegram callback poller. We read the same row,
+    so HTTP click and MCP poll agree without a shared process.
+    """
+    if not action:
+        return {"success": False, "error": "action is required", "decision": "declined"}
+
+    question = f"Approve: {action}" + (f"\nReason: {reason}" if reason else "")
+    started = _run_coro(
+        handle_clarify(
+            question=question,
+            options=["Approve", "Decline"],
+            timeout_seconds=int(timeout_seconds) if timeout_seconds else None,
+            metadata={"kind": "approval", "action": action, "reason": reason},
+        )
+    )
+    if not started.get("success"):
+        return {**started, "decision": "declined"}
+
+    clarify_id = started["clarify_id"]
+    deadline = time.time() + (int(timeout_seconds) if timeout_seconds else 60)
+
+    # Poll the shared store. _needs the answer to encode the choice; we accept
+    # either a raw "Approve"/"Decline" string or a JSON {"_choice": "..."} blob
+    # (the Telegram callback poller writes the latter — see split memory).
+    while time.time() < deadline:
+        checked = _run_coro(handle_clarify_check(clarify_id))
+        status = checked.get("status")
+        if status == "answered":
+            raw = (checked.get("answer") or "").strip()
+            choice = raw
+            if raw.startswith("{"):
+                try:
+                    choice = (json.loads(raw) or {}).get("_choice", raw)
+                except Exception:
+                    choice = raw
+            approved = str(choice).strip().lower().startswith("approv")
+            return {
+                "success": True,
+                "decision": "approved" if approved else "declined",
+                "clarify_id": clarify_id,
+                "answer": choice,
+            }
+        if status in ("timeout", "expired"):
+            break
+        time.sleep(1.5)
+
+    # Timed out (or auto-expired) → fail-open / fail-safe per caller policy.
+    decision = "approved" if str(default_on_timeout).lower().startswith("approv") else "declined"
+    return {
+        "success": True,
+        "decision": decision,
+        "clarify_id": clarify_id,
+        "timed_out": True,
+        "default_on_timeout": default_on_timeout,
+    }

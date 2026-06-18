@@ -100,6 +100,11 @@ _validation_team: Optional[ValidationTeam] = None
 _runtime: Optional[AgentRuntime] = None
 _claude_cli: Optional[ClaudeCLIWrapper] = None
 
+# Trusted root of the adaptive-skill library (SKILL.md tree). Referenced by the
+# document/perception entrypoints (H._SKILL_LIB_ROOT) and by the skill_* handlers
+# below. Keep this an absolute, hard-coded path so the trust boundary is explicit.
+_SKILL_LIB_ROOT = r"C:\Users\User\Desktop\Vibemind_V1\vibemind-os\skills"
+
 
 def get_claude_cli() -> ClaudeCLIWrapper:
     """Get or create the Claude CLI wrapper (singleton)."""
@@ -3782,6 +3787,462 @@ async def main():
         # Cleanup
         await cleanup()
         logger.info("Handoff MCP Server shutdown complete")
+
+
+# ─── Phase: app lifecycle + adaptive skill library (4-way-split perception) ───
+# These 7 SYNC handlers are called by name from the perception/document
+# entrypoints (which import this module as `H`). They MUST stay synchronous —
+# they are dispatched from a `_SYNC` table — so any async helper from
+# window_focus is driven through a fresh event loop via `_run_sync` below.
+
+# Friendly app-name → executable map. Anything not listed is treated as a raw
+# path / command and handed to subprocess.Popen / os.startfile directly.
+_APP_ALIASES = {
+    "notepad": "notepad.exe",
+    "calc": "calc.exe",
+    "calculator": "calc.exe",
+    "explorer": "explorer.exe",
+    "cmd": "cmd.exe",
+    "powershell": "powershell.exe",
+    "wordpad": "wordpad.exe",
+    "paint": "mspaint.exe",
+    "mspaint": "mspaint.exe",
+}
+
+
+def _run_sync(coro):
+    """Drive an async coroutine to completion from sync code.
+
+    The window_focus helpers (focus_window, get_active_window) are async, but
+    these handlers are sync. Use a private event loop so we never collide with
+    a loop that may already be running on the calling thread.
+    """
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
+def _app_launch(app_name: str, args=None) -> dict:
+    """Launch an app/executable by friendly name or full path.
+
+    Resolves common aliases (notepad/calc/explorer/cmd/...) and otherwise treats
+    ``app_name`` as a path or command. ``args`` may be a list or a single string.
+    """
+    import subprocess
+
+    try:
+        if not app_name or not str(app_name).strip():
+            return {"success": False, "app": app_name, "pid": None, "error": "app_name is empty"}
+
+        target = _APP_ALIASES.get(str(app_name).strip().lower(), str(app_name).strip())
+
+        # Normalize args into a list of strings.
+        if args is None:
+            arg_list: List[str] = []
+        elif isinstance(args, str):
+            arg_list = [args] if args else []
+        elif isinstance(args, (list, tuple)):
+            arg_list = [str(a) for a in args]
+        else:
+            arg_list = [str(args)]
+
+        try:
+            proc = subprocess.Popen([target] + arg_list)
+            return {"success": True, "app": target, "pid": proc.pid, "error": None}
+        except (FileNotFoundError, OSError) as popen_err:
+            # Fall back to os.startfile for documents / shell-resolved names when
+            # there are no extra args (startfile cannot pass argv).
+            if not arg_list:
+                try:
+                    os.startfile(target)  # type: ignore[attr-defined]  # Windows-only
+                    return {"success": True, "app": target, "pid": None, "error": None}
+                except Exception as start_err:
+                    return {
+                        "success": False,
+                        "app": target,
+                        "pid": None,
+                        "error": f"{popen_err} / startfile: {start_err}",
+                    }
+            return {"success": False, "app": target, "pid": None, "error": str(popen_err)}
+    except Exception as e:
+        logger.error(f"_app_launch failed: {e}")
+        return {"success": False, "app": app_name, "pid": None, "error": str(e)}
+
+
+def _app_focus(title_substring: str) -> dict:
+    """Focus an existing visible window whose title contains ``title_substring``."""
+    try:
+        from agents.handoff.window_focus import find_window_by_title, focus_window
+
+        if not title_substring or not str(title_substring).strip():
+            return {"success": False, "error": "title_substring is empty", "title": None, "hwnd": None}
+
+        hwnd = find_window_by_title(str(title_substring), exact=False)
+        if not hwnd:
+            return {
+                "success": False,
+                "error": f"No visible window matching '{title_substring}'",
+                "title": None,
+                "hwnd": None,
+            }
+
+        focused = _run_sync(focus_window(hwnd))
+        return {
+            "success": bool(focused),
+            "hwnd": hwnd,
+            "title": title_substring,
+            "error": None if focused else "SetForegroundWindow returned false",
+        }
+    except Exception as e:
+        logger.error(f"_app_focus failed: {e}")
+        return {"success": False, "error": str(e), "title": None, "hwnd": None}
+
+
+def _app_list_running() -> dict:
+    """List visible top-level windows (title + hwnd, plus pid when resolvable)."""
+    try:
+        import ctypes
+
+        from agents.handoff.window_focus import list_visible_windows
+
+        windows = list_visible_windows()
+        user32 = ctypes.windll.user32
+        for w in windows:
+            try:
+                pid = ctypes.c_ulong()
+                user32.GetWindowThreadProcessId(int(w["hwnd"]), ctypes.byref(pid))
+                w["pid"] = pid.value or None
+            except Exception:
+                w["pid"] = None
+        return {"success": True, "windows": windows}
+    except Exception as e:
+        logger.error(f"_app_list_running failed: {e}")
+        return {"success": False, "windows": [], "error": str(e)}
+
+
+def _app_launch_or_focus(app_name: str, title_hint=None, args=None) -> dict:
+    """Focus a matching window if one exists, otherwise launch the app.
+
+    Matching is tried first against ``title_hint`` then against ``app_name``.
+    """
+    try:
+        from agents.handoff.window_focus import find_window_by_title
+
+        for candidate in (title_hint, app_name):
+            if candidate and str(candidate).strip():
+                hwnd = find_window_by_title(str(candidate), exact=False)
+                if hwnd:
+                    result = _app_focus(str(candidate))
+                    result["action"] = "focused"
+                    return result
+
+        result = _app_launch(app_name, args=args)
+        result["action"] = "launched"
+        return result
+    except Exception as e:
+        logger.error(f"_app_launch_or_focus failed: {e}")
+        return {"success": False, "app": app_name, "pid": None, "error": str(e)}
+
+
+def _iter_skill_files():
+    """Yield (app, skill_name, path) for every SKILL.md under _SKILL_LIB_ROOT."""
+    root = _SKILL_LIB_ROOT
+    if not os.path.isdir(root):
+        return
+    for dirpath, _dirnames, filenames in os.walk(root):
+        for fn in filenames:
+            if fn.lower() == "skill.md":
+                path = os.path.join(dirpath, fn)
+                rel = os.path.relpath(dirpath, root)
+                parts = rel.split(os.sep) if rel != "." else []
+                app = parts[0] if parts else ""
+                skill_name = parts[-1] if parts else os.path.basename(dirpath)
+                yield app, skill_name, path
+
+
+def _read_skill_meta(path: str) -> dict:
+    """Pull a one-line description (frontmatter or first prose line) + raw body."""
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except Exception:
+        return {"description": "", "body": ""}
+
+    description = ""
+    body = text
+    # Minimal YAML-frontmatter parse (no external dep): grab `description:` / `name:`.
+    if text.startswith("---"):
+        end = text.find("\n---", 3)
+        if end != -1:
+            fm = text[3:end]
+            body = text[end + 4 :]
+            for line in fm.splitlines():
+                ls = line.strip()
+                if ls.lower().startswith("description:"):
+                    description = ls.split(":", 1)[1].strip().strip("\"'")
+                    break
+    if not description:
+        for line in body.splitlines():
+            ls = line.strip().lstrip("#").strip()
+            if ls:
+                description = ls[:200]
+                break
+    return {"description": description, "body": body}
+
+
+def _skill_search(query: str, agent=None, limit: int = 5) -> dict:
+    """Search the adaptive-skill library for SKILL.md files matching ``query``.
+
+    Dependency-light ranking: case-insensitive substring hits (weighted by field)
+    plus token-overlap. No vector DB. ``agent`` optionally scopes to a subdir.
+    """
+    try:
+        q = (query or "").strip().lower()
+        if not q:
+            return {"success": True, "results": []}
+        q_tokens = set(t for t in q.replace("/", " ").replace("-", " ").split() if t)
+
+        results = []
+        for app, skill_name, path in _iter_skill_files():
+            if agent and str(agent).strip().lower() not in (app.lower(), skill_name.lower()):
+                continue
+            meta = _read_skill_meta(path)
+            name_l = skill_name.lower()
+            desc_l = meta["description"].lower()
+            body_l = meta["body"].lower()
+
+            score = 0.0
+            if q in name_l:
+                score += 10.0
+            if q in desc_l:
+                score += 5.0
+            if q in body_l:
+                score += 2.0
+            # Token overlap across name + description + body.
+            field_tokens = set(
+                t for t in (name_l + " " + desc_l + " " + body_l)
+                .replace("/", " ").replace("-", " ").split()
+                if t
+            )
+            score += 1.0 * len(q_tokens & field_tokens)
+
+            if score > 0:
+                results.append(
+                    {
+                        "app": app,
+                        "skill_name": skill_name,
+                        "path": path,
+                        "score": round(score, 3),
+                        "description": meta["description"],
+                    }
+                )
+
+        results.sort(key=lambda r: r["score"], reverse=True)
+        try:
+            lim = int(limit)
+        except (TypeError, ValueError):
+            lim = 5
+        return {"success": True, "results": results[: max(0, lim)]}
+    except Exception as e:
+        logger.error(f"_skill_search failed: {e}")
+        return {"success": False, "results": [], "error": str(e)}
+
+
+def _skill_list(app=None) -> dict:
+    """List all SKILL.md skills, optionally filtered to a subdir/app."""
+    try:
+        skills = []
+        flt = str(app).strip().lower() if app and str(app).strip() else None
+        for skill_app, skill_name, path in _iter_skill_files():
+            if flt and flt not in (skill_app.lower(), skill_name.lower()):
+                continue
+            meta = _read_skill_meta(path)
+            skills.append(
+                {
+                    "app": skill_app,
+                    "skill_name": skill_name,
+                    "path": path,
+                    "description": meta["description"],
+                }
+            )
+        skills.sort(key=lambda s: (s["app"], s["skill_name"]))
+        return {"success": True, "skills": skills}
+    except Exception as e:
+        logger.error(f"_skill_list failed: {e}")
+        return {"success": False, "skills": [], "error": str(e)}
+
+
+def _skill_save_and_index(app: str, skill_name: str, frontmatter: dict, body: str) -> dict:
+    """Write skills/<app>/<skill_name>/SKILL.md with YAML frontmatter + body."""
+    try:
+        if not app or not str(app).strip():
+            return {"success": False, "error": "app is empty", "path": None}
+        if not skill_name or not str(skill_name).strip():
+            return {"success": False, "error": "skill_name is empty", "path": None}
+
+        skill_dir = os.path.join(_SKILL_LIB_ROOT, str(app).strip(), str(skill_name).strip())
+        os.makedirs(skill_dir, exist_ok=True)
+        path = os.path.join(skill_dir, "SKILL.md")
+
+        def _yaml_scalar(v) -> str:
+            if isinstance(v, bool):
+                return "true" if v else "false"
+            if isinstance(v, (int, float)):
+                return str(v)
+            if isinstance(v, (list, tuple)):
+                return "[" + ", ".join(_yaml_scalar(x) for x in v) + "]"
+            s = str(v)
+            if s == "" or any(c in s for c in ':#\n"\'') or s.strip() != s:
+                return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+            return s
+
+        lines = ["---"]
+        for k, v in (frontmatter or {}).items():
+            lines.append(f"{k}: {_yaml_scalar(v)}")
+        lines.append("---")
+        lines.append("")
+        content = "\n".join(lines) + (body or "")
+
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        return {"success": True, "path": path}
+    except Exception as e:
+        logger.error(f"_skill_save_and_index failed: {e}")
+        return {"success": False, "error": str(e), "path": None}
+
+
+# ─── Tool() schemas for the 7 app/skill handlers above ───
+TOOLS += [
+    Tool(
+        name="app_launch",
+        description="Launch an app/executable by friendly name (notepad, calc, explorer, cmd, ...) or full path/command.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "app_name": {
+                    "type": "string",
+                    "description": "App alias (notepad, calc, explorer, cmd) or a full executable path/command",
+                },
+                "args": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional command-line arguments to pass to the executable",
+                },
+            },
+            "required": ["app_name"],
+        },
+    ),
+    Tool(
+        name="app_focus",
+        description="Focus an existing visible window whose title contains the given substring.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "title_substring": {
+                    "type": "string",
+                    "description": "Substring to match against window titles (case-insensitive)",
+                },
+            },
+            "required": ["title_substring"],
+        },
+    ),
+    Tool(
+        name="app_list_running",
+        description="List visible top-level windows (title, hwnd, and pid when resolvable).",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
+    Tool(
+        name="app_launch_or_focus",
+        description="Focus a matching window if one already exists (by title_hint or app_name), otherwise launch the app.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "app_name": {
+                    "type": "string",
+                    "description": "App alias or full path/command to launch if no window matches",
+                },
+                "title_hint": {
+                    "type": "string",
+                    "description": "Optional window-title substring to look for before launching",
+                },
+                "args": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional command-line arguments used only when launching",
+                },
+            },
+            "required": ["app_name"],
+        },
+    ),
+    Tool(
+        name="skill_search",
+        description="Search the adaptive-skill library (SKILL.md tree) for skills matching a query. Ranks by name/description/body relevance; returns top results.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query matched against skill name, description, and body",
+                },
+                "agent": {
+                    "type": "string",
+                    "description": "Optional app/agent subdir to scope the search to",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 5,
+                    "description": "Maximum number of results to return",
+                },
+            },
+            "required": ["query"],
+        },
+    ),
+    Tool(
+        name="skill_list",
+        description="List available skills (all SKILL.md under the skill library), optionally filtered to a subdir/app.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "app": {
+                    "type": "string",
+                    "description": "Optional app/subdir name to filter the listing",
+                },
+            },
+        },
+    ),
+    Tool(
+        name="skill_save_and_index",
+        description="Write a new skills/<app>/<skill_name>/SKILL.md with YAML frontmatter (from a dict) plus a markdown body, creating directories as needed.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "app": {
+                    "type": "string",
+                    "description": "App/subdir the skill belongs to",
+                },
+                "skill_name": {
+                    "type": "string",
+                    "description": "Name of the skill (used as the leaf directory)",
+                },
+                "frontmatter": {
+                    "type": "object",
+                    "description": "Key/value pairs emitted as YAML frontmatter",
+                },
+                "body": {
+                    "type": "string",
+                    "description": "Markdown body written after the frontmatter",
+                },
+            },
+            "required": ["app", "skill_name", "frontmatter", "body"],
+        },
+    ),
+]
 
 
 if __name__ == "__main__":
