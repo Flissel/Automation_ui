@@ -4245,5 +4245,1434 @@ TOOLS += [
 ]
 
 
+# ─── Phase: data / knowledge-interpretation (4-way-split data server) ───
+#
+# Two distinct knowledge backends:
+#   * ROWBOAT  — the local Rowboat server (HTTP, semantic KB + chat agent).
+#   * ROARBOOT — a plain markdown vault on disk (no server; we read .md files).
+#
+# Plus a generic file-quality LLM evaluator. All functions here are SYNC
+# (the data entrypoint dispatches them synchronously) and use `requests`.
+# Every function is defensive: it returns a clean error dict instead of
+# raising, because the data server treats a raised exception as a hard fault.
+
+import glob as _glob
+
+_ROWBOAT_URL = os.environ.get("ROWBOAT_URL", "http://localhost:3100").rstrip("/")
+_ROWBOAT_PROJECT_ID = os.environ.get(
+    "ROWBOAT_PROJECT_ID", "c157ade4-ebce-4d1b-a7a5-5fd70d238f8d"
+)
+_ROWBOAT_API_KEY = os.environ.get("ROWBOAT_API_KEY", "vibemind-local-key")
+_ROARBOOT_ROOT = os.environ.get("ROARBOOT_ROOT", r"C:\Users\User\.rowboat\knowledge")
+
+
+def _rowboat_headers() -> Dict[str, str]:
+    return {"Authorization": f"Bearer {_ROWBOAT_API_KEY}"}
+
+
+# ─── ROWBOAT (HTTP client to the local Rowboat server) ───
+
+
+def _rowboat_chat(
+    message: str,
+    context: str = "default",
+    conversation_id=None,
+    timeout: int = 120,
+) -> dict:
+    """Chat with the Rowboat agent. VERIFIED contract:
+
+    POST {ROWBOAT_URL}/api/v1/{projectId}/chat
+      header Authorization: Bearer {key}
+      body   {"messages":[{"role":"user","content": ...}]}
+      resp   {"conversationId":..., "turn":{"output":[{role,content}...]}}
+
+    The answer is the last assistant message in turn.output.
+    """
+    try:
+        import requests
+    except Exception as e:  # pragma: no cover - requests is in the venv
+        return {"success": False, "error": f"requests unavailable: {e}"}
+
+    url = f"{_ROWBOAT_URL}/api/v1/{_ROWBOAT_PROJECT_ID}/chat"
+    body: Dict[str, Any] = {"messages": [{"role": "user", "content": message}]}
+    if conversation_id:
+        body["conversationId"] = conversation_id
+    if context and context != "default":
+        body["context"] = context
+    try:
+        resp = requests.post(
+            url, json=body, headers=_rowboat_headers(), timeout=timeout
+        )
+    except Exception as e:
+        return {"success": False, "error": f"rowboat request failed: {e}"}
+
+    if not (200 <= resp.status_code < 300):
+        return {
+            "success": False,
+            "error": f"rowboat chat HTTP {resp.status_code}",
+            "status": resp.status_code,
+            "body": resp.text[:500],
+        }
+    try:
+        data = resp.json()
+    except Exception as e:
+        return {"success": False, "error": f"rowboat returned non-JSON: {e}"}
+
+    answer = ""
+    try:
+        output = (data.get("turn") or {}).get("output") or []
+        for msg in reversed(output):
+            if isinstance(msg, dict) and msg.get("role") == "assistant":
+                content = msg.get("content")
+                answer = content if isinstance(content, str) else str(content)
+                break
+        if not answer and output:
+            last = output[-1]
+            if isinstance(last, dict):
+                answer = str(last.get("content", ""))
+    except Exception as e:
+        return {"success": False, "error": f"rowboat parse error: {e}", "raw": data}
+
+    return {
+        "success": True,
+        "answer": answer,
+        "conversation_id": data.get("conversationId"),
+        "raw": data,
+    }
+
+
+def _rowboat_upload(file_path: str, title=None, tags=None) -> dict:
+    """Upload a knowledge document to Rowboat.
+
+    The upload endpoint of the current Rowboat version is NOT verified, so this
+    is best-effort: POST multipart to {ROWBOAT_URL}/api/v1/{projectId}/sources.
+    On any non-2xx (or error) we return a clean dict with a hint — never raise.
+    """
+    try:
+        import requests
+    except Exception as e:  # pragma: no cover
+        return {"success": False, "error": f"requests unavailable: {e}"}
+
+    if not os.path.isfile(file_path):
+        return {"success": False, "error": f"file not found: {file_path}"}
+
+    url = f"{_ROWBOAT_URL}/api/v1/{_ROWBOAT_PROJECT_ID}/sources"
+    data: Dict[str, Any] = {}
+    if title:
+        data["title"] = title
+    if tags:
+        data["tags"] = (
+            ",".join(tags) if isinstance(tags, (list, tuple)) else str(tags)
+        )
+    try:
+        with open(file_path, "rb") as fh:
+            files = {"file": (os.path.basename(file_path), fh)}
+            resp = requests.post(
+                url,
+                files=files,
+                data=data,
+                headers=_rowboat_headers(),
+                timeout=120,
+            )
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"rowboat upload failed: {e}",
+            "hint": "upload endpoint may differ in this Rowboat version",
+        }
+
+    if not (200 <= resp.status_code < 300):
+        return {
+            "success": False,
+            "error": f"rowboat upload HTTP {resp.status_code}",
+            "status": resp.status_code,
+            "hint": "upload endpoint may differ in this Rowboat version",
+            "body": resp.text[:500],
+        }
+    try:
+        payload = resp.json()
+    except Exception:
+        payload = {"text": resp.text[:500]}
+    return {"success": True, "result": payload, "status": resp.status_code}
+
+
+def _rowboat_search(query: str, folder=None, limit: int = 20) -> dict:
+    """Semantic search over the Rowboat knowledge base.
+
+    The search endpoint is NOT verified for this Rowboat version; best-effort
+    POST {ROWBOAT_URL}/api/v1/{projectId}/search. Clean error on failure.
+    """
+    try:
+        import requests
+    except Exception as e:  # pragma: no cover
+        return {"success": False, "error": f"requests unavailable: {e}"}
+
+    url = f"{_ROWBOAT_URL}/api/v1/{_ROWBOAT_PROJECT_ID}/search"
+    body: Dict[str, Any] = {"query": query, "limit": limit}
+    if folder:
+        body["folder"] = folder
+    try:
+        resp = requests.post(
+            url, json=body, headers=_rowboat_headers(), timeout=60
+        )
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"rowboat search failed: {e}",
+            "hint": "search endpoint may differ in this Rowboat version",
+        }
+
+    if not (200 <= resp.status_code < 300):
+        return {
+            "success": False,
+            "error": f"rowboat search HTTP {resp.status_code}",
+            "status": resp.status_code,
+            "hint": "search endpoint may differ in this Rowboat version",
+            "body": resp.text[:500],
+        }
+    try:
+        return {"success": True, "results": resp.json()}
+    except Exception:
+        return {"success": True, "results": resp.text[:2000]}
+
+
+def _rowboat_list_folders(limit: int = 50) -> dict:
+    """List Rowboat knowledge folders/sources.
+
+    Best-effort GET {ROWBOAT_URL}/api/v1/{projectId}/sources. Clean error on
+    failure (endpoint not verified for this Rowboat version).
+    """
+    try:
+        import requests
+    except Exception as e:  # pragma: no cover
+        return {"success": False, "error": f"requests unavailable: {e}"}
+
+    url = f"{_ROWBOAT_URL}/api/v1/{_ROWBOAT_PROJECT_ID}/sources"
+    try:
+        resp = requests.get(
+            url,
+            params={"limit": limit},
+            headers=_rowboat_headers(),
+            timeout=30,
+        )
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"rowboat list_folders failed: {e}",
+            "hint": "sources endpoint may differ in this Rowboat version",
+        }
+
+    if not (200 <= resp.status_code < 300):
+        return {
+            "success": False,
+            "error": f"rowboat list_folders HTTP {resp.status_code}",
+            "status": resp.status_code,
+            "hint": "sources endpoint may differ in this Rowboat version",
+            "body": resp.text[:500],
+        }
+    try:
+        return {"success": True, "sources": resp.json()}
+    except Exception:
+        return {"success": True, "sources": resp.text[:2000]}
+
+
+# ─── ROARBOOT (local markdown vault — filesystem, NOT Rowboat) ───
+
+
+def _roarboot_resolve_root(root=None) -> str:
+    return os.path.abspath(root or _ROARBOOT_ROOT)
+
+
+def _roarboot_iter_md(base: str):
+    """Yield .md file paths recursively under base."""
+    if not os.path.isdir(base):
+        return
+    for path in _glob.glob(os.path.join(base, "**", "*.md"), recursive=True):
+        if os.path.isfile(path):
+            yield path
+
+
+def _roarboot_list_folders(root=None) -> dict:
+    """List immediate subfolders under the knowledge root."""
+    base = _roarboot_resolve_root(root)
+    if not os.path.isdir(base):
+        return {"success": False, "error": f"root not found: {base}", "root": base}
+    try:
+        folders = sorted(
+            name
+            for name in os.listdir(base)
+            if os.path.isdir(os.path.join(base, name))
+        )
+    except Exception as e:
+        return {"success": False, "error": str(e), "root": base}
+    return {"success": True, "folders": folders, "root": base}
+
+
+def _roarboot_read_knowledge(
+    folder: str,
+    query=None,
+    limit: int = 20,
+    name_pattern=None,
+    root=None,
+) -> dict:
+    """Read .md files in <root>/<folder> recursively.
+
+    Optionally filter by name_pattern (glob or substring against the filename)
+    and/or by query (case-insensitive substring against file content).
+    Caps the result at `limit` files.
+    """
+    base = _roarboot_resolve_root(root)
+    target = os.path.join(base, folder) if folder else base
+    if not os.path.isdir(target):
+        return {
+            "success": False,
+            "error": f"folder not found: {target}",
+            "files": [],
+            "count": 0,
+        }
+
+    import fnmatch
+
+    q = (query or "").lower().strip()
+    pat = name_pattern or ""
+    has_glob = any(c in pat for c in "*?[") if pat else False
+
+    files: List[Dict[str, str]] = []
+    for path in _roarboot_iter_md(target):
+        name = os.path.basename(path)
+        if pat:
+            if has_glob:
+                if not fnmatch.fnmatch(name.lower(), pat.lower()):
+                    continue
+            elif pat.lower() not in name.lower():
+                continue
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except Exception:
+            continue
+        if q and q not in text.lower():
+            continue
+        excerpt = text[:500].strip()
+        files.append({"path": path, "name": name, "excerpt": excerpt})
+        if len(files) >= max(1, int(limit)):
+            break
+
+    return {"success": True, "files": files, "count": len(files)}
+
+
+# ─── Minimal LLM client (OpenAI chat completions via requests) ───
+#
+# This file has no general-purpose text-chat LLM client — `vision_agent` is
+# image-only and `_get_st_model` is an embedder. So we implement a small,
+# dependency-light OpenAI chat client here (requests POST). If no
+# OPENAI_API_KEY is set we degrade gracefully (callers report which files
+# they would have used).
+
+
+def _llm_chat_complete(
+    messages: List[Dict[str, str]], model: str = "gpt-4o-mini", timeout: int = 90
+) -> dict:
+    """Call OpenAI chat/completions. Returns {"success":bool,"content":str|None,...}."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return {"success": False, "error": "no OPENAI_API_KEY"}
+    try:
+        import requests
+    except Exception as e:  # pragma: no cover
+        return {"success": False, "error": f"requests unavailable: {e}"}
+    try:
+        resp = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={"model": model, "messages": messages, "temperature": 0.2},
+            timeout=timeout,
+        )
+    except Exception as e:
+        return {"success": False, "error": f"llm request failed: {e}"}
+    if not (200 <= resp.status_code < 300):
+        return {
+            "success": False,
+            "error": f"llm HTTP {resp.status_code}",
+            "body": resp.text[:500],
+        }
+    try:
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"]
+    except Exception as e:
+        return {"success": False, "error": f"llm parse error: {e}"}
+    return {"success": True, "content": content}
+
+
+def _tokenize(text: str) -> set:
+    import re
+
+    return {t for t in re.findall(r"[a-z0-9]{3,}", (text or "").lower())}
+
+
+def _roarboot_ask(
+    question: str,
+    folder=None,
+    max_files: int = 10,
+    max_chars_per_file: int = 4000,
+    model: str = "gpt-4o-mini",
+    root=None,
+) -> dict:
+    """RAG over the markdown vault: rank .md files by overlap with the question,
+    build a context prompt, and ask the LLM. Graceful no-key fallback."""
+    base = _roarboot_resolve_root(root)
+    target = os.path.join(base, folder) if folder else base
+    if not os.path.isdir(target):
+        return {"success": False, "error": f"folder not found: {target}"}
+
+    q_tokens = _tokenize(question)
+    scored: List[tuple] = []
+    for path in _roarboot_iter_md(target):
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except Exception:
+            continue
+        overlap = len(q_tokens & _tokenize(text)) if q_tokens else 0
+        scored.append((overlap, path, text))
+
+    if not scored:
+        return {"success": False, "error": f"no .md files under {target}"}
+
+    # Rank by token overlap (desc); ties keep filesystem order.
+    scored.sort(key=lambda r: r[0], reverse=True)
+    chosen = scored[: max(1, int(max_files))]
+    sources = [p for _, p, _ in chosen]
+
+    context_blocks = []
+    for _, path, text in chosen:
+        snippet = text[: max(200, int(max_chars_per_file))]
+        context_blocks.append(f"### FILE: {path}\n{snippet}")
+    context = "\n\n".join(context_blocks)
+
+    prompt = (
+        "Answer the question using ONLY the provided knowledge files. "
+        "Cite file names where relevant. If the answer is not present, say so.\n\n"
+        f"QUESTION:\n{question}\n\nKNOWLEDGE:\n{context}"
+    )
+    llm = _llm_chat_complete(
+        [
+            {"role": "system", "content": "You are a precise knowledge assistant."},
+            {"role": "user", "content": prompt},
+        ],
+        model=model,
+    )
+    if not llm.get("success"):
+        if llm.get("error") == "no OPENAI_API_KEY":
+            return {
+                "success": False,
+                "error": "no OPENAI_API_KEY",
+                "context_files": sources,
+            }
+        return {"success": False, "error": llm.get("error"), "context_files": sources}
+
+    return {"success": True, "answer": llm.get("content"), "sources": sources}
+
+
+def _file_evaluate(
+    file_path: str,
+    expected_intent: str,
+    source_data_description=None,
+    criteria=None,
+    model: str = "gpt-4o-mini",
+) -> dict:
+    """LLM quality check of a produced file against an expected intent.
+
+    Reads the file as text; for .xlsx/.docx extracts text via openpyxl/
+    python-docx when available, else notes it's binary. Returns a verdict
+    (pass|fail|partial), a 0..1 score, and reasons. Graceful no-key fallback.
+    """
+    if not os.path.isfile(file_path):
+        return {"success": False, "error": f"file not found: {file_path}"}
+
+    ext = os.path.splitext(file_path)[1].lower()
+    content = ""
+    try:
+        if ext == ".xlsx":
+            try:
+                import openpyxl  # type: ignore
+
+                wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+                rows_out = []
+                for ws in wb.worksheets:
+                    rows_out.append(f"# Sheet: {ws.title}")
+                    for i, row in enumerate(ws.iter_rows(values_only=True)):
+                        if i >= 200:
+                            rows_out.append("... (truncated)")
+                            break
+                        rows_out.append(
+                            "\t".join("" if c is None else str(c) for c in row)
+                        )
+                content = "\n".join(rows_out)
+                wb.close()
+            except Exception as e:
+                content = f"[could not extract .xlsx text: {e}]"
+        elif ext == ".docx":
+            try:
+                import docx  # type: ignore
+
+                doc = docx.Document(file_path)
+                content = "\n".join(p.text for p in doc.paragraphs)
+            except Exception as e:
+                content = f"[could not extract .docx text: {e}]"
+        else:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
+                content = fh.read()
+    except Exception as e:
+        return {"success": False, "error": f"could not read file: {e}"}
+
+    content_for_llm = content[:12000]
+    crit_text = ""
+    if criteria:
+        crit_text = "\nCRITERIA:\n" + (
+            "\n".join(f"- {c}" for c in criteria)
+            if isinstance(criteria, (list, tuple))
+            else str(criteria)
+        )
+    src_text = (
+        f"\nSOURCE DATA DESCRIPTION:\n{source_data_description}"
+        if source_data_description
+        else ""
+    )
+
+    prompt = (
+        "You are a strict QA reviewer. Judge whether the FILE CONTENT satisfies "
+        "the EXPECTED INTENT (and any criteria). Respond ONLY with a JSON object: "
+        '{"verdict":"pass|fail|partial","score":0.0-1.0,"reasons":"..."}\n\n'
+        f"EXPECTED INTENT:\n{expected_intent}{crit_text}{src_text}\n\n"
+        f"FILE: {file_path}\nFILE CONTENT:\n{content_for_llm}"
+    )
+    llm = _llm_chat_complete(
+        [
+            {"role": "system", "content": "You output only valid JSON."},
+            {"role": "user", "content": prompt},
+        ],
+        model=model,
+    )
+    if not llm.get("success"):
+        if llm.get("error") == "no OPENAI_API_KEY":
+            return {"success": False, "error": "no OPENAI_API_KEY", "file": file_path}
+        return {"success": False, "error": llm.get("error"), "file": file_path}
+
+    raw = (llm.get("content") or "").strip()
+    verdict, score, reasons = "partial", 0.5, raw
+    try:
+        text = raw
+        if text.startswith("```"):
+            text = text.strip("`")
+            if text.lower().startswith("json"):
+                text = text[4:]
+        start, end = text.find("{"), text.rfind("}")
+        if start != -1 and end != -1:
+            parsed = json.loads(text[start : end + 1])
+            verdict = str(parsed.get("verdict", verdict)).lower()
+            score = float(parsed.get("score", score))
+            reasons = parsed.get("reasons", reasons)
+    except Exception:
+        pass
+    if verdict not in ("pass", "fail", "partial"):
+        verdict = "partial"
+    score = max(0.0, min(1.0, score))
+
+    return {
+        "success": True,
+        "verdict": verdict,
+        "score": score,
+        "reasons": reasons,
+        "file": file_path,
+    }
+
+
+# ─── Tool() schemas for the 8 data / knowledge handlers above ───
+TOOLS += [
+    Tool(
+        name="rowboat_upload",
+        description="Upload a knowledge document (file) to the local Rowboat knowledge base. NOTE: the upload endpoint is not verified for the running Rowboat version and may differ; failures return a clean error with a hint.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Absolute path to the file to upload.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Optional document title.",
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of tags.",
+                },
+            },
+            "required": ["file_path"],
+        },
+    ),
+    Tool(
+        name="rowboat_chat",
+        description="Chat with the local Rowboat agent (semantic KB-backed). Returns the agent's answer plus the conversation id for follow-ups.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "description": "The user message / question to send.",
+                },
+                "context": {
+                    "type": "string",
+                    "default": "default",
+                    "description": "Optional context label passed to Rowboat.",
+                },
+                "conversation_id": {
+                    "type": "string",
+                    "description": "Optional existing conversation id to continue a thread.",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "default": 120,
+                    "description": "HTTP timeout in seconds.",
+                },
+            },
+            "required": ["message"],
+        },
+    ),
+    Tool(
+        name="rowboat_search",
+        description="Semantic search over the Rowboat knowledge base. NOTE: the search endpoint is not verified for the running Rowboat version; failures return a clean error with a hint.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query.",
+                },
+                "folder": {
+                    "type": "string",
+                    "description": "Optional folder/source to restrict the search to.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 20,
+                    "description": "Maximum number of results.",
+                },
+            },
+            "required": ["query"],
+        },
+    ),
+    Tool(
+        name="rowboat_list_folders",
+        description="List Rowboat knowledge folders/sources. NOTE: the sources endpoint is not verified for the running Rowboat version; failures return a clean error with a hint.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "default": 50,
+                    "description": "Maximum number of sources to return.",
+                },
+            },
+        },
+    ),
+    Tool(
+        name="roarboot_ask",
+        description="RAG question-answering over a local markdown knowledge vault (filesystem, NOT Rowboat). Ranks .md files in a folder by overlap with the question, builds a context prompt, and asks an LLM. Requires OPENAI_API_KEY for the answer step (otherwise reports the files it would have used).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "The question to answer from the vault.",
+                },
+                "folder": {
+                    "type": "string",
+                    "description": "Optional subfolder under the knowledge root to restrict to.",
+                },
+                "max_files": {
+                    "type": "integer",
+                    "default": 10,
+                    "description": "Maximum number of files to include as context.",
+                },
+                "max_chars_per_file": {
+                    "type": "integer",
+                    "default": 4000,
+                    "description": "Truncate each file's content to this many characters.",
+                },
+                "model": {
+                    "type": "string",
+                    "default": "gpt-4o-mini",
+                    "description": "LLM model name for the answer step.",
+                },
+                "root": {
+                    "type": "string",
+                    "description": "Optional override of the knowledge root directory.",
+                },
+            },
+            "required": ["question"],
+        },
+    ),
+    Tool(
+        name="roarboot_read_knowledge",
+        description="Read .md files in <root>/<folder> (recursively) from a local markdown knowledge vault. Optionally filter filenames by name_pattern (glob or substring) and/or content by query (case-insensitive substring). Returns file paths plus short excerpts.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "folder": {
+                    "type": "string",
+                    "description": "Subfolder under the knowledge root to read.",
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Optional case-insensitive substring to filter file content.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 20,
+                    "description": "Maximum number of files to return.",
+                },
+                "name_pattern": {
+                    "type": "string",
+                    "description": "Optional glob (e.g. '*plan*.md') or substring to filter filenames.",
+                },
+                "root": {
+                    "type": "string",
+                    "description": "Optional override of the knowledge root directory.",
+                },
+            },
+            "required": ["folder"],
+        },
+    ),
+    Tool(
+        name="roarboot_list_folders",
+        description="List the immediate subfolders under the local markdown knowledge vault root (filesystem, NOT Rowboat).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "root": {
+                    "type": "string",
+                    "description": "Optional override of the knowledge root directory.",
+                },
+            },
+        },
+    ),
+    Tool(
+        name="file_evaluate",
+        description="LLM quality check of a produced file: reads the file (extracts text from .xlsx/.docx when possible) and judges whether it matches an expected intent (plus optional criteria). Returns verdict (pass|fail|partial), a 0..1 score, and reasons. Requires OPENAI_API_KEY.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Absolute path to the file to evaluate.",
+                },
+                "expected_intent": {
+                    "type": "string",
+                    "description": "What the file was supposed to accomplish/contain.",
+                },
+                "source_data_description": {
+                    "type": "string",
+                    "description": "Optional description of the source data the file was built from.",
+                },
+                "criteria": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional explicit acceptance criteria.",
+                },
+                "model": {
+                    "type": "string",
+                    "default": "gpt-4o-mini",
+                    "description": "LLM model name for the evaluation.",
+                },
+            },
+            "required": ["file_path", "expected_intent"],
+        },
+    ),
+]
+
+
+# ─── Phase: deterministic document creation (4-way-split document server) ───
+#
+# Sync handlers consumed by the "document" MCP entrypoint (imports this module
+# as H and calls these by exact name/signature, filtering H.TOOLS by name).
+# All imports of openpyxl / python-docx are lazy (mirrors the file's style).
+
+
+def _xlsx_create_from_data(
+    file_path: str,
+    rows=None,
+    sheet_name=None,
+    bold_rows=None,
+    auto_width=True,
+    overwrite=True,
+    sheets=None,
+    cell_styles=None,
+    freeze_pane=None,
+) -> dict:
+    """Deterministic .xlsx creation via openpyxl.
+
+    rows = list of row-lists (first may be header). If `sheets` (dict
+    sheet_name->rows) is given, create multiple sheets; else one sheet
+    named `sheet_name or "Sheet1"` from `rows`. `bold_rows` = 0-based row
+    indices to bold. `auto_width` sizes columns to content. `freeze_pane`
+    e.g. "A2". `cell_styles` best-effort (unknown keys ignored).
+    """
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+        from openpyxl.utils import get_column_letter
+
+        abs_path = os.path.abspath(file_path)
+        if not overwrite and os.path.exists(abs_path):
+            return {"success": False, "error": "exists", "file_path": abs_path}
+
+        parent = os.path.dirname(abs_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
+        # Normalize into an ordered list of (name, rows) sheet specs.
+        sheet_specs = []
+        if sheets and isinstance(sheets, dict):
+            for s_name, s_rows in sheets.items():
+                sheet_specs.append((str(s_name), list(s_rows or [])))
+        else:
+            sheet_specs.append((str(sheet_name or "Sheet1"), list(rows or [])))
+
+        bold_set = set(int(i) for i in (bold_rows or []))
+
+        wb = Workbook()
+        # Remove the default sheet; we add our own named ones.
+        default_ws = wb.active
+        wb.remove(default_ws)
+
+        total_rows = 0
+        sheet_names = []
+        for s_name, s_rows in sheet_specs:
+            # Excel sheet names max 31 chars and cannot contain some chars.
+            safe_name = str(s_name)[:31] or "Sheet"
+            ws = wb.create_sheet(title=safe_name)
+            sheet_names.append(ws.title)
+
+            max_widths = {}
+            for r_idx, row in enumerate(s_rows):
+                cells = list(row) if isinstance(row, (list, tuple)) else [row]
+                for c_idx, value in enumerate(cells):
+                    cell = ws.cell(row=r_idx + 1, column=c_idx + 1, value=value)
+                    if r_idx in bold_set:
+                        cell.font = Font(bold=True)
+                    if auto_width:
+                        text = "" if value is None else str(value)
+                        col = c_idx + 1
+                        max_widths[col] = max(max_widths.get(col, 0), len(text))
+                total_rows += 1
+
+            if auto_width:
+                for col, width in max_widths.items():
+                    ws.column_dimensions[get_column_letter(col)].width = min(
+                        max(width + 2, 8), 80
+                    )
+
+            if freeze_pane:
+                try:
+                    ws.freeze_panes = str(freeze_pane)
+                except Exception:
+                    pass
+
+            # Best-effort cell_styles: {"A1": {"bold": True, "italic": True,
+            # "size": int}}. Only applies to the first/only sheet unless a
+            # dict-of-dicts keyed by sheet name is provided.
+            if cell_styles and isinstance(cell_styles, dict):
+                styles_for_sheet = cell_styles
+                if safe_name in cell_styles and isinstance(
+                    cell_styles[safe_name], dict
+                ):
+                    styles_for_sheet = cell_styles[safe_name]
+                for ref, spec in styles_for_sheet.items():
+                    if not isinstance(spec, dict):
+                        continue
+                    try:
+                        cell = ws[ref]
+                    except Exception:
+                        continue
+                    try:
+                        cell.font = Font(
+                            bold=bool(spec.get("bold", False)),
+                            italic=bool(spec.get("italic", False)),
+                            size=int(spec["size"]) if spec.get("size") else None,
+                        )
+                    except Exception:
+                        pass
+
+        wb.save(abs_path)
+        return {
+            "success": True,
+            "file_path": abs_path,
+            "sheets": sheet_names,
+            "rows_written": total_rows,
+        }
+    except Exception as e:
+        logger.error(f"_xlsx_create_from_data failed: {e}")
+        return {"success": False, "error": str(e), "file_path": file_path}
+
+
+def _docx_create_from_data(file_path: str, blocks=None, overwrite=True) -> dict:
+    """Create a .docx via python-docx from a list of block dicts.
+
+    block types: heading {"text","level"}, paragraph {"text"},
+    bullet {"items":[...]}, table {"rows":[[...]],"header":bool}.
+    """
+    try:
+        from docx import Document
+
+        abs_path = os.path.abspath(file_path)
+        if not overwrite and os.path.exists(abs_path):
+            return {"success": False, "error": "exists", "file_path": abs_path}
+
+        parent = os.path.dirname(abs_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
+        doc = Document()
+        block_list = list(blocks or [])
+        for block in block_list:
+            if not isinstance(block, dict):
+                continue
+            btype = str(block.get("type", "paragraph")).lower()
+            if btype == "heading":
+                level = int(block.get("level", 1) or 1)
+                doc.add_heading(str(block.get("text", "")), level=max(0, min(level, 9)))
+            elif btype == "paragraph":
+                doc.add_paragraph(str(block.get("text", "")))
+            elif btype == "bullet":
+                for item in block.get("items", []) or []:
+                    doc.add_paragraph(str(item), style="List Bullet")
+            elif btype == "table":
+                t_rows = block.get("rows", []) or []
+                if not t_rows:
+                    continue
+                ncols = max(len(r) for r in t_rows)
+                table = doc.add_table(rows=0, cols=ncols)
+                try:
+                    table.style = "Table Grid"
+                except Exception:
+                    pass
+                has_header = bool(block.get("header", False))
+                for r_idx, row in enumerate(t_rows):
+                    cells = list(row) if isinstance(row, (list, tuple)) else [row]
+                    tr = table.add_row().cells
+                    for c_idx in range(ncols):
+                        val = cells[c_idx] if c_idx < len(cells) else ""
+                        tr[c_idx].text = "" if val is None else str(val)
+                        if has_header and r_idx == 0:
+                            for para in tr[c_idx].paragraphs:
+                                for run in para.runs:
+                                    run.bold = True
+            else:
+                # Unknown block type: best-effort treat as paragraph text.
+                if "text" in block:
+                    doc.add_paragraph(str(block.get("text", "")))
+
+        doc.save(abs_path)
+        return {"success": True, "file_path": abs_path, "blocks": len(block_list)}
+    except Exception as e:
+        logger.error(f"_docx_create_from_data failed: {e}")
+        return {"success": False, "error": str(e), "file_path": file_path}
+
+
+def _csv_create_from_data(
+    file_path: str,
+    rows=None,
+    delimiter=",",
+    encoding="utf-8-sig",
+    overwrite=True,
+) -> dict:
+    """Write rows (list of lists) to CSV via the stdlib csv module."""
+    try:
+        import csv as _csv
+
+        abs_path = os.path.abspath(file_path)
+        if not overwrite and os.path.exists(abs_path):
+            return {"success": False, "error": "exists", "file_path": abs_path}
+
+        parent = os.path.dirname(abs_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
+        row_list = list(rows or [])
+        with open(abs_path, "w", newline="", encoding=encoding) as fh:
+            writer = _csv.writer(fh, delimiter=delimiter)
+            for row in row_list:
+                if isinstance(row, (list, tuple)):
+                    writer.writerow(list(row))
+                else:
+                    writer.writerow([row])
+
+        return {"success": True, "file_path": abs_path, "rows": len(row_list)}
+    except Exception as e:
+        logger.error(f"_csv_create_from_data failed: {e}")
+        return {"success": False, "error": str(e), "file_path": file_path}
+
+
+def _excel_verify_file(
+    file_path: str,
+    expected_cells=None,
+    min_rows=None,
+    must_contain_text=None,
+) -> dict:
+    """Open an .xlsx (read-only) and verify cells/row-count/text presence."""
+    checks = []
+    failures = []
+    try:
+        from openpyxl import load_workbook
+
+        abs_path = os.path.abspath(file_path)
+        if not os.path.exists(abs_path):
+            return {
+                "success": True,
+                "valid": False,
+                "checks": [],
+                "failures": [f"file not found: {abs_path}"],
+            }
+
+        wb = load_workbook(abs_path, read_only=True, data_only=True)
+        ws = wb.active
+
+        if expected_cells and isinstance(expected_cells, dict):
+            for ref, expected in expected_cells.items():
+                try:
+                    actual = ws[ref].value
+                except Exception:
+                    actual = None
+                ok = ("" if actual is None else str(actual)) == str(expected)
+                msg = f"cell {ref} == {expected!r} (got {actual!r})"
+                checks.append({"check": msg, "ok": ok})
+                if not ok:
+                    failures.append(msg)
+
+        if min_rows is not None:
+            actual_rows = ws.max_row or 0
+            ok = actual_rows >= int(min_rows)
+            msg = f"min_rows >= {min_rows} (got {actual_rows})"
+            checks.append({"check": msg, "ok": ok})
+            if not ok:
+                failures.append(msg)
+
+        if must_contain_text:
+            # Collect all stringified cell values once.
+            haystack_parts = []
+            for row in ws.iter_rows(values_only=True):
+                for val in row:
+                    if val is not None:
+                        haystack_parts.append(str(val))
+            haystack = "\n".join(haystack_parts)
+            for needle in must_contain_text:
+                ok = str(needle) in haystack
+                msg = f"contains text {needle!r}"
+                checks.append({"check": msg, "ok": ok})
+                if not ok:
+                    failures.append(msg)
+
+        try:
+            wb.close()
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "valid": len(failures) == 0,
+            "checks": checks,
+            "failures": failures,
+        }
+    except Exception as e:
+        logger.error(f"_excel_verify_file failed: {e}")
+        return {
+            "success": False,
+            "valid": False,
+            "checks": checks,
+            "failures": failures + [str(e)],
+            "error": str(e),
+        }
+
+
+def _docx_verify_file(
+    file_path: str,
+    expected_substrings=None,
+    min_paragraphs=None,
+    min_tables=None,
+    expected_table_cells=None,
+) -> dict:
+    """Open a .docx and verify substrings / paragraph & table counts / cells."""
+    checks = []
+    failures = []
+    try:
+        from docx import Document
+
+        abs_path = os.path.abspath(file_path)
+        if not os.path.exists(abs_path):
+            return {
+                "success": True,
+                "valid": False,
+                "checks": [],
+                "failures": [f"file not found: {abs_path}"],
+            }
+
+        doc = Document(abs_path)
+        paragraphs = doc.paragraphs
+        tables = doc.tables
+        full_text = "\n".join(p.text for p in paragraphs)
+        # Include table cell text in the searchable full text.
+        for table in tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    full_text += "\n" + cell.text
+
+        if expected_substrings:
+            for needle in expected_substrings:
+                ok = str(needle) in full_text
+                msg = f"contains substring {needle!r}"
+                checks.append({"check": msg, "ok": ok})
+                if not ok:
+                    failures.append(msg)
+
+        if min_paragraphs is not None:
+            ok = len(paragraphs) >= int(min_paragraphs)
+            msg = f"min_paragraphs >= {min_paragraphs} (got {len(paragraphs)})"
+            checks.append({"check": msg, "ok": ok})
+            if not ok:
+                failures.append(msg)
+
+        if min_tables is not None:
+            ok = len(tables) >= int(min_tables)
+            msg = f"min_tables >= {min_tables} (got {len(tables)})"
+            checks.append({"check": msg, "ok": ok})
+            if not ok:
+                failures.append(msg)
+
+        if expected_table_cells:
+            for spec in expected_table_cells:
+                if not isinstance(spec, dict):
+                    continue
+                t_i = int(spec.get("table", 0))
+                r_i = int(spec.get("row", 0))
+                c_i = int(spec.get("col", 0))
+                expected = str(spec.get("text", ""))
+                actual = None
+                try:
+                    actual = tables[t_i].rows[r_i].cells[c_i].text
+                except Exception:
+                    actual = None
+                ok = actual == expected
+                msg = (
+                    f"table[{t_i}][{r_i}][{c_i}] == {expected!r} "
+                    f"(got {actual!r})"
+                )
+                checks.append({"check": msg, "ok": ok})
+                if not ok:
+                    failures.append(msg)
+
+        return {
+            "success": True,
+            "valid": len(failures) == 0,
+            "checks": checks,
+            "failures": failures,
+        }
+    except Exception as e:
+        logger.error(f"_docx_verify_file failed: {e}")
+        return {
+            "success": False,
+            "valid": False,
+            "checks": checks,
+            "failures": failures + [str(e)],
+            "error": str(e),
+        }
+
+
+def _excel_paste_table(rows=None, start_cell=None) -> dict:
+    """Paste a table into the currently active Excel workbook via COM.
+
+    Reuses agents.handoff.office_automation._get_excel to obtain the running
+    Excel instance / active workbook. Never raises; returns a clean error
+    when no Excel instance / COM is available.
+    """
+    try:
+        from agents.handoff.office_automation import _get_excel
+
+        start = str(start_cell or "A1")
+        row_list = list(rows or [])
+
+        xl = _get_excel()
+        if xl is None:
+            return {"success": False, "error": "no active Excel workbook"}
+
+        try:
+            wb = xl.ActiveWorkbook
+        except Exception:
+            wb = None
+        if wb is None:
+            return {"success": False, "error": "no active Excel workbook"}
+
+        try:
+            ws = wb.ActiveSheet
+        except Exception:
+            return {"success": False, "error": "no active Excel workbook"}
+
+        # Resolve the top-left anchor cell, then write row-by-row by offset.
+        try:
+            anchor = ws.Range(start)
+        except Exception:
+            return {"success": False, "error": f"invalid start_cell: {start}"}
+
+        base_row = anchor.Row
+        base_col = anchor.Column
+        cells_written = 0
+        for r_idx, row in enumerate(row_list):
+            cells = list(row) if isinstance(row, (list, tuple)) else [row]
+            for c_idx, value in enumerate(cells):
+                try:
+                    ws.Cells(base_row + r_idx, base_col + c_idx).Value = value
+                    cells_written += 1
+                except Exception:
+                    pass
+
+        return {
+            "success": True,
+            "cells_written": cells_written,
+            "start_cell": start,
+        }
+    except Exception as e:
+        logger.error(f"_excel_paste_table failed: {e}")
+        return {"success": False, "error": "no active Excel workbook", "detail": str(e)}
+
+
+def _window_maximize(title_substring: str) -> dict:
+    """Maximize the first visible window whose title contains the substring."""
+    try:
+        import ctypes
+
+        from agents.handoff.window_focus import find_window_by_title
+
+        hwnd = find_window_by_title(title_substring)
+        if not hwnd:
+            return {"success": False, "error": "window not found"}
+
+        # SW_MAXIMIZE = 3
+        ctypes.windll.user32.ShowWindow(hwnd, 3)
+        return {"success": True, "hwnd": int(hwnd)}
+    except Exception as e:
+        logger.error(f"_window_maximize failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
+TOOLS += [
+    Tool(
+        name="xlsx_create_from_data",
+        description="Deterministically create an .xlsx file from row data via openpyxl (no LLM). Supports a single sheet from `rows` or multiple sheets via `sheets`, header bolding, auto column width, and freeze panes.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Absolute path of the .xlsx file to create.",
+                },
+                "rows": {
+                    "type": "array",
+                    "items": {"type": "array"},
+                    "description": "List of row-lists for the (single) sheet. First row may be a header.",
+                },
+                "sheet_name": {
+                    "type": "string",
+                    "description": "Name for the single sheet (default 'Sheet1'). Ignored if `sheets` is given.",
+                },
+                "bold_rows": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "0-based row indices to render bold (e.g. [0] for a header).",
+                },
+                "auto_width": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Size columns to fit their content.",
+                },
+                "overwrite": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "If False and the file exists, returns an 'exists' error.",
+                },
+                "sheets": {
+                    "type": "object",
+                    "description": "Mapping sheet_name -> rows (list of row-lists) to create multiple sheets.",
+                },
+                "cell_styles": {
+                    "type": "object",
+                    "description": "Optional best-effort per-cell styles, e.g. {'A1': {'bold': true, 'size': 14}}.",
+                },
+                "freeze_pane": {
+                    "type": "string",
+                    "description": "Optional freeze-pane anchor, e.g. 'A2'.",
+                },
+            },
+            "required": ["file_path"],
+        },
+    ),
+    Tool(
+        name="docx_create_from_data",
+        description="Deterministically create a .docx file from structured blocks via python-docx (no LLM). Block types: heading, paragraph, bullet, table.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Absolute path of the .docx file to create.",
+                },
+                "blocks": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "List of block dicts: heading {text,level}, paragraph {text}, bullet {items:[...]}, table {rows:[[...]],header:bool}.",
+                },
+                "overwrite": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "If False and the file exists, returns an 'exists' error.",
+                },
+            },
+            "required": ["file_path"],
+        },
+    ),
+    Tool(
+        name="csv_create_from_data",
+        description="Deterministically write rows (list of lists) to a CSV file via the stdlib csv module.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Absolute path of the .csv file to create.",
+                },
+                "rows": {
+                    "type": "array",
+                    "items": {"type": "array"},
+                    "description": "List of row-lists to write.",
+                },
+                "delimiter": {
+                    "type": "string",
+                    "default": ",",
+                    "description": "Field delimiter.",
+                },
+                "encoding": {
+                    "type": "string",
+                    "default": "utf-8-sig",
+                    "description": "File encoding (utf-8-sig keeps Excel happy with BOM).",
+                },
+                "overwrite": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "If False and the file exists, returns an 'exists' error.",
+                },
+            },
+            "required": ["file_path"],
+        },
+    ),
+    Tool(
+        name="excel_verify_file",
+        description="Open an existing .xlsx (read-only) and verify it: expected cell values, a minimum active-sheet row count, and/or required text. Returns valid plus per-check results and failures.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Absolute path of the .xlsx file to verify.",
+                },
+                "expected_cells": {
+                    "type": "object",
+                    "description": "Mapping cell-ref -> expected value, e.g. {'A1': 'Name'} (compared as strings).",
+                },
+                "min_rows": {
+                    "type": "integer",
+                    "description": "Active sheet must have at least this many rows.",
+                },
+                "must_contain_text": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Strings that must appear somewhere in the sheet.",
+                },
+            },
+            "required": ["file_path"],
+        },
+    ),
+    Tool(
+        name="docx_verify_file",
+        description="Open an existing .docx and verify it: required substrings, minimum paragraph/table counts, and/or specific table cell values. Returns valid plus per-check results and failures.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Absolute path of the .docx file to verify.",
+                },
+                "expected_substrings": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Substrings that must be present in the document text.",
+                },
+                "min_paragraphs": {
+                    "type": "integer",
+                    "description": "Document must have at least this many paragraphs.",
+                },
+                "min_tables": {
+                    "type": "integer",
+                    "description": "Document must have at least this many tables.",
+                },
+                "expected_table_cells": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "List of {table,row,col,text} expectations (0-based indices).",
+                },
+            },
+            "required": ["file_path"],
+        },
+    ),
+    Tool(
+        name="excel_paste_table",
+        description="Paste a table of rows into the CURRENTLY ACTIVE Excel workbook via COM (reuses office_automation). Returns a clean error if no Excel instance is running.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "rows": {
+                    "type": "array",
+                    "items": {"type": "array"},
+                    "description": "List of row-lists to write into the active sheet.",
+                },
+                "start_cell": {
+                    "type": "string",
+                    "default": "A1",
+                    "description": "Top-left anchor cell (default 'A1').",
+                },
+            },
+            "required": ["rows"],
+        },
+    ),
+    Tool(
+        name="window_maximize",
+        description="Maximize the first visible window whose title contains the given substring (reuses window_focus.find_window_by_title + SW_MAXIMIZE).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "title_substring": {
+                    "type": "string",
+                    "description": "Substring to match against window titles.",
+                },
+            },
+            "required": ["title_substring"],
+        },
+    ),
+]
+
+
 if __name__ == "__main__":
     asyncio.run(main())
